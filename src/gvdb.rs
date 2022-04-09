@@ -2,7 +2,6 @@ pub mod error;
 pub mod hash;
 pub mod header;
 pub mod pointer;
-pub mod reader;
 pub mod table;
 
 #[cfg(test)]

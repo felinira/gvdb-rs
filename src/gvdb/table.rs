@@ -4,10 +4,11 @@ use crate::gvdb::error::{GvdbError, GvdbResult};
 use crate::gvdb::hash::{GvdbHashHeader, GvdbHashItem};
 use crate::gvdb::header::GvdbHeader;
 use crate::gvdb::pointer::GvdbPointer;
-use crate::gvdb::util::{djb_hash, ReadFromBytes};
+use crate::gvdb::util::djb_hash;
 use std::io::Read;
 use std::mem::size_of;
 use std::path::Path;
+use safe_transmute::{transmute_one, transmute_one_pedantic};
 
 #[derive(Debug)]
 pub struct GvdbTable {
@@ -56,8 +57,9 @@ impl GvdbTable {
     /// gvdb_table_setup_root
     pub fn setup_root(&mut self, pointer: &GvdbPointer) -> GvdbResult<()> {
         let mut size: usize = pointer.size().try_into()?;
-        let hash_header_bytes = self.deref_pointer(pointer, 4)?;
-        let (_rest, header) = GvdbHashHeader::from_bytes_aligned(hash_header_bytes, 1)?;
+        let root_bytes = self.deref_pointer(pointer, 4)?;
+
+        let header: GvdbHashHeader = transmute_one(root_bytes)?;
         size -= size_of::<GvdbHashHeader>();
         println!("{:?}", header);
 
@@ -117,7 +119,7 @@ impl GvdbTable {
         let end = start + size;
 
         let data = self.data.get(start..end).ok_or(GvdbError::DataOffset)?;
-        GvdbHashItem::from_bytes_aligned_exact(data, 1)
+        Ok(transmute_one_pedantic(data)?)
     }
 
     /// Gets a list of keys
@@ -233,7 +235,9 @@ impl GvdbTable {
 
     /// gvdb_table_new_from_bytes
     pub fn from_bytes(bytes: &[u8], trusted: bool) -> GvdbResult<Self> {
-        let (_rest, header) = GvdbHeader::from_bytes_aligned(bytes, 1)?;
+        let header_data = bytes.get(0..size_of::<GvdbHeader>()).ok_or(GvdbError::DataOffset)?;
+        let header: GvdbHeader = transmute_one_pedantic(header_data)?;
+
         println!("{:?}", header);
         let byteswapped = header.is_byteswap()?;
 

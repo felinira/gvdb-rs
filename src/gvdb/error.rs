@@ -1,26 +1,17 @@
-use crate::gvdb::util::TryFromByteSliceError;
-use deku::prelude::*;
-use std::array::TryFromSliceError;
 use std::num::TryFromIntError;
 use std::string::FromUtf8Error;
+use safe_transmute::{Error, GuardError};
 
 #[derive(Debug)]
 pub enum GvdbError {
     UTF8(FromUtf8Error),
     IO(std::io::Error),
-    Deku(DekuError),
-    TryFromSlice(TryFromSliceError),
+    Transmute,
     DataOffset,
     DataAlignment,
     InvalidData,
     DataError(String),
     TooMuchData,
-}
-
-impl From<DekuError> for GvdbError {
-    fn from(err: DekuError) -> Self {
-        Self::Deku(err)
-    }
 }
 
 impl From<FromUtf8Error> for GvdbError {
@@ -41,15 +32,21 @@ impl From<TryFromIntError> for GvdbError {
     }
 }
 
-impl From<TryFromSliceError> for GvdbError {
-    fn from(_err: TryFromSliceError) -> Self {
-        Self::DataOffset
-    }
-}
-
-impl From<TryFromByteSliceError> for GvdbError {
-    fn from(_err: TryFromByteSliceError) -> Self {
-        Self::DataOffset
+impl<S, T> From<safe_transmute::Error<'_, S, T>> for GvdbError {
+    fn from(err: Error<S, T>) -> Self {
+        match err {
+            Error::Guard(gerr) => match gerr {
+                GuardError { required, actual, reason: _ } => {
+                    if actual > required {
+                        Self::DataError(format!("Found {} unexpected trailing bytes at the end while reading data", actual - required))
+                    } else {
+                        Self::DataError(format!("Missing {} bytes to read data", actual - required))
+                    }
+                }
+            },
+            Error::Unaligned(_) => Self::DataError("Unaligned data read".to_string()),
+            _ => Self::InvalidData,
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-use deku::DekuContainerWrite;
+use safe_transmute::{transmute_one_pedantic, transmute_one_to_bytes};
 use crate::gvdb::header::GvdbHeader;
 use crate::gvdb::pointer::GvdbPointer;
 
@@ -6,13 +6,13 @@ use crate::gvdb::pointer::GvdbPointer;
 fn header_serialize() {
     let header = GvdbHeader::new(false, 123, GvdbPointer::NULL);
     assert_eq!(header.is_byteswap().unwrap(), false);
-    let data = header.to_bytes().unwrap();
-    let (_rest, parsed_header) = GvdbHeader::from_bytes_checked(data.as_ref()).unwrap();
+    let data = transmute_one_to_bytes(&header);
+    let parsed_header: GvdbHeader = transmute_one_pedantic(data.as_ref()).unwrap();
     assert_eq!(parsed_header.is_byteswap().unwrap(), false);
 
     let header = GvdbHeader::new(true, 0, GvdbPointer::NULL);
     assert_eq!(header.is_byteswap().unwrap(), true);
-    let data = header.to_bytes().unwrap();
-    let (_rest, parsed_header) = GvdbHeader::from_bytes_checked(data.as_ref()).unwrap();
+    let data = transmute_one_to_bytes(&header);
+    let parsed_header: GvdbHeader = transmute_one_pedantic(data.as_ref()).unwrap();
     assert_eq!(parsed_header.is_byteswap().unwrap(), true);
 }

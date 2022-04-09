@@ -1,44 +1,40 @@
 use std::fmt::{Debug, Formatter};
 use crate::gvdb::pointer::GvdbPointer;
-use deku::prelude::*;
+use safe_transmute::TriviallyTransmutable;
 
 #[repr(C)]
-#[derive(DekuRead, DekuWrite)]
+#[derive(Copy, Clone)]
 pub struct GvdbHashItem {
-    #[deku(endian = "little")]
     hash_value: u32,
-    #[deku(endian = "little")]
     parent: u32,
 
-    #[deku(endian = "little")]
     key_start: u32,
-    #[deku(endian = "little")]
     key_size: u16,
 
-    #[deku(endian = "little")]
     typ: u8,
-    #[deku(endian = "little")]
     unused: u8,
 
     // no endianness here otherwise we would need context
     value: GvdbPointer,
 }
 
+unsafe impl TriviallyTransmutable for GvdbHashItem {}
+
 impl GvdbHashItem {
     pub fn hash_value(&self) -> u32 {
-        self.hash_value
+        u32::from_le(self.hash_value)
     }
 
     pub fn parent(&self) -> u32 {
-        self.parent
+        u32::from_le(self.parent)
     }
 
     pub fn key_start(&self) -> u32 {
-        self.key_start
+        u32::from_le(self.key_start)
     }
 
     pub fn key_size(&self) -> u16 {
-        self.key_size
+        u16::from_le(self.key_size)
     }
 
     pub fn typ(&self) -> char {
@@ -51,12 +47,13 @@ impl GvdbHashItem {
 }
 
 #[repr(C)]
-#[derive(PartialEq, DekuRead, DekuWrite)]
-#[deku(endian = "little")]
+#[derive(Copy, Clone, PartialEq)]
 pub struct GvdbHashHeader {
     n_bloom_words: u32,
     n_buckets: u32,
 }
+
+unsafe impl TriviallyTransmutable for GvdbHashHeader {}
 
 impl GvdbHashHeader {
     pub fn new(n_bloom_words: u32, n_buckets: u32) -> Self {
@@ -67,11 +64,11 @@ impl GvdbHashHeader {
     }
 
     pub fn n_bloom_words(&self) -> u32 {
-        self.n_bloom_words & (1 << 27) - 1
+        u32::from_le(self.n_bloom_words) & (1 << 27) - 1
     }
 
     pub fn n_buckets(&self) -> u32 {
-        self.n_buckets
+        u32::from_le(self.n_buckets)
     }
 }
 

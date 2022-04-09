@@ -1,7 +1,5 @@
-use deku::prelude::*;
-
-#[derive(Copy, Clone, PartialEq, Debug, DekuRead, DekuWrite)]
-#[deku(endian = "little")]
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct GvdbPointer {
     start: u32,
     end: u32,
@@ -18,14 +16,14 @@ impl GvdbPointer {
     }
 
     pub fn start(&self) -> u32 {
-        self.start
+        u32::from_le(self.start)
     }
 
     pub fn end(&self) -> u32 {
-        self.end
+        u32::from_le(self.end)
     }
 
     pub fn size(&self) -> u32 {
-        self.end - self.start
+        self.end() - self.start()
     }
 }
