@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use crate::gvdb::error::{GvdbError, GvdbResult};
 use crate::gvdb::pointer::GvdbPointer;
 use crate::gvdb::util::djb_hash;
@@ -7,6 +8,7 @@ use safe_transmute::{
 use std::cmp::min;
 use std::fmt::{Debug, Formatter};
 use std::mem::size_of;
+use crate::gvdb::builder::{GvdbItem, SimpleHashTable};
 
 pub enum GvdbValue<'a> {
     Variant(glib::Variant),
@@ -32,6 +34,18 @@ pub struct GvdbHashItem {
 unsafe impl TriviallyTransmutable for GvdbHashItem {}
 
 impl GvdbHashItem {
+    pub fn new(hash_value: u32, parent: u32, key_start: u32, key_size: u16, typ: u8, value: GvdbPointer) -> Self {
+        Self {
+            hash_value,
+            parent,
+            key_start,
+            key_size,
+            typ,
+            unused: 0,
+            value,
+        }
+    }
+
     pub fn hash_value(&self) -> u32 {
         u32::from_le(self.hash_value)
     }
@@ -95,18 +109,23 @@ impl Debug for GvdbHashHeader {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct GvdbHashTable<'a> {
-    data: &'a [u8],
+    data: Cow<'a, [u8]>,
     table_ptr: GvdbPointer,
     header: GvdbHashHeader,
 }
 
 impl<'a> GvdbHashTable<'a> {
+    pub fn with_simple_hash_table(table: SimpleHashTable<GvdbItem>) -> Self {
+todo!()
+    }
+
     /// Interpret a chunk of bytes as a HashTable. The table_ptr should point to the hash table.
     /// Data has to be the complete GVDB file, as hash table items are stored somewhere else.
     pub fn for_bytes(data: &'a [u8], table_ptr: GvdbPointer) -> GvdbResult<Self> {
         let header = Self::hash_header(data, &table_ptr)?;
+        let data = Cow::Borrowed(data);
 
         let this = Self {
             data,
@@ -114,14 +133,18 @@ impl<'a> GvdbHashTable<'a> {
             header,
         };
 
-        let table_data = this.table_ptr.dereference(data, 4)?;
+        let table_data = this.table_ptr.dereference(&this.data, 4)?;
+        let header_len = size_of::<GvdbHashHeader>();
+        let bloom_words_len = this.bloom_words_end() - this.bloom_words_offset();
+        let hash_buckets_len = this.hash_buckets_end() - this.hash_buckets_offset();
+        let hash_items_len = this.hash_items_end() - this.hash_items_offset();
 
-        if this.bloom_words_offset() - this.data_offset() > table_data.len()
-            || this.hash_buckets_offset() - this.data_offset() > table_data.len()
-            || this.hash_items_offset() - this.data_offset() > table_data.len()
+        let required_len = header_len + bloom_words_len + hash_buckets_len + hash_items_len;
+
+        if required_len > table_data.len()
         {
-            Err(GvdbError::DataOffset)
-        } else if (table_data.len() - (this.hash_items_offset() - this.data_offset()))
+            Err(GvdbError::DataError(format!("Not enough bytes to fit hash table: Expected at least {} bytes, got {}", required_len, table_data.len())))
+        } else if hash_items_len
             % size_of::<GvdbHashItem>()
             != 0
         {
@@ -229,7 +252,7 @@ impl<'a> GvdbHashTable<'a> {
     }
 
     fn hash_items_end(&self) -> usize {
-        self.data.len()
+        self.table_ptr.end() as usize
     }
 
     /// gvdb_table_item_get_key
@@ -365,7 +388,7 @@ impl<'a> GvdbHashTable<'a> {
 
     fn get_value_for_item(&self, item: GvdbHashItem) -> GvdbResult<glib::Variant> {
         if item.typ as char == 'v' {
-            let data: &[u8] = item.value_ptr().dereference(self.data, 8)?;
+            let data: &[u8] = item.value_ptr().dereference(&self.data, 8)?;
             Ok(glib::Variant::from_data_with_type(
                 data,
                 glib::VariantTy::VARIANT,
