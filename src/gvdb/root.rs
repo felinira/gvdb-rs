@@ -1,7 +1,6 @@
 use crate::gvdb::error::{GvdbError, GvdbResult};
 use crate::gvdb::hash::GvdbHashTable;
 use crate::gvdb::header::GvdbHeader;
-use crate::gvdb::pointer::GvdbPointer;
 use safe_transmute::transmute_one_pedantic;
 use std::fs::File;
 use std::io::Read;
@@ -17,21 +16,7 @@ pub struct GvdbRoot {
 }
 
 impl GvdbRoot {
-    /// gvdb_table_dereference
-    fn deref_pointer(&self, pointer: &GvdbPointer, alignment: u32) -> GvdbResult<&[u8]> {
-        let start: usize = pointer.start() as usize;
-        let end: usize = pointer.end() as usize;
-        let alignment: usize = alignment.try_into()?;
-
-        if start > end {
-            Err(GvdbError::DataOffset)
-        } else if start & (alignment - 1) != 0 {
-            Err(GvdbError::DataAlignment)
-        } else {
-            self.data.get(start..end).ok_or(GvdbError::DataOffset)
-        }
-    }
-
+    /// Get the GVDB file header. Will err with GvdbError::DataOffset if the header doesn't fit
     fn get_header(&self) -> GvdbResult<GvdbHeader> {
         let header_data = self
             .data
@@ -40,13 +25,15 @@ impl GvdbRoot {
         Ok(transmute_one_pedantic(header_data)?)
     }
 
+    /// Assume the root contains a hash table and return it
+    /// This will fail if the root does not contain a hash table
     pub fn get_hash_table_root(&self) -> GvdbResult<GvdbHashTable> {
         let header = self.get_header()?;
         let root_ptr = header.root().clone();
         Ok(GvdbHashTable::for_bytes(&self.data, root_ptr)?)
     }
 
-    /// gvdb_table_new_from_bytes
+    /// Interpret a chunk of bytes as a GVDB file
     pub fn from_bytes(bytes: &[u8], trusted: bool) -> GvdbResult<Self> {
         let mut this = Self {
             data: bytes.to_vec(),
@@ -61,6 +48,7 @@ impl GvdbRoot {
         Ok(this)
     }
 
+    /// Open a file and interpret the data as GVDB
     pub fn from_file(filename: &Path) -> GvdbResult<Self> {
         let mut file = File::open(filename)?;
         let mut data = Vec::with_capacity(file.metadata()?.len() as usize);

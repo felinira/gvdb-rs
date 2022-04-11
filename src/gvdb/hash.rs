@@ -98,6 +98,8 @@ pub struct GvdbHashTable<'a> {
 }
 
 impl<'a> GvdbHashTable<'a> {
+    /// Interpret a chunk of bytes as a HashTable. The table_ptr should point to the hash table.
+    /// Data has to be the complete GVDB file, as hash table items are stored somewhere else.
     pub fn for_bytes(data: &'a [u8], table_ptr: GvdbPointer) -> GvdbResult<Self> {
         let header = Self::hash_header(data, &table_ptr)?;
 
@@ -107,7 +109,7 @@ impl<'a> GvdbHashTable<'a> {
             header,
         };
 
-        let table_data = this.deref_pointer(&this.table_ptr, 4)?;
+        let table_data = this.table_ptr.dereference(data, 4)?;
 
         if this.bloom_words_offset() > table_data.len()
             || this.hash_buckets_offset() > table_data.len()
@@ -126,6 +128,7 @@ impl<'a> GvdbHashTable<'a> {
         }
     }
 
+    /// Read the hash table header
     pub fn hash_header(data: &'a [u8], pointer: &GvdbPointer) -> GvdbResult<GvdbHashHeader> {
         let start = pointer.start() as usize;
         let bytes: &[u8] = data
@@ -133,21 +136,6 @@ impl<'a> GvdbHashTable<'a> {
             .ok_or(GvdbError::DataOffset)?;
 
         Ok(transmute_one(bytes)?)
-    }
-
-    /// gvdb_table_dereference
-    fn deref_pointer(&self, pointer: &GvdbPointer, alignment: u32) -> GvdbResult<&[u8]> {
-        let start: usize = pointer.start() as usize;
-        let end: usize = pointer.end() as usize;
-        let alignment: usize = alignment.try_into()?;
-
-        if start > end {
-            Err(GvdbError::DataOffset)
-        } else if start & (alignment - 1) != 0 {
-            Err(GvdbError::DataAlignment)
-        } else {
-            self.data.get(start..end).ok_or(GvdbError::DataOffset)
-        }
     }
 
     fn get_u32(&self, offset: usize) -> Option<u32> {
@@ -357,7 +345,7 @@ impl<'a> GvdbHashTable<'a> {
     }
 
     pub fn value_from_item(&self, item: &GvdbHashItem) -> Option<glib::Variant> {
-        let data: &[u8] = self.deref_pointer(&item.value_ptr(), 8).ok()?;
+        let data: &[u8] = item.value_ptr().dereference(self.data, 8).ok()?;
         Some(glib::Variant::from_data_with_type(
             data,
             glib::VariantTy::VARIANT,
@@ -368,26 +356,4 @@ impl<'a> GvdbHashTable<'a> {
         let item = self.table_lookup(key, 'v')?;
         self.value_from_item(&item)
     }
-
-    /*
-        self.bloom_words_offset = pointer.start() as usize + size_of::<GvdbHashHeader>();
-        self.n_bloom_words = header.n_bloom_words();
-        size -= self.n_bloom_words as usize * size_of::<u32>();
-
-        self.hash_buckets_offset =
-        self.bloom_words_offset + self.n_bloom_words as usize * size_of::<u32>();
-        self.n_buckets = header.n_buckets();
-        size -= self.n_buckets as usize * size_of::<u32>();
-
-        self.hash_items_offset =
-        self.hash_buckets_offset + self.n_buckets as usize * size_of::<u32>();
-        self.n_hash_items = (size / size_of::<GvdbHashItem>()) as u32;
-        if size % size_of::<GvdbHashItem>() != 0 {
-        return Err(GvdbError::DataError(format!(
-        "Remaining size invalid: Expected a multiple of {}, got {}",
-        size_of::<GvdbHashItem>(),
-        size
-        )));
-        }
-    */
 }
