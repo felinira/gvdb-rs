@@ -31,10 +31,9 @@ impl<T> Clone for Link<T> {
     }
 }
 
-pub enum GvdbItemValue {
+pub enum GvdbBuilderValue {
     Value(glib::Variant),
-    Table(Link<GvdbBuilderHashTable>),
-    Child(Link<GvdbItem>),
+    TableBuilder(GvdbHashTableBuilder),
 }
 
 pub struct GvdbItem {
@@ -45,11 +44,11 @@ pub struct GvdbItem {
     sibling: OptLink<GvdbItem>,
     pub next: OptLink<GvdbItem>,
 
-    value: GvdbItemValue,
+    value: GvdbBuilderValue,
 }
 
 impl GvdbItem {
-    fn with_item_value(key: String, value: GvdbItemValue) -> Self {
+    fn with_item_value(key: String, value: GvdbBuilderValue) -> Self {
         let hash_value = djb_hash(&key);
 
         Self {
@@ -64,15 +63,11 @@ impl GvdbItem {
     }
 
     pub fn with_value(key: String, value: glib::Variant) -> Self {
-        Self::with_item_value(key, GvdbItemValue::Value(value))
+        Self::with_item_value(key, GvdbBuilderValue::Value(value))
     }
 
-    pub fn with_table(key: String, table: Link<GvdbBuilderHashTable>) -> Self {
-        Self::with_item_value(key, GvdbItemValue::Table(table))
-    }
-
-    pub fn with_child(key: String, child: Link<GvdbItem>) -> Self {
-        Self::with_item_value(key, GvdbItemValue::Child(child))
+    pub fn with_table(key: String, table: GvdbHashTableBuilder) -> Self {
+        Self::with_item_value(key, GvdbBuilderValue::TableBuilder(table))
     }
 
     pub fn assigned_index(&self) -> u32 {
@@ -117,7 +112,7 @@ impl GvdbChunk {
         Self::new(offset, data, 8)
     }
 
-    pub fn with_hash_table(_offset: usize, hash_table: SimpleHashTable) -> Self {
+    pub fn with_hash_table(_offset: usize, hash_table: SimpleHashTable<String>) -> Self {
         // The original C implementation doesn't fill the bloom filter so we don't either
         let _bloom_hdr: u32 = 0;
         let n_bloom_words: u32 = 0;
@@ -172,50 +167,71 @@ impl GvdbFileBuilder {
             byteswap,
         }
     }
-
-    pub fn add_variant(&mut self, variant: &glib::Variant) -> usize {
-        let chunk = GvdbChunk::with_variant(self.offset, variant, self.byteswap);
-        self.offset += chunk.padded_len();
-        self.chunks.push_back(chunk);
-        self.chunks.len() - 1
-    }
-
-    pub fn add_string(mut self, string: &str) -> usize {
-        let data = string.as_bytes();
-        let chunk = GvdbChunk::new(self.offset, data.to_vec(), 1);
-        self.offset += chunk.padded_len();
-        self.chunks.push_back(chunk);
-        self.chunks.len() - 1
-    }
-
-    fn add_hash(&mut self, table: Link<GvdbBuilderHashTable>) -> usize {
-        let mut simple_hash_table = SimpleHashTable::with_capacity(table.borrow().len());
-
-        let mut index = 0;
-        for (key, value) in table.borrow_mut().iter_mut() {
-            value.borrow_mut().assigned_index = index;
-            simple_hash_table.put(key, Some(value.clone()));
-            index += 1;
+    /*
+        pub fn add_variant(&mut self, variant: &glib::Variant) -> usize {
+            let chunk = GvdbChunk::with_variant(self.offset, variant, self.byteswap);
+            self.offset += chunk.padded_len();
+            self.chunks.push_back(chunk);
+            self.chunks.len() - 1
         }
 
-        unimplemented!()
-    }
+        pub fn add_string(mut self, string: &str) -> usize {
+            let data = string.as_bytes();
+            let chunk = GvdbChunk::new(self.offset, data.to_vec(), 1);
+            self.offset += chunk.padded_len();
+            self.chunks.push_back(chunk);
+            self.chunks.len() - 1
+        }
 
+        fn add_hash(&mut self, table: Link<GvdbHashTableBuilder>) -> usize {
+            let mut simple_hash_table = SimpleHashTable::with_n_buckets(table.borrow().len());
+
+            let mut index = 0;
+            for (key, value) in table.borrow_mut().iter_mut() {
+                value.borrow_mut().assigned_index = index;
+                simple_hash_table.put(key, Some(value.clone()));
+                index += 1;
+            }
+
+            unimplemented!()
+        }
+    */
     pub fn serialize(&self, _root_index: usize) -> GvdbResult<Vec<u8>> {
         todo!()
         //let header = GvdbHeader::new(self.byteswap, 0, root);
     }
 }
 
-struct SimpleHashTable {
-    buckets: Vec<OptLink<GvdbItem>>,
+#[derive(Clone)]
+struct SimpleHashTableItem<T: Clone> {
+    key: String,
+    value: T,
+    next: Option<Box<SimpleHashTableItem<T>>>,
+}
+
+impl<T: Clone> SimpleHashTableItem<T> {
+    pub fn new(key: String, value: T) -> Self {
+        Self {
+            key,
+            value,
+            next: None,
+        }
+    }
+
+    pub fn value_ref(&self) -> &T {
+        &self.value
+    }
+}
+
+struct SimpleHashTable<T: Clone> {
+    buckets: Vec<Option<Box<SimpleHashTableItem<T>>>>,
     n_items: usize,
 }
 
-impl SimpleHashTable {
-    pub fn with_capacity(capacity: usize) -> Self {
+impl<T: Clone> SimpleHashTable<T> {
+    pub fn with_n_buckets(n_buckets: usize) -> Self {
         Self {
-            buckets: vec![None; capacity],
+            buckets: vec![None; n_buckets],
             n_items: 0,
         }
     }
@@ -233,68 +249,95 @@ impl SimpleHashTable {
         (hash_value % self.buckets.len() as u32) as usize
     }
 
-    pub fn from_hash_map(_table: HashMap<String, Vec<u8>>) -> Self {
-        /*let this = Self::with_capacity(table.capacity());
-        for (key, value) in table {}*/
+    pub fn from_hash_map(table: HashMap<String, T>) -> Self {
+        let mut this = Self::with_n_buckets(table.capacity());
+        for (key, value) in table {
+            this.insert(&key, value);
+        }
 
-        todo!();
+        this
     }
 
-    pub fn put(&mut self, key: &str, value: OptLink<GvdbItem>) {
+    /// Insert the item for the specified key
+    pub fn insert(&mut self, key: &str, item: T) {
         let bucket = self.hash_bucket(key);
 
-        if let Some(item) = value {
-            // Add the item
-            let replaced_item = std::mem::replace(&mut self.buckets[bucket], Some(item.clone()));
-            if let Some(replaced_item) = replaced_item {
-                if self.get_from_bucket(key, bucket).is_some() {
-                    // Replace
-                    item.borrow_mut().next = replaced_item.borrow().next.clone();
-                } else {
-                    // Insert
-                    item.borrow_mut().next = Some(replaced_item);
-                    self.n_items += 1;
-                }
+        let item = SimpleHashTableItem::new(key.to_string(), item);
+        let replaced_item = std::mem::replace(&mut self.buckets[bucket], Some(Box::new(item)));
+        if let Some(replaced_item) = replaced_item {
+            if replaced_item.key == key {
+                // Replace
+                self.buckets[bucket].as_mut().unwrap().next = replaced_item.next;
+            } else {
+                // Insert
+                self.buckets[bucket].as_mut().unwrap().next = Some(replaced_item);
+                self.n_items += 1;
             }
         } else {
-            // Remove the item if it already exists
-            if let Some((previous, item)) = self.get_from_bucket(key, bucket) {
-                self.n_items -= 1;
+            // Insert to empty bucket
+            self.n_items += 1;
+        }
+    }
 
-                if let Some(previous) = previous {
-                    previous.borrow_mut().next = item.borrow().next.clone();
-                } else {
-                    self.buckets[bucket] = item.borrow().next.clone();
+    /// Remove the item with the specified key
+    pub fn remove(&mut self, key: &str) {
+        let bucket = self.hash_bucket(key);
+
+        // Remove the item if it already exists
+        if let Some((item, previous)) = self.get_from_bucket(key, bucket) {
+            if previous {
+                let previous_item = item;
+                if let Some(mut item) = previous_item.next.take() {
+                    previous_item.next = item.next.take();
                 }
+            } else {
+                self.buckets[bucket] = item.next.take();
             }
+
+            self.n_items -= 1;
+
         }
     }
 
     fn get_from_bucket(
-        &self,
+        &mut self,
         key: &str,
         bucket: usize,
-    ) -> Option<(OptLink<GvdbItem>, Link<GvdbItem>)> {
-        let mut item = self.buckets.get(bucket)?.clone();
-        let mut previous_item = None;
+    ) -> Option<(&mut Box<SimpleHashTableItem<T>>, bool)> {
+        let item = self.buckets.get_mut(bucket)?;
 
-        while let Some(current_item) = item {
-            if current_item.borrow().key == key {
-                return Some((previous_item, current_item.clone()));
-            } else if let Some(next) = current_item.borrow().next.clone() {
-                previous_item = Some(current_item.clone());
-                item = Some(next);
-            } else {
-                item = None;
+        if let Some(item) = item {
+            let mut item = item;
+
+            loop {
+                if item.next.is_some() && item.next.as_ref().unwrap().key == key {
+                    return Some((item, true));
+                } else {
+                    if item.key == key {
+                        return Some((item, false));
+                    } else if item.next.is_some() {
+                        item = item.next.as_mut().unwrap();
+                    } else {
+                        return None;
+                    }
+                }
             }
+        } else {
+            None
         }
-
-        None
     }
 
-    pub fn get(&self, key: &str) -> OptLink<GvdbItem> {
+    pub fn get(&mut self, key: &str) -> Option<&T> {
         let bucket = self.hash_bucket(key);
-        self.get_from_bucket(key, bucket).map(|t| t.1)
+        self.get_from_bucket(key, bucket)
+            .and_then(|(item, previous)| {
+                if previous {
+                    item.next.as_ref()
+                } else {
+                    Some(item)
+                }
+            })
+            .map(|x| x.value_ref())
     }
 
     pub fn item_to_index(item: OptLink<GvdbItem>) -> u32 {
@@ -305,40 +348,23 @@ impl SimpleHashTable {
     }
 }
 
-pub struct GvdbBuilderHashTable {
-    hash_map: HashMap<String, Link<GvdbItem>>,
+pub struct GvdbHashTableBuilder {
+    hash_map: HashMap<String, GvdbBuilderValue>,
 }
 
-impl GvdbBuilderHashTable {
+impl GvdbHashTableBuilder {
     pub fn new() -> Link<Self> {
         Link::new(Self {
             hash_map: Default::default(),
         })
     }
 
-    pub fn with_parent(
-        &self,
-        parent: Link<GvdbBuilderHashTable>,
-        name_in_parent: &str,
-    ) -> Link<Self> {
-        let this = Self::new();
-        let value = Link::new(GvdbItem::with_table(
-            name_in_parent.to_string(),
-            this.clone(),
-        ));
-        parent
-            .borrow_mut()
-            .insert(name_in_parent.to_string(), value);
-
-        this
-    }
-
-    fn insert(&mut self, key: String, item: Link<GvdbItem>) {
+    fn insert(&mut self, key: String, item: GvdbBuilderValue) {
         self.hash_map.insert(key, item);
     }
 
     pub fn insert_variant(&mut self, key: String, variant: glib::Variant) {
-        let item = Link::new(GvdbItem::with_value(key.clone(), variant));
+        let item = GvdbBuilderValue::Value(variant);
         self.insert(key, item);
     }
 
@@ -347,15 +373,66 @@ impl GvdbBuilderHashTable {
         self.insert_variant(key, variant)
     }
 
+    pub fn insert_bytes(&mut self, key: String, bytes: &[u8]) {
+        let bytes = glib::Bytes::from(bytes);
+        let variant = glib::Variant::from_bytes_with_type(&bytes, glib::VariantTy::BYTE_STRING);
+        self.insert_variant(key, variant);
+    }
+
+    pub fn insert_table(&mut self, key: String, value: GvdbHashTableBuilder) {
+        let item = GvdbBuilderValue::TableBuilder(value);
+        self.insert(key, item);
+    }
+
     pub fn len(&self) -> usize {
         self.hash_map.len()
     }
 
-    pub fn hash_map(&self) -> &HashMap<String, Link<GvdbItem>> {
+    pub fn hash_map(&self) -> &HashMap<String, GvdbBuilderValue> {
         &self.hash_map
     }
 
-    pub fn iter_mut(&mut self) -> std::collections::hash_map::IterMut<'_, String, Link<GvdbItem>> {
+    pub fn iter_mut(
+        &mut self,
+    ) -> std::collections::hash_map::IterMut<'_, String, GvdbBuilderValue> {
         self.hash_map.iter_mut()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::gvdb::builder::SimpleHashTable;
+
+    #[test]
+    fn simple_hash_table() {
+        let mut table: SimpleHashTable<String> = SimpleHashTable::with_n_buckets(10);
+        table.insert("test", "test".to_string());
+        assert_eq!(table.n_items, 1);
+        assert_eq!(table.get("test").unwrap(), "test");
+    }
+
+    #[test]
+    fn simple_hash_table_2() {
+        let mut table: SimpleHashTable<u32> = SimpleHashTable::with_n_buckets(10);
+        for index in 0..20 {
+            table.insert(&format!("{}", index), index);
+        }
+
+        assert_eq!(table.n_items, 20);
+
+        for index in 0..20 {
+            let item = table.get(&format!("{}", index)).unwrap();
+            assert_eq!(index, *item);
+        }
+
+        for index in 0..10 {
+            let index = index * 2;
+            table.remove(&format!("{}", index));
+        }
+
+        for index in 0..20 {
+            let item = table.get(&format!("{}", index));
+            assert_eq!(index % 2 == 1, item.is_some());
+        }
     }
 }

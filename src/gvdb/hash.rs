@@ -121,7 +121,10 @@ impl<'a> GvdbHashTable<'a> {
             || this.hash_items_offset() - this.data_offset() > table_data.len()
         {
             Err(GvdbError::DataOffset)
-        } else if (table_data.len() - (this.hash_items_offset() - this.data_offset())) % size_of::<GvdbHashItem>() != 0 {
+        } else if (table_data.len() - (this.hash_items_offset() - this.data_offset()))
+            % size_of::<GvdbHashItem>()
+            != 0
+        {
             // Wrong data length
             Err(GvdbError::DataError(format!(
                 "Remaining size invalid: Expected a multiple of {}, got {}",
@@ -144,7 +147,10 @@ impl<'a> GvdbHashTable<'a> {
     }
 
     fn get_u32(&self, offset: usize) -> GvdbResult<u32> {
-        let bytes = self.data.get(offset..offset + size_of::<u32>()).ok_or(GvdbError::DataOffset)?;
+        let bytes = self
+            .data
+            .get(offset..offset + size_of::<u32>())
+            .ok_or(GvdbError::DataOffset)?;
         Ok(u32::from_le_bytes(bytes.try_into().unwrap()))
     }
 
@@ -280,7 +286,9 @@ impl<'a> GvdbHashTable<'a> {
             if last_inserted == inserted {
                 // No insertion took place this round, there must be a parent loop
                 // We fail instead of infinitely looping
-                return Err(GvdbError::DataError("Error finding all parent items. The file appears to have a loop".to_string()));
+                return Err(GvdbError::DataError(
+                    "Error finding all parent items. The file appears to have a loop".to_string(),
+                ));
             }
         }
 
@@ -361,7 +369,9 @@ impl<'a> GvdbHashTable<'a> {
         } else {
             Err(GvdbError::DataError(format!(
                 "Unable to parse item for key '{}' as GVariant: Expected type 'v', got type {}",
-                self.get_key(&item)?, item.typ)))
+                self.get_key(&item)?,
+                item.typ
+            )))
         }
     }
 
@@ -375,7 +385,9 @@ impl<'a> GvdbHashTable<'a> {
         } else {
             Err(GvdbError::DataError(format!(
                 "Unable to parse item for key '{}' as hash table: Expected type 'H', got type {}",
-                self.get_key(&item)?, item.typ)))
+                self.get_key(&item)?,
+                item.typ
+            )))
         }
     }
 

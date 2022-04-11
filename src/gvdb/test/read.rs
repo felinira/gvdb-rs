@@ -23,7 +23,10 @@ pub fn test_file_1() {
 
     assert_eq!(value.child_value(0).get::<u32>().unwrap(), 1234);
     assert_eq!(value.child_value(1).get::<u32>().unwrap(), 98765);
-    assert_eq!(value.child_value(2).get::<String>().unwrap(), "TEST_STRING_VALUE");
+    assert_eq!(
+        value.child_value(2).get::<String>().unwrap(),
+        "TEST_STRING_VALUE"
+    );
 }
 
 #[test]
