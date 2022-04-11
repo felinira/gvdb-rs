@@ -1,6 +1,6 @@
+use crate::gvdb::table::GvdbTable;
 use std::path::PathBuf;
 use std::str::FromStr;
-use crate::gvdb::table::GvdbTable;
 
 const TEST_FILE_DIR: &str = "test/data/";
 const TEST_FILE_1: &str = "test1.gvdb";
@@ -9,7 +9,9 @@ const TEST_FILE_1: &str = "test1.gvdb";
 pub fn test_file_1() {
     let filename = TEST_FILE_DIR.to_string() + TEST_FILE_1;
     let path = PathBuf::from_str(&filename).unwrap();
-    let table = GvdbTable::from_file(&path).unwrap();
+    let file = GvdbTable::from_file(&path).unwrap();
+
+    let table = file.get_hash_table_root().unwrap();
     let names = table.get_names().unwrap();
     assert_eq!(names.len(), 1);
     assert_eq!(names[0], "root_key");

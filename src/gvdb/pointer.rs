@@ -8,6 +8,13 @@ pub struct GvdbPointer {
 impl GvdbPointer {
     pub const NULL: Self = Self { start: 0, end: 0 };
 
+    pub fn new(start: usize, end: usize) -> Self {
+        Self {
+            start: start as u32,
+            end: end as u32,
+        }
+    }
+
     pub fn swap_bytes(&self) -> Self {
         Self {
             start: self.start.swap_bytes(),

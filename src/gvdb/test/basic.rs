@@ -1,6 +1,6 @@
-use safe_transmute::{transmute_one_pedantic, transmute_one_to_bytes};
 use crate::gvdb::header::GvdbHeader;
 use crate::gvdb::pointer::GvdbPointer;
+use safe_transmute::{transmute_one_pedantic, transmute_one_to_bytes};
 
 #[test]
 fn header_serialize() {

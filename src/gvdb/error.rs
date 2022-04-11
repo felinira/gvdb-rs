@@ -1,6 +1,6 @@
+use safe_transmute::{Error, GuardError};
 use std::num::TryFromIntError;
 use std::string::FromUtf8Error;
-use safe_transmute::{Error, GuardError};
 
 #[derive(Debug)]
 pub enum GvdbError {
@@ -36,9 +36,16 @@ impl<S, T> From<safe_transmute::Error<'_, S, T>> for GvdbError {
     fn from(err: Error<S, T>) -> Self {
         match err {
             Error::Guard(gerr) => match gerr {
-                GuardError { required, actual, reason: _ } => {
+                GuardError {
+                    required,
+                    actual,
+                    reason: _,
+                } => {
                     if actual > required {
-                        Self::DataError(format!("Found {} unexpected trailing bytes at the end while reading data", actual - required))
+                        Self::DataError(format!(
+                            "Found {} unexpected trailing bytes at the end while reading data",
+                            actual - required
+                        ))
                     } else {
                         Self::DataError(format!("Missing {} bytes to read data", actual - required))
                     }
