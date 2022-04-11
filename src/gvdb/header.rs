@@ -63,4 +63,8 @@ impl GvdbHeader {
     pub fn root(&self) -> &GvdbPointer {
         &self.root
     }
+
+    pub fn set_root(&mut self, pointer: GvdbPointer) {
+        self.root = pointer;
+    }
 }

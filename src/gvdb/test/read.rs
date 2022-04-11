@@ -1,5 +1,6 @@
 use crate::gvdb::root::GvdbRoot;
 use std::path::PathBuf;
+use std::ptr::hash;
 use std::str::FromStr;
 
 const TEST_FILE_DIR: &str = "test/data/";
@@ -18,6 +19,7 @@ pub fn test_file_1() {
     assert_eq!(names[0], "root_key");
 
     let value = table.get_value("root_key").unwrap().child_value(0);
+    //let value = table.get_value("root_key").unwrap().child_value(0);
     assert!(value.is_container());
     assert_eq!(value.type_().to_string(), "(uus)");
 
