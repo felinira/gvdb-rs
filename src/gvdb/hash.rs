@@ -1,75 +1,15 @@
-use std::borrow::Cow;
+use crate::gvdb::builder::{GvdbItem, SimpleHashTable};
 use crate::gvdb::error::{GvdbError, GvdbResult};
+use crate::gvdb::hash_item::{GvdbHashItem, GvdbValue};
 use crate::gvdb::pointer::GvdbPointer;
 use crate::gvdb::util::djb_hash;
 use safe_transmute::{
     transmute_many_pedantic, transmute_one, transmute_one_pedantic, TriviallyTransmutable,
 };
+use std::borrow::Cow;
 use std::cmp::min;
 use std::fmt::{Debug, Formatter};
 use std::mem::size_of;
-use crate::gvdb::builder::{GvdbItem, SimpleHashTable};
-
-pub enum GvdbValue<'a> {
-    Variant(glib::Variant),
-    HashTable(GvdbHashTable<'a>),
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct GvdbHashItem {
-    hash_value: u32,
-    parent: u32,
-
-    key_start: u32,
-    key_size: u16,
-
-    typ: u8,
-    unused: u8,
-
-    // no endianness here otherwise we would need context
-    value: GvdbPointer,
-}
-
-unsafe impl TriviallyTransmutable for GvdbHashItem {}
-
-impl GvdbHashItem {
-    pub fn new(hash_value: u32, parent: u32, key_start: u32, key_size: u16, typ: u8, value: GvdbPointer) -> Self {
-        Self {
-            hash_value,
-            parent,
-            key_start,
-            key_size,
-            typ,
-            unused: 0,
-            value,
-        }
-    }
-
-    pub fn hash_value(&self) -> u32 {
-        u32::from_le(self.hash_value)
-    }
-
-    pub fn parent(&self) -> u32 {
-        u32::from_le(self.parent)
-    }
-
-    pub fn key_start(&self) -> u32 {
-        u32::from_le(self.key_start)
-    }
-
-    pub fn key_size(&self) -> u16 {
-        u16::from_le(self.key_size)
-    }
-
-    pub fn typ(&self) -> char {
-        self.typ as char
-    }
-
-    pub fn value_ptr(&self) -> &GvdbPointer {
-        &self.value
-    }
-}
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq)]
@@ -92,8 +32,16 @@ impl GvdbHashHeader {
         u32::from_le(self.n_bloom_words) & (1 << 27) - 1
     }
 
+    pub fn bloom_words_len(&self) -> usize {
+        self.n_bloom_words() as usize * size_of::<u32>()
+    }
+
     pub fn n_buckets(&self) -> u32 {
         u32::from_le(self.n_buckets)
+    }
+
+    pub fn buckets_len(&self) -> usize {
+        self.n_buckets() as usize * size_of::<u32>()
     }
 }
 
@@ -118,7 +66,21 @@ pub struct GvdbHashTable<'a> {
 
 impl<'a> GvdbHashTable<'a> {
     pub fn with_simple_hash_table(table: SimpleHashTable<GvdbItem>) -> Self {
-todo!()
+        let header = GvdbHashHeader::new(0, table.n_buckets() as u32);
+        let items_len = table.n_items() * size_of::<GvdbHashItem>();
+        let size = size_of::<GvdbHashHeader>()
+            + header.bloom_words_len()
+            + header.buckets_len()
+            + items_len;
+
+        let data = Cow::Owned(Vec::with_capacity(size));
+        let table_ptr = GvdbPointer::new(0, size);
+
+        Self {
+            data,
+            table_ptr,
+            header,
+        }
     }
 
     /// Interpret a chunk of bytes as a HashTable. The table_ptr should point to the hash table.
@@ -141,13 +103,13 @@ todo!()
 
         let required_len = header_len + bloom_words_len + hash_buckets_len + hash_items_len;
 
-        if required_len > table_data.len()
-        {
-            Err(GvdbError::DataError(format!("Not enough bytes to fit hash table: Expected at least {} bytes, got {}", required_len, table_data.len())))
-        } else if hash_items_len
-            % size_of::<GvdbHashItem>()
-            != 0
-        {
+        if required_len > table_data.len() {
+            Err(GvdbError::DataError(format!(
+                "Not enough bytes to fit hash table: Expected at least {} bytes, got {}",
+                required_len,
+                table_data.len()
+            )))
+        } else if hash_items_len % size_of::<GvdbHashItem>() != 0 {
             // Wrong data length
             Err(GvdbError::DataError(format!(
                 "Remaining size invalid: Expected a multiple of {}, got {}",
@@ -190,7 +152,7 @@ todo!()
     }
 
     fn bloom_words_end(&self) -> usize {
-        self.bloom_words_offset() + self.header.n_bloom_words() as usize * size_of::<u32>()
+        self.bloom_words_offset() + self.header.bloom_words_len()
     }
 
     pub fn bloom_words(&self) -> Option<&[u32]> {
@@ -234,7 +196,7 @@ todo!()
     }
 
     fn hash_buckets_end(&self) -> usize {
-        self.hash_buckets_offset() + self.header.n_buckets as usize * size_of::<u32>()
+        self.hash_buckets_offset() + self.header.buckets_len()
     }
 
     fn get_hash(&self, index: usize) -> GvdbResult<u32> {
@@ -351,7 +313,7 @@ todo!()
     }
 
     fn table_lookup(&self, key: &str) -> GvdbResult<GvdbHashItem> {
-        if self.header.n_buckets == 0 || self.n_hash_items() == 0 {
+        if self.header.n_buckets() == 0 || self.n_hash_items() == 0 {
             return Err(GvdbError::KeyError);
         }
 
@@ -360,10 +322,10 @@ todo!()
             return Err(GvdbError::KeyError);
         }
 
-        let bucket = hash_value % self.header.n_buckets;
+        let bucket = hash_value % self.header.n_buckets();
         let mut itemno = self.get_hash(bucket as usize)? as usize;
 
-        let lastno = if bucket == self.header.n_buckets - 1 {
+        let lastno = if bucket == self.header.n_buckets() - 1 {
             self.n_hash_items() as usize
         } else {
             min(
@@ -387,7 +349,7 @@ todo!()
     }
 
     fn get_value_for_item(&self, item: GvdbHashItem) -> GvdbResult<glib::Variant> {
-        if item.typ as char == 'v' {
+        if item.typ() as char == 'v' {
             let data: &[u8] = item.value_ptr().dereference(&self.data, 8)?;
             Ok(glib::Variant::from_data_with_type(
                 data,
@@ -397,7 +359,7 @@ todo!()
             Err(GvdbError::DataError(format!(
                 "Unable to parse item for key '{}' as GVariant: Expected type 'v', got type {}",
                 self.get_key(&item)?,
-                item.typ
+                item.typ()
             )))
         }
     }
@@ -407,13 +369,13 @@ todo!()
     }
 
     fn get_hash_table_for_item(&'a self, item: GvdbHashItem) -> GvdbResult<GvdbHashTable<'a>> {
-        if item.typ as char == 'H' {
+        if item.typ() as char == 'H' {
             Self::for_bytes(&self.data, item.value_ptr().clone())
         } else {
             Err(GvdbError::DataError(format!(
                 "Unable to parse item for key '{}' as hash table: Expected type 'H', got type {}",
                 self.get_key(&item)?,
-                item.typ
+                item.typ()
             )))
         }
     }
@@ -425,7 +387,7 @@ todo!()
     pub fn get(&'a self, key: &str) -> GvdbResult<GvdbValue<'a>> {
         let item = self.table_lookup(key)?;
 
-        match item.typ as char {
+        match item.typ() as char {
             'v' => Ok(GvdbValue::Variant(self.get_value_for_item(item)?)),
             'H' => Ok(GvdbValue::HashTable(self.get_hash_table_for_item(item)?)),
             _ => Err(GvdbError::InvalidData),
