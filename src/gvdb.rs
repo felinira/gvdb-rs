@@ -1,6 +1,6 @@
 pub mod builder;
 pub mod error;
-pub mod table;
+pub mod root;
 
 mod hash;
 mod header;

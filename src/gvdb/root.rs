@@ -9,24 +9,14 @@ use std::mem::size_of;
 use std::path::Path;
 
 #[derive(Debug)]
-pub struct GvdbTable {
+pub struct GvdbRoot {
     data: Vec<u8>,
 
     byteswapped: bool,
     trusted: bool,
-
-    bloom_words_offset: usize,
-    n_bloom_words: u32,
-    bloom_shift: usize,
-
-    hash_buckets_offset: usize,
-    n_buckets: u32,
-
-    hash_items_offset: usize,
-    n_hash_items: u32,
 }
 
-impl GvdbTable {
+impl GvdbRoot {
     /// gvdb_table_dereference
     fn deref_pointer(&self, pointer: &GvdbPointer, alignment: u32) -> GvdbResult<&[u8]> {
         let start: usize = pointer.start() as usize;
@@ -41,40 +31,6 @@ impl GvdbTable {
             self.data.get(start..end).ok_or(GvdbError::DataOffset)
         }
     }
-
-    /// gvdb_table_setup_root
-    /*pub fn setup_root(&mut self, pointer: &GvdbPointer) -> GvdbResult<()> {
-        let mut size: usize = pointer.size().try_into()?;
-        let root_bytes = self.deref_pointer(pointer, 4)?;
-
-        let header: GvdbHashHeader = transmute_one(root_bytes)?;
-        size -= size_of::<GvdbHashHeader>();
-        println!("{:?}", header);
-
-        self.bloom_words_offset = pointer.start() as usize + size_of::<GvdbHashHeader>();
-        self.n_bloom_words = header.n_bloom_words();
-        size -= self.n_bloom_words as usize * size_of::<u32>();
-
-        self.hash_buckets_offset =
-            self.bloom_words_offset + self.n_bloom_words as usize * size_of::<u32>();
-        self.n_buckets = header.n_buckets();
-        size -= self.n_buckets as usize * size_of::<u32>();
-
-        self.hash_items_offset =
-            self.hash_buckets_offset + self.n_buckets as usize * size_of::<u32>();
-        self.n_hash_items = (size / size_of::<GvdbHashItem>()) as u32;
-        if size % size_of::<GvdbHashItem>() != 0 {
-            return Err(GvdbError::DataError(format!(
-                "Remaining size invalid: Expected a multiple of {}, got {}",
-                size_of::<GvdbHashItem>(),
-                size
-            )));
-        }
-
-        println!("{:?}", self);
-
-        Ok(())
-    }*/
 
     fn get_header(&self) -> GvdbResult<GvdbHeader> {
         let header_data = self
@@ -96,13 +52,6 @@ impl GvdbTable {
             data: bytes.to_vec(),
             byteswapped: false,
             trusted,
-            bloom_words_offset: 0,
-            n_bloom_words: 0,
-            bloom_shift: 0,
-            hash_buckets_offset: 0,
-            n_buckets: 0,
-            hash_items_offset: 0,
-            n_hash_items: 0,
         };
 
         let header = this.get_header()?;
@@ -125,18 +74,11 @@ impl GvdbTable {
             data: vec![],
             byteswapped: false,
             trusted,
-            bloom_words_offset: 0,
-            n_bloom_words: 0,
-            bloom_shift: 0,
-            hash_buckets_offset: 0,
-            n_buckets: 0,
-            hash_items_offset: 0,
-            n_hash_items: 0,
         }
     }
 }
 
-impl Default for GvdbTable {
+impl Default for GvdbRoot {
     fn default() -> Self {
         Self::empty(true)
     }
