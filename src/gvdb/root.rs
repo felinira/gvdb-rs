@@ -25,9 +25,8 @@ impl GvdbRoot {
         Ok(transmute_one_pedantic(header_data)?)
     }
 
-    /// Assume the root contains a hash table and return it
-    /// This will fail if the root does not contain a hash table
-    pub fn get_hash_table_root(&self) -> GvdbResult<GvdbHashTable> {
+    /// Returns the root hash table of the file
+    pub fn hash_table(&self) -> GvdbResult<GvdbHashTable> {
         let header = self.get_header()?;
         let root_ptr = header.root().clone();
         Ok(GvdbHashTable::for_bytes(&self.data, root_ptr)?)
@@ -42,7 +41,6 @@ impl GvdbRoot {
         };
 
         let header = this.get_header()?;
-        println!("{:?}", header);
         this.byteswapped = header.is_byteswap()?;
         //this.setup_root(header.root())?;
         Ok(this)

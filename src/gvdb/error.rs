@@ -12,6 +12,7 @@ pub enum GvdbError {
     InvalidData,
     DataError(String),
     TooMuchData,
+    KeyError,
 }
 
 impl From<FromUtf8Error> for GvdbError {
