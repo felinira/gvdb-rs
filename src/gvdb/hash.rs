@@ -146,6 +146,10 @@ impl<'a> GvdbHashTable<'a> {
         Ok(transmute_one(bytes)?)
     }
 
+    pub fn get_header(&self) -> GvdbHashHeader {
+        self.header
+    }
+
     fn get_u32(&self, offset: usize) -> GvdbResult<u32> {
         let bytes = self
             .data

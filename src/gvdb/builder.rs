@@ -346,6 +346,10 @@ impl<T: Clone> SimpleHashTable<T> {
             Some(item) => item.borrow().assigned_index,
         }
     }
+
+    pub fn into_buckets(self) -> Vec<Option<Box<SimpleHashTableItem<T>>>> {
+        self.buckets
+    }
 }
 
 pub struct GvdbHashTableBuilder {
@@ -401,7 +405,7 @@ impl GvdbHashTableBuilder {
 
 #[cfg(test)]
 mod test {
-    use crate::gvdb::builder::SimpleHashTable;
+    use super::*;
 
     #[test]
     fn simple_hash_table() {
