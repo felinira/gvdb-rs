@@ -253,30 +253,34 @@ impl<'a> GvdbHashTable<'a> {
             for index in 0..count as usize {
                 let item = self.get_hash_item(index)?;
                 let parent: usize = item.parent().try_into()?;
-                if parent == 0xffffffff {
-                    // root item
-                    let name = self.get_key(&item)?;
-                    let _ = std::mem::replace(&mut names[index], Some(name));
-                    inserted += 1;
-                } else if parent < count && names[parent].is_some() {
-                    // We already came across this item
-                    let name = self.get_key(&item)?;
-                    let parent_name = names.get(parent).unwrap().as_ref().unwrap();
-                    let full_name = name + parent_name;
-                    let _ = std::mem::replace(&mut names[index], Some(full_name));
-                    inserted += 1;
-                } else if parent > count {
-                    return Err(GvdbError::DataError(format!(
-                        "Parent with invalid offset encountered: {}",
-                        parent
-                    )));
+
+                if names[index] == None {
+                    // Only process items not already processed
+                    if parent == 0xffffffff {
+                        // root item
+                        let name = self.get_key(&item)?;
+                        let _ = std::mem::replace(&mut names[index], Some(name));
+                        inserted += 1;
+                    } else if parent < count && names[parent].is_some() {
+                        // We already came across this item
+                        let name = self.get_key(&item)?;
+                        let parent_name = names.get(parent).unwrap().as_ref().unwrap();
+                        let full_name = name + parent_name;
+                        let _ = std::mem::replace(&mut names[index], Some(full_name));
+                        inserted += 1;
+                    } else if parent > count {
+                        return Err(GvdbError::DataError(format!(
+                            "Parent with invalid offset encountered: {}",
+                            parent
+                        )));
+                    }
                 }
             }
 
             if last_inserted == inserted {
                 // No insertion took place this round, there must be a parent loop
                 // We fail instead of infinitely looping
-                return Err(GvdbError::InvalidData);
+                return Err(GvdbError::DataError("Error finding all parent items. The file appears to have a loop".to_string()));
             }
         }
 
