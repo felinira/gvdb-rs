@@ -1,16 +1,14 @@
-use std::borrow::Cow;
 use crate::gvdb::error::{GvdbError, GvdbResult};
 use crate::gvdb::hash::GvdbHashTable;
+use crate::gvdb::hash_item::GvdbHashItem;
 use crate::gvdb::header::GvdbHeader;
+use crate::gvdb::pointer::GvdbPointer;
 use safe_transmute::{transmute_one, transmute_one_pedantic, transmute_one_to_bytes};
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::Read;
 use std::mem::size_of;
 use std::path::Path;
-use crate::gvdb::hash_item::{GvdbHashItem, GvdbValue};
-use crate::gvdb::pointer::GvdbPointer;
-use crate::gvdb::util::align_offset;
-
 
 #[derive(Debug)]
 pub struct GvdbRoot<'a> {
@@ -33,7 +31,10 @@ impl<'a> GvdbRoot<'a> {
     pub fn hash_table(&self) -> GvdbResult<GvdbHashTable> {
         let header = self.get_header()?;
         let root_ptr = header.root().clone();
-        Ok(GvdbHashTable::for_bytes(root_ptr.dereference(&self.data, 4)?, &self)?)
+        Ok(GvdbHashTable::for_bytes(
+            root_ptr.dereference(&self.data, 4)?,
+            &self,
+        )?)
     }
 
     /// Interpret a chunk of bytes as a GVDB file
@@ -58,7 +59,7 @@ impl<'a> GvdbRoot<'a> {
     }
 
     pub(crate) fn with_empty_header(byteswap: bool) -> Self {
-        let mut header = GvdbHeader::new(byteswap, 0, GvdbPointer::NULL);
+        let header = GvdbHeader::new(byteswap, 0, GvdbPointer::NULL);
         let header_data = transmute_one_to_bytes(&header);
 
         let mut data: Cow<[u8]> = Cow::Owned(Vec::new());
@@ -67,7 +68,7 @@ impl<'a> GvdbRoot<'a> {
         Self {
             data,
             byteswapped: false,
-            trusted: true
+            trusted: true,
         }
     }
 

@@ -1,8 +1,6 @@
 use crate::gvdb::root::GvdbRoot;
 use std::path::PathBuf;
-use std::ptr::hash;
 use std::str::FromStr;
-use crate::gvdb::util::djb_hash;
 
 const TEST_FILE_DIR: &str = "test/data/";
 const TEST_FILE_1: &str = "test1.gvdb";
@@ -66,5 +64,7 @@ pub fn test_file_3() {
 
     let table = file.hash_table().unwrap();
     let names = table.get_names().unwrap();
-    let value = table.get_value("/gvdb/rs/test/builder/gvdb-builder.h").unwrap();
+    let value = table
+        .get_value("/gvdb/rs/test/builder/gvdb-builder.h")
+        .unwrap();
 }

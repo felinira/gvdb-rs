@@ -1,13 +1,14 @@
-use crate::gvdb::builder::SimpleHashTable;
 use crate::gvdb::error::{GvdbError, GvdbResult};
 use crate::gvdb::hash_item::{GvdbHashItem, GvdbValue};
+use crate::gvdb::root::GvdbRoot;
 use crate::gvdb::util::djb_hash;
-use safe_transmute::{transmute_many_pedantic, transmute_one, transmute_one_pedantic, transmute_one_to_bytes, TriviallyTransmutable};
+use safe_transmute::{
+    transmute_many_pedantic, transmute_one, transmute_one_pedantic, TriviallyTransmutable,
+};
 use std::borrow::Cow;
 use std::cmp::min;
 use std::fmt::{Debug, Formatter};
 use std::mem::size_of;
-use crate::gvdb::root::GvdbRoot;
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq)]
@@ -77,11 +78,7 @@ impl<'a> GvdbHashTable<'a> {
         let header = Self::hash_header(data)?;
         let data = Cow::Borrowed(data);
 
-        let this = Self {
-            root,
-            data,
-            header,
-        };
+        let this = Self { root, data, header };
 
         let header_len = size_of::<GvdbHashHeader>();
         let bloom_words_len = this.bloom_words_end() - this.bloom_words_offset();
@@ -335,7 +332,9 @@ impl<'a> GvdbHashTable<'a> {
 
         match item.typ() as char {
             'v' => Ok(GvdbValue::Variant(self.root.get_value_for_item(item)?)),
-            'H' => Ok(GvdbValue::HashTable(self.root.get_hash_table_for_item(item)?)),
+            'H' => Ok(GvdbValue::HashTable(
+                self.root.get_hash_table_for_item(item)?,
+            )),
             _ => Err(GvdbError::InvalidData),
         }
     }

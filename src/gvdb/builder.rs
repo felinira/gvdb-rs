@@ -1,16 +1,15 @@
 use crate::gvdb::error::GvdbResult;
 use crate::gvdb::hash::GvdbHashHeader;
+use crate::gvdb::hash_item::GvdbHashItem;
 use crate::gvdb::header::GvdbHeader;
 use crate::gvdb::pointer::GvdbPointer;
 use crate::gvdb::util::{align_offset, djb_hash};
+use safe_transmute::transmute_one_to_bytes;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::mem::size_of;
 use std::rc::Rc;
 use std::str::FromStr;
-use safe_transmute::transmute_one_to_bytes;
-use crate::gvdb::hash_item::GvdbHashItem;
-use crate::gvdb::root::GvdbRoot;
 
 pub struct Link<T>(Rc<RefCell<T>>);
 pub type OptLink<T> = Option<Link<T>>;
@@ -45,6 +44,8 @@ pub struct SimpleHashTableItem<T> {
     hash: u32,
     value: T,
     next: Option<Box<SimpleHashTableItem<T>>>,
+    parent: Option<String>,
+    children: Vec<String>,
 }
 
 impl<T> SimpleHashTableItem<T> {
@@ -56,6 +57,8 @@ impl<T> SimpleHashTableItem<T> {
             hash,
             value,
             next: None,
+            parent: None,
+            children: vec![],
         }
     }
 
@@ -73,6 +76,22 @@ impl<T> SimpleHashTableItem<T> {
 
     pub fn into_next(self) -> Option<Box<Self>> {
         self.next
+    }
+
+    pub fn parent(&self) -> &Option<String> {
+        &self.parent
+    }
+
+    pub fn set_parent_key(&mut self, parent: Option<String>) {
+        self.parent = parent;
+    }
+
+    pub fn children_keys(&self) -> &[String] {
+        &self.children
+    }
+
+    pub fn add_child_key(&mut self, child_key: String) {
+        self.children.push(child_key);
     }
 }
 
@@ -132,7 +151,7 @@ impl<T> SimpleHashTable<T> {
         let bucket = self.hash_bucket(hash_value);
 
         // Remove the item if it already exists
-        if let Some((item, previous)) = self.get_from_bucket(key, bucket) {
+        if let Some((item, previous)) = self.get_from_bucket_mut(key, bucket) {
             if previous {
                 let previous_item = item;
                 if let Some(mut item) = previous_item.next.take() {
@@ -146,7 +165,7 @@ impl<T> SimpleHashTable<T> {
         }
     }
 
-    fn get_from_bucket(
+    fn get_from_bucket_mut(
         &mut self,
         key: &str,
         bucket: usize,
@@ -174,7 +193,35 @@ impl<T> SimpleHashTable<T> {
         }
     }
 
-    pub fn get(&mut self, key: &str) -> Option<&T> {
+    fn get_from_bucket(
+        &self,
+        key: &str,
+        bucket: usize,
+    ) -> Option<(&Box<SimpleHashTableItem<T>>, bool)> {
+        let item = self.buckets.get(bucket)?;
+
+        if let Some(item) = item {
+            let mut item = item;
+
+            loop {
+                if item.next.is_some() && item.next.as_ref().unwrap().key == key {
+                    return Some((item, true));
+                } else {
+                    if item.key == key {
+                        return Some((item, false));
+                    } else if item.next.is_some() {
+                        item = item.next.as_ref().unwrap();
+                    } else {
+                        return None;
+                    }
+                }
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn get_item(&self, key: &str) -> Option<&Box<SimpleHashTableItem<T>>> {
         let hash_value = djb_hash(key);
         let bucket = self.hash_bucket(hash_value);
         self.get_from_bucket(key, bucket)
@@ -185,7 +232,42 @@ impl<T> SimpleHashTable<T> {
                     Some(item)
                 }
             })
-            .map(|x| x.value_ref())
+    }
+
+    pub fn get(&self, key: &str) -> Option<&T> {
+        self.get_item(key).map(|x| x.value_ref())
+    }
+
+    pub fn get_child_items(&self, key: &str) -> Vec<&Box<SimpleHashTableItem<T>>> {
+        let item = self.get_item(key);
+        if let Some(item) = item {
+            let children_keys = item.children_keys();
+            let mut children = Vec::with_capacity(children_keys.len());
+
+            for key in children_keys {
+                let child = self.get_item(key);
+                if let Some(child) = child {
+                    children.push(child);
+                }
+            }
+
+            children
+        } else {
+            vec![]
+        }
+    }
+
+    pub fn get_parent_item(&self, key: &str) -> Option<&Box<SimpleHashTableItem<T>>> {
+        let item = self.get_item(key);
+        if let Some(item) = item {
+            if let Some(parent) = &item.parent {
+                self.get_item(parent)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
     pub fn into_buckets(self) -> Vec<Option<Box<SimpleHashTableItem<T>>>> {
