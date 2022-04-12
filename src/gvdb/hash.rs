@@ -232,7 +232,7 @@ impl<'a> GvdbHashTable<'a> {
                         // We already came across this item
                         let name = self.root.get_key(&item)?;
                         let parent_name = names.get(parent).unwrap().as_ref().unwrap();
-                        let full_name = name + parent_name;
+                        let full_name = parent_name.to_string() + &name;
                         let _ = std::mem::replace(&mut names[index], Some(full_name));
                         inserted += 1;
                     } else if parent > count {
@@ -263,7 +263,7 @@ impl<'a> GvdbHashTable<'a> {
             Err(_) => return false,
         };
 
-        if key != this_key {
+        if !key.ends_with(&this_key) {
             return false;
         }
 
@@ -278,7 +278,8 @@ impl<'a> GvdbHashTable<'a> {
                 Err(_) => return false,
             };
 
-            return self.check_name(&parent_item, key);
+            let parent_key_len = key.len() - this_key.len();
+            return self.check_name(&parent_item, &key[0..parent_key_len]);
         }
 
         false
@@ -308,6 +309,7 @@ impl<'a> GvdbHashTable<'a> {
 
         while itemno < lastno {
             let item = self.get_hash_item_for_index(itemno)?;
+            let item_key = self.root.get_key(&item)?;
             if hash_value == item.hash_value() {
                 if self.check_name(&item, key) {
                     return Ok(item);

@@ -2,10 +2,12 @@ use crate::gvdb::root::GvdbRoot;
 use std::path::PathBuf;
 use std::ptr::hash;
 use std::str::FromStr;
+use crate::gvdb::util::djb_hash;
 
 const TEST_FILE_DIR: &str = "test/data/";
 const TEST_FILE_1: &str = "test1.gvdb";
 const TEST_FILE_2: &str = "test2.gvdb";
+const TEST_FILE_3: &str = "test3.gresource";
 
 #[test]
 pub fn test_file_1() {
@@ -54,4 +56,15 @@ pub fn test_file_2() {
 
     let int_value = sub_table.get_value("int").unwrap().child_value(0);
     assert_eq!(int_value.get::<u32>().unwrap(), 42);
+}
+
+#[test]
+pub fn test_file_3() {
+    let filename = TEST_FILE_DIR.to_string() + TEST_FILE_3;
+    let path = PathBuf::from_str(&filename).unwrap();
+    let file = GvdbRoot::from_file(&path).unwrap();
+
+    let table = file.hash_table().unwrap();
+    let names = table.get_names().unwrap();
+    let value = table.get_value("/gvdb/rs/test/builder/gvdb-builder.h").unwrap();
 }

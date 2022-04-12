@@ -6,6 +6,8 @@
 #define TEST_PATH "../data/"
 #define TEST_FILE_1 TEST_PATH "test1.gvdb"
 #define TEST_FILE_2 TEST_PATH "test2.gvdb"
+#define GRESOURCE_XML "test_file_3_gresource.xml"
+#define TEST_FILE_3 TEST_PATH "test3.gvdb"
 
 /**
  * Pretty prints a gvdb table structure
@@ -50,6 +52,7 @@ void create_test_file_1() {
     GHashTable *table = gvdb_hash_table_new(NULL, NULL);
 
     GvdbItem *item = gvdb_hash_table_insert(table, "root_key");
+    //gvdb_item_set_parent(item, table);
     GVariantBuilder builder;
     g_variant_builder_init(&builder, G_VARIANT_TYPE("(uus)"));
     g_variant_builder_add(&builder, "u", 1234);
