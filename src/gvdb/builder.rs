@@ -8,6 +8,9 @@ use std::collections::VecDeque;
 use std::mem::size_of;
 use std::rc::Rc;
 use std::str::FromStr;
+use safe_transmute::transmute_one_to_bytes;
+use crate::gvdb::hash_item::GvdbHashItem;
+use crate::gvdb::root::GvdbRoot;
 
 pub struct Link<T>(Rc<RefCell<T>>);
 pub type OptLink<T> = Option<Link<T>>;
@@ -56,8 +59,20 @@ impl<T> SimpleHashTableItem<T> {
         }
     }
 
+    pub fn key(&self) -> &str {
+        &self.key
+    }
+
+    pub fn hash(&self) -> u32 {
+        self.hash
+    }
+
     pub fn value_ref(&self) -> &T {
         &self.value
+    }
+
+    pub fn into_next(self) -> Option<Box<Self>> {
+        self.next
     }
 }
 
@@ -222,7 +237,7 @@ impl GvdbHashTableBuilder {
         self.items.iter_mut()
     }
 
-    pub fn build(self) -> SimpleHashTable<GvdbItem> {
+    /*pub fn build(self) -> SimpleHashTable<GvdbItem> {
         let mut hash_table = SimpleHashTable::with_n_buckets(self.items.len());
 
         for (key, value) in self.items.into_iter() {
@@ -234,19 +249,20 @@ impl GvdbHashTableBuilder {
                 }
             };
 
-            let item = GvdbItem::with_item_value(key.clone(), value);
-            let hash_value = hash_table.insert(&key, item);
+            //let item = GvdbItem::with_item_value(key.clone(), value);
+            //let hash_value = hash_table.insert(&key, item);
         }
 
         hash_table
-    }
+    }*/
 }
 
 pub enum GvdbItemValue {
     Value(glib::Variant),
-    Table(SimpleHashTable<GvdbItem>),
+    Table(SimpleHashTable<GvdbItemValue>),
 }
 
+/*
 pub struct GvdbItem {
     key: String,
     hash_value: u32,
@@ -274,7 +290,11 @@ impl GvdbItem {
     pub fn with_table(key: String, hash_value: u32, table: SimpleHashTable<GvdbItem>) -> Self {
         Self::with_item_value(key, GvdbItemValue::Table(table))
     }
-}
+
+    pub fn into_next(self) -> Option<Self> {
+        self.next
+    }
+}*/
 
 struct GvdbChunk {
     alignment: usize,
@@ -340,14 +360,13 @@ impl GvdbFileBuilder {
         self.table_builder.as_mut().unwrap()
     }
 
-    pub fn build(mut self) -> Vec<u8> {
+    /*pub fn build(mut self) -> Vec<u8> {
         self.offset = size_of::<GvdbHeader>();
         let table = self.table_builder.take().unwrap().build();
 
-        let file: Vec<u8> = Vec::new();
-        let mut header = GvdbHeader::new(self.byteswap, 0, GvdbPointer::NULL);
+        let root = GvdbRoot::with_empty_header(self.byteswap);
         todo!()
-    }
+    }*/
 
     /*fn add_variant(&mut self, variant: &glib::Variant) -> usize {
         let chunk = GvdbChunk::with_variant(self.offset, variant, self.byteswap);
@@ -364,19 +383,42 @@ impl GvdbFileBuilder {
         self.chunks.len() - 1
     }*/
 
-    fn allocate_for_hash_table(&mut self, table: &SimpleHashTable<GvdbItem>) -> GvdbChunk {
+    /*fn allocate_for_hash_table(&mut self, table: &SimpleHashTable<GvdbItem>) -> GvdbChunk {
         let header = GvdbHashHeader::new(0, table.buckets.len() as u32);
         todo!()
-    }
-
-    /*fn add_hash_table(&mut self, table: SimpleHashTable<GvdbItem>) -> usize {
-        let required_size =
-
-        for bucket in table.into_buckets() {
-
-        }
-        unimplemented!()
     }*/
+
+    fn add_hash_table(&mut self, table: SimpleHashTable<Vec<u8>>) -> usize {
+        let header = GvdbHashHeader::new(0, table.n_buckets() as u32);
+        let items_len = table.n_items() * size_of::<GvdbHashItem>();
+        let size = size_of::<GvdbHashHeader>()
+            + header.bloom_words_len()
+            + header.buckets_len()
+            + items_len;
+
+        let mut data: Vec<u8> = vec![0; size];
+        data.extend_from_slice(transmute_one_to_bytes(&header));
+
+        let mut bloom_words = vec![0; 0];
+        data.append(&mut bloom_words);
+
+        let mut buckets = Vec::with_capacity(table.n_buckets() as usize);
+        let mut index = 0;
+        for (n_bucket, bucket) in table.into_buckets().into_iter().enumerate() {
+            buckets.push(index);
+
+            let mut item = bucket;
+            while let Some(current_item) = item {
+                let key = current_item.key();
+                // store_key
+                //let hash_item = GvdbHashItem::new(current_item.hash(), 0, )
+
+                item = current_item.into_next();
+            }
+        }
+
+        unimplemented!()
+    }
 
     pub fn serialize(&self, _root_index: usize) -> GvdbResult<Vec<u8>> {
         todo!()

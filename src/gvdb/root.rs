@@ -2,17 +2,19 @@ use std::borrow::Cow;
 use crate::gvdb::error::{GvdbError, GvdbResult};
 use crate::gvdb::hash::GvdbHashTable;
 use crate::gvdb::header::GvdbHeader;
-use safe_transmute::transmute_one_pedantic;
+use safe_transmute::{transmute_one, transmute_one_pedantic, transmute_one_to_bytes};
 use std::fs::File;
 use std::io::Read;
 use std::mem::size_of;
 use std::path::Path;
 use crate::gvdb::hash_item::{GvdbHashItem, GvdbValue};
+use crate::gvdb::pointer::GvdbPointer;
+use crate::gvdb::util::align_offset;
+
 
 #[derive(Debug)]
 pub struct GvdbRoot<'a> {
-    pub(crate) data: Cow<'a, [u8]>,
-
+    data: Cow<'a, [u8]>,
     byteswapped: bool,
     trusted: bool,
 }
@@ -31,7 +33,7 @@ impl<'a> GvdbRoot<'a> {
     pub fn hash_table(&self) -> GvdbResult<GvdbHashTable> {
         let header = self.get_header()?;
         let root_ptr = header.root().clone();
-        Ok(GvdbHashTable::for_bytes(&self.data, &self, root_ptr)?)
+        Ok(GvdbHashTable::for_bytes(root_ptr.dereference(&self.data, 4)?, &self)?)
     }
 
     /// Interpret a chunk of bytes as a GVDB file
@@ -55,17 +57,28 @@ impl<'a> GvdbRoot<'a> {
         Self::from_bytes(Cow::Owned(data), false)
     }
 
-    /// gvdb_table_new
-    pub fn empty(trusted: bool) -> Self {
+    pub(crate) fn with_empty_header(byteswap: bool) -> Self {
+        let mut header = GvdbHeader::new(byteswap, 0, GvdbPointer::NULL);
+        let header_data = transmute_one_to_bytes(&header);
+
+        let mut data: Cow<[u8]> = Cow::Owned(Vec::new());
+        data.to_mut().extend_from_slice(header_data);
+
         Self {
-            data: Cow::Owned(vec![]),
+            data,
             byteswapped: false,
-            trusted,
+            trusted: true
         }
     }
 
+    pub(crate) fn set_root(&mut self, root: GvdbPointer) -> GvdbResult<()> {
+        let mut header: GvdbHeader = transmute_one(&self.data)?;
+        header.set_root(root);
+        Ok(())
+    }
+
     /// gvdb_table_item_get_key
-    pub fn get_key(&self, item: &GvdbHashItem) -> GvdbResult<String> {
+    pub(crate) fn get_key(&self, item: &GvdbHashItem) -> GvdbResult<String> {
         let start = item.key_start() as usize;
         let size = item.key_size() as usize;
         let end = start + size;
@@ -92,7 +105,7 @@ impl<'a> GvdbRoot<'a> {
 
     pub(crate) fn get_hash_table_for_item(&self, item: GvdbHashItem) -> GvdbResult<GvdbHashTable> {
         if item.typ() as char == 'H' {
-            GvdbHashTable::for_bytes(&self.data, &self, item.value_ptr().clone())
+            GvdbHashTable::for_bytes(item.value_ptr().dereference(&self.data, 4)?, &self)
         } else {
             Err(GvdbError::DataError(format!(
                 "Unable to parse item for key '{}' as hash table: Expected type 'H', got type {}",
@@ -100,11 +113,5 @@ impl<'a> GvdbRoot<'a> {
                 item.typ()
             )))
         }
-    }
-}
-
-impl<'a> Default for GvdbRoot<'a> {
-    fn default() -> Self {
-        Self::empty(true)
     }
 }
