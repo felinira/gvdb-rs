@@ -1,25 +1,39 @@
 use crate::gvdb::root::GvdbRoot;
+use crate::gvdb::test::util::assert_bytes_eq;
+use std::fs::File;
+use std::io::Read;
 use std::path::PathBuf;
 use std::str::FromStr;
+
+#[allow(unused_imports)]
+use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
 
 const TEST_FILE_DIR: &str = "test/data/";
 const TEST_FILE_1: &str = "test1.gvdb";
 const TEST_FILE_2: &str = "test2.gvdb";
 const TEST_FILE_3: &str = "test3.gresource";
 
-#[test]
-pub fn test_file_1() {
-    let filename = TEST_FILE_DIR.to_string() + TEST_FILE_1;
-    let path = PathBuf::from_str(&filename).unwrap();
-    let file = GvdbRoot::from_file(&path).unwrap();
+fn byte_compare_file(file: &GvdbRoot, reference_filename: &str) {
+    let path = PathBuf::from_str(&reference_filename).unwrap();
+    let mut reference_file = File::open(path).unwrap();
+    let mut reference_data = Vec::new();
+    reference_file.read_to_end(&mut reference_data).unwrap();
 
+    assert_bytes_eq(&reference_data, &file.data());
+}
+
+pub fn byte_compare_file_1(file: &GvdbRoot) {
+    let reference_filename = TEST_FILE_DIR.to_string() + TEST_FILE_1;
+    byte_compare_file(file, &reference_filename);
+}
+
+pub fn assert_is_file_1(file: &GvdbRoot) {
     let table = file.hash_table().unwrap();
     let names = table.get_names().unwrap();
     assert_eq!(names.len(), 1);
     assert_eq!(names[0], "root_key");
 
     let value = table.get_value("root_key").unwrap().child_value(0);
-    //let value = table.get_value("root_key").unwrap().child_value(0);
     assert!(value.is_container());
     assert_eq!(value.type_().to_string(), "(uus)");
 
@@ -31,12 +45,12 @@ pub fn test_file_1() {
     );
 }
 
-#[test]
-pub fn test_file_2() {
-    let filename = TEST_FILE_DIR.to_string() + TEST_FILE_2;
-    let path = PathBuf::from_str(&filename).unwrap();
-    let file = GvdbRoot::from_file(&path).unwrap();
+pub fn byte_compare_file_2(file: &GvdbRoot) {
+    let reference_filename = TEST_FILE_DIR.to_string() + TEST_FILE_2;
+    byte_compare_file(file, &reference_filename);
+}
 
+pub fn assert_is_file_2(file: &GvdbRoot) {
     let table = file.hash_table().unwrap();
     let names = table.get_names().unwrap();
     assert_eq!(names.len(), 2);
@@ -56,15 +70,39 @@ pub fn test_file_2() {
     assert_eq!(int_value.get::<u32>().unwrap(), 42);
 }
 
+pub fn byte_compare_file_3(file: &GvdbRoot) {
+    let reference_filename = TEST_FILE_DIR.to_string() + TEST_FILE_3;
+    byte_compare_file(file, &reference_filename);
+}
+
+pub fn assert_is_file_3(file: &GvdbRoot) {
+    let table = file.hash_table().unwrap();
+    let _names = table.get_names().unwrap();
+    let _value = table
+        .get_value("/gvdb/rs/test/builder/gvdb-builder.h")
+        .unwrap();
+}
+
 #[test]
-pub fn test_file_3() {
+fn test_file_1() {
+    let filename = TEST_FILE_DIR.to_string() + TEST_FILE_1;
+    let path = PathBuf::from_str(&filename).unwrap();
+    let file = GvdbRoot::from_file(&path).unwrap();
+    assert_is_file_1(&file);
+}
+
+#[test]
+fn test_file_2() {
+    let filename = TEST_FILE_DIR.to_string() + TEST_FILE_2;
+    let path = PathBuf::from_str(&filename).unwrap();
+    let file = GvdbRoot::from_file(&path).unwrap();
+    assert_is_file_2(&file);
+}
+
+#[test]
+fn test_file_3() {
     let filename = TEST_FILE_DIR.to_string() + TEST_FILE_3;
     let path = PathBuf::from_str(&filename).unwrap();
     let file = GvdbRoot::from_file(&path).unwrap();
-
-    let table = file.hash_table().unwrap();
-    let names = table.get_names().unwrap();
-    let value = table
-        .get_value("/gvdb/rs/test/builder/gvdb-builder.h")
-        .unwrap();
+    assert_is_file_3(&file);
 }

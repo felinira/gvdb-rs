@@ -1,6 +1,6 @@
 use crate::gvdb::error::{GvdbError, GvdbResult};
 use crate::gvdb::hash::GvdbHashTable;
-use crate::gvdb::hash_item::GvdbHashItem;
+use crate::gvdb::hash_item::{GvdbHashItem, GvdbHashItemType};
 use crate::gvdb::header::GvdbHeader;
 use crate::gvdb::pointer::GvdbPointer;
 use safe_transmute::{transmute_one, transmute_one_pedantic, transmute_one_to_bytes};
@@ -80,16 +80,13 @@ impl<'a> GvdbRoot<'a> {
 
     /// gvdb_table_item_get_key
     pub(crate) fn get_key(&self, item: &GvdbHashItem) -> GvdbResult<String> {
-        let start = item.key_start() as usize;
-        let size = item.key_size() as usize;
-        let end = start + size;
-
-        let data = self.data.get(start..end).ok_or(GvdbError::DataOffset)?;
+        let data = item.key_ptr().dereference(&self.data, 1)?;
         Ok(String::from_utf8(data.to_vec())?)
     }
 
-    pub(crate) fn get_value_for_item(&self, item: GvdbHashItem) -> GvdbResult<glib::Variant> {
-        if item.typ() as char == 'v' {
+    pub(crate) fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbResult<glib::Variant> {
+        let typ = item.typ()?;
+        if typ == GvdbHashItemType::Value {
             let data: &[u8] = item.value_ptr().dereference(&self.data, 8)?;
             Ok(glib::Variant::from_data_with_type(
                 data,
@@ -99,20 +96,25 @@ impl<'a> GvdbRoot<'a> {
             Err(GvdbError::DataError(format!(
                 "Unable to parse item for key '{}' as GVariant: Expected type 'v', got type {}",
                 self.get_key(&item)?,
-                item.typ()
+                typ
             )))
         }
     }
 
-    pub(crate) fn get_hash_table_for_item(&self, item: GvdbHashItem) -> GvdbResult<GvdbHashTable> {
-        if item.typ() as char == 'H' {
+    pub(crate) fn get_hash_table_for_item(&self, item: &GvdbHashItem) -> GvdbResult<GvdbHashTable> {
+        let typ = item.typ()?;
+        if typ == GvdbHashItemType::HashTable {
             GvdbHashTable::for_bytes(item.value_ptr().dereference(&self.data, 4)?, &self)
         } else {
             Err(GvdbError::DataError(format!(
                 "Unable to parse item for key '{}' as hash table: Expected type 'H', got type {}",
                 self.get_key(&item)?,
-                item.typ()
+                typ
             )))
         }
+    }
+
+    pub(crate) fn data(&self) -> &[u8] {
+        &self.data
     }
 }

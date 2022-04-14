@@ -32,8 +32,8 @@ impl GvdbPointer {
         u32::from_le(self.end)
     }
 
-    pub fn size(&self) -> u32 {
-        self.end() - self.start()
+    pub fn size(&self) -> usize {
+        (self.end() - self.start()) as usize
     }
 
     pub fn dereference<'a>(&self, data: &'a [u8], alignment: u32) -> GvdbResult<&'a [u8]> {
