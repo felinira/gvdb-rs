@@ -683,8 +683,8 @@ impl GvdbFileWriter {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::gvdb::root::test::*;
-    use crate::gvdb::root::GvdbRoot;
+    use crate::gvdb::file::test::*;
+    use crate::gvdb::file::GvdbFile;
     use glib::{Bytes, ToVariant};
     use matches::assert_matches;
     use std::borrow::Cow;
@@ -788,7 +788,7 @@ mod test {
         table_builder.insert_variant("root_key", variant).unwrap();
         let root_index = file_builder.add_hash_table(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
-        let root = GvdbRoot::from_bytes(Cow::Owned(bytes), true).unwrap();
+        let root = GvdbFile::from_bytes(Cow::Owned(bytes), true).unwrap();
         assert_is_file_1(&root);
         byte_compare_file_1(&root);
     }
@@ -812,7 +812,7 @@ mod test {
             .unwrap();
         let root_index = file_builder.add_hash_table(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
-        let root = GvdbRoot::from_bytes(Cow::Owned(bytes), true).unwrap();
+        let root = GvdbFile::from_bytes(Cow::Owned(bytes), true).unwrap();
         assert_is_file_2(&root);
         byte_compare_file_2(&root);
     }

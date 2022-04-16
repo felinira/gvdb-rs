@@ -237,8 +237,8 @@ impl<'a> GResourceBuilder<'a> {
 mod test {
     use super::*;
     use crate::gresource::xml::Document;
-    use crate::gvdb::root::test::{assert_is_file_3, byte_compare_file_3};
-    use crate::gvdb::root::GvdbRoot;
+    use crate::gvdb::file::test::{assert_is_file_3, byte_compare_file_3};
+    use crate::gvdb::file::GvdbFile;
 
     const GRESOURCE_XML: &str = "test/data/gresource/test3.gresource.xml";
 
@@ -267,7 +267,7 @@ mod test {
         let doc = Document::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
         let builder = GResourceBuilder::from_xml(doc).unwrap();
         let data = builder.build().unwrap();
-        let root = GvdbRoot::from_bytes(Cow::Owned(data), false).unwrap();
+        let root = GvdbFile::from_bytes(Cow::Owned(data), false).unwrap();
         assert_is_file_3(&root);
         byte_compare_file_3(&root);
     }

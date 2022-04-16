@@ -11,13 +11,13 @@ use std::mem::size_of;
 use std::path::Path;
 
 #[derive(Debug)]
-pub struct GvdbRoot<'a> {
+pub struct GvdbFile<'a> {
     data: Cow<'a, [u8]>,
     byteswapped: bool,
     trusted: bool,
 }
 
-impl<'a> GvdbRoot<'a> {
+impl<'a> GvdbFile<'a> {
     /// Get the GVDB file header. Will err with GvdbError::DataOffset if the header doesn't fit
     fn get_header(&self) -> GvdbResult<GvdbHeader> {
         let header_data = self
@@ -53,7 +53,7 @@ impl<'a> GvdbRoot<'a> {
     }
 
     /// Interpret a chunk of bytes as a GVDB file
-    pub fn from_bytes(bytes: Cow<'a, [u8]>, trusted: bool) -> GvdbResult<GvdbRoot<'a>> {
+    pub fn from_bytes(bytes: Cow<'a, [u8]>, trusted: bool) -> GvdbResult<GvdbFile<'a>> {
         let mut this = Self {
             data: bytes,
             byteswapped: false,
@@ -136,8 +136,8 @@ impl<'a> GvdbRoot<'a> {
 
 #[cfg(test)]
 pub mod test {
+    use crate::gvdb::file::GvdbFile;
     use crate::gvdb::hash::test::byte_compare_gvdb_hash_table;
-    use crate::gvdb::root::GvdbRoot;
     use std::io::Read;
     use std::path::PathBuf;
     use std::str::FromStr;
@@ -151,7 +151,7 @@ pub mod test {
     const TEST_FILE_2: &str = "test2.gvdb";
     const TEST_FILE_3: &str = "test3.gresource";
 
-    pub fn byte_compare_gvdb_file(a: &GvdbRoot, b: &GvdbRoot) {
+    pub fn byte_compare_gvdb_file(a: &GvdbFile, b: &GvdbFile) {
         assert_eq!(a.data.len(), b.data.len());
         assert_eq!(a.get_header().unwrap(), b.get_header().unwrap());
 
@@ -160,7 +160,7 @@ pub mod test {
         byte_compare_gvdb_hash_table(&a_hash, &b_hash);
     }
 
-    fn byte_compare_file(file: &GvdbRoot, reference_filename: &str) {
+    fn byte_compare_file(file: &GvdbFile, reference_filename: &str) {
         let path = PathBuf::from_str(&reference_filename).unwrap();
         let mut reference_file = std::fs::File::open(path).unwrap();
         let mut reference_data = Vec::new();
@@ -173,12 +173,12 @@ pub mod test {
         );
     }
 
-    pub fn byte_compare_file_1(file: &GvdbRoot) {
+    pub fn byte_compare_file_1(file: &GvdbFile) {
         let reference_filename = TEST_FILE_DIR.to_string() + TEST_FILE_1;
         byte_compare_file(file, &reference_filename);
     }
 
-    pub fn assert_is_file_1(file: &GvdbRoot) {
+    pub fn assert_is_file_1(file: &GvdbFile) {
         let table = file.hash_table().unwrap();
         let names = table.get_names().unwrap();
         assert_eq!(names.len(), 1);
@@ -196,12 +196,12 @@ pub mod test {
         );
     }
 
-    pub fn byte_compare_file_2(file: &GvdbRoot) {
+    pub fn byte_compare_file_2(file: &GvdbFile) {
         let reference_filename = TEST_FILE_DIR.to_string() + TEST_FILE_2;
         byte_compare_file(file, &reference_filename);
     }
 
-    pub fn assert_is_file_2(file: &GvdbRoot) {
+    pub fn assert_is_file_2(file: &GvdbFile) {
         let table = file.hash_table().unwrap();
         let names = table.get_names().unwrap();
         assert_eq!(names.len(), 2);
@@ -221,13 +221,13 @@ pub mod test {
         assert_eq!(int_value.get::<u32>().unwrap(), 42);
     }
 
-    pub fn byte_compare_file_3(file: &GvdbRoot) {
+    pub fn byte_compare_file_3(file: &GvdbFile) {
         let reference_filename = TEST_FILE_DIR.to_string() + TEST_FILE_3;
-        let ref_root = GvdbRoot::from_file(&PathBuf::from(reference_filename)).unwrap();
+        let ref_root = GvdbFile::from_file(&PathBuf::from(reference_filename)).unwrap();
         byte_compare_gvdb_file(&ref_root, file);
     }
 
-    pub fn assert_is_file_3(file: &GvdbRoot) {
+    pub fn assert_is_file_3(file: &GvdbFile) {
         let table = file.hash_table().unwrap();
         let mut names = table.get_names().unwrap();
         names.sort();
@@ -318,7 +318,7 @@ pub mod test {
     fn test_file_1() {
         let filename = TEST_FILE_DIR.to_string() + TEST_FILE_1;
         let path = PathBuf::from_str(&filename).unwrap();
-        let file = GvdbRoot::from_file(&path).unwrap();
+        let file = GvdbFile::from_file(&path).unwrap();
         assert_is_file_1(&file);
     }
 
@@ -326,7 +326,7 @@ pub mod test {
     fn test_file_2() {
         let filename = TEST_FILE_DIR.to_string() + TEST_FILE_2;
         let path = PathBuf::from_str(&filename).unwrap();
-        let file = GvdbRoot::from_file(&path).unwrap();
+        let file = GvdbFile::from_file(&path).unwrap();
         assert_is_file_2(&file);
     }
 
@@ -334,7 +334,7 @@ pub mod test {
     fn test_file_3() {
         let filename = TEST_FILE_DIR.to_string() + TEST_FILE_3;
         let path = PathBuf::from_str(&filename).unwrap();
-        let file = GvdbRoot::from_file(&path).unwrap();
+        let file = GvdbFile::from_file(&path).unwrap();
         assert_is_file_3(&file);
     }
 }

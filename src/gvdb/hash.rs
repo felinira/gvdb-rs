@@ -1,6 +1,6 @@
 use crate::gvdb::error::{GvdbError, GvdbResult};
+use crate::gvdb::file::GvdbFile;
 use crate::gvdb::hash_item::{GvdbHashItem, GvdbHashItemType, GvdbValue};
-use crate::gvdb::root::GvdbRoot;
 use crate::gvdb::util::djb_hash;
 use safe_transmute::{
     transmute_many_pedantic, transmute_one, transmute_one_pedantic, TriviallyTransmutable,
@@ -61,7 +61,7 @@ impl Debug for GvdbHashHeader {
 #[repr(C)]
 #[derive(Clone)]
 pub struct GvdbHashTable<'a> {
-    root: &'a GvdbRoot<'a>,
+    root: &'a GvdbFile<'a>,
     data: Cow<'a, [u8]>,
     header: GvdbHashHeader,
 }
@@ -69,7 +69,7 @@ pub struct GvdbHashTable<'a> {
 impl<'a> GvdbHashTable<'a> {
     /// Interpret a chunk of bytes as a HashTable. The table_ptr should point to the hash table.
     /// Data has to be the complete GVDB file, as hash table items are stored somewhere else.
-    pub fn for_bytes(data: &'a [u8], root: &'a GvdbRoot) -> GvdbResult<Self> {
+    pub fn for_bytes(data: &'a [u8], root: &'a GvdbFile) -> GvdbResult<Self> {
         let header = Self::hash_header(data)?;
         let data = Cow::Borrowed(data);
 

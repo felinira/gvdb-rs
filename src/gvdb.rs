@@ -1,6 +1,6 @@
 pub mod builder;
 pub mod error;
-pub mod root;
+pub mod file;
 
 mod hash;
 mod hash_item;
