@@ -237,8 +237,8 @@ impl<'a> GResourceBuilder<'a> {
 mod test {
     use super::*;
     use crate::gresource::xml::Document;
+    use crate::gvdb::root::test::{assert_is_file_3, byte_compare_file_3};
     use crate::gvdb::root::GvdbRoot;
-    use crate::gvdb::test::read::{assert_is_file_3, byte_compare_file_3};
 
     const GRESOURCE_XML: &str = "test/data/gresource/test3.gresource.xml";
 

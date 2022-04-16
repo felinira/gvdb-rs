@@ -350,7 +350,7 @@ impl<'a> GvdbHashTable<'a> {
 pub(crate) mod test {
     use crate::gvdb::hash::GvdbHashTable;
     use crate::gvdb::hash_item::GvdbHashItemType;
-    use crate::gvdb::test::util::assert_bytes_eq;
+    use crate::gvdb::test::assert_bytes_eq;
 
     pub fn byte_compare_gvdb_hash_table(a: &GvdbHashTable, b: &GvdbHashTable) {
         assert_eq!(a.header, b.header);

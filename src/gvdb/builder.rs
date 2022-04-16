@@ -683,10 +683,8 @@ impl GvdbFileWriter {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::gvdb::root::test::*;
     use crate::gvdb::root::GvdbRoot;
-    use crate::gvdb::test::read::{
-        assert_is_file_1, assert_is_file_2, byte_compare_file_1, byte_compare_file_2,
-    };
     use glib::{Bytes, ToVariant};
     use matches::assert_matches;
     use std::borrow::Cow;
