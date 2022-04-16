@@ -1,8 +1,12 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::path::PathBuf;
 
+/// Error type for GvdbFileWriter
 pub enum GvdbWriterError {
+    /// Generic I/O error. Path contains an optional filename if applicable
     Io(std::io::Error, Option<PathBuf>),
+
+    /// An internal inconsistency was found
     Consistency(String),
 }
 
@@ -35,4 +39,5 @@ impl Debug for GvdbWriterError {
     }
 }
 
+/// The Result type for [`GvdbWriterError`]
 pub type GvdbBuilderResult<T> = std::result::Result<T, GvdbWriterError>;

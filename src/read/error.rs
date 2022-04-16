@@ -4,14 +4,28 @@ use std::num::TryFromIntError;
 use std::path::PathBuf;
 use std::string::FromUtf8Error;
 
+/// An error that can occur during GVDB file reading
 #[derive(Debug)]
 pub enum GvdbReaderError {
+    /// Error converting a string to UTF-8
     Utf8(FromUtf8Error),
+
+    /// Generic I/O error. Path contains an optional filename if applicable
     Io(std::io::Error, Option<PathBuf>),
+
+    /// Tried to access an invalid data offset
     DataOffset,
+
+    /// Tried to read unaligned data
     DataAlignment,
+
+    /// Unexpected data
     InvalidData,
+
+    /// Like InvalidData but with context information in the provided string
     DataError(String),
+
+    /// The item with the specified key does not exist in the hash table
     KeyError(String),
 }
 
@@ -96,4 +110,5 @@ impl Display for GvdbReaderError {
     }
 }
 
+/// The Result type for [`GvdbReaderError`]
 pub type GvdbReaderResult<T> = std::result::Result<T, GvdbReaderError>;

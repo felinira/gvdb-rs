@@ -3,9 +3,13 @@ use serde_xml_rs::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::string::FromUtf8Error;
 
+/// Error when parsing a GResource XML file
 pub enum GResourceXMLError {
+    /// An error occured during parsing of the XML file
     Serde(serde_xml_rs::Error, Option<std::path::PathBuf>),
-    IO(std::io::Error, Option<std::path::PathBuf>),
+
+    /// Generic I/O error occurred when handling XML file
+    Io(std::io::Error, Option<std::path::PathBuf>),
 }
 
 impl From<serde_xml_rs::Error> for GResourceXMLError {
@@ -16,7 +20,7 @@ impl From<serde_xml_rs::Error> for GResourceXMLError {
 
 impl From<std::io::Error> for GResourceXMLError {
     fn from(err: std::io::Error) -> Self {
-        Self::IO(err, None)
+        Self::Io(err, None)
     }
 }
 
@@ -30,7 +34,7 @@ impl Display for GResourceXMLError {
                     write!(f, "Error parsing XML file: {}", err)
                 }
             }
-            GResourceXMLError::IO(err, path) => {
+            GResourceXMLError::Io(err, path) => {
                 if let Some(path) = path {
                     write!(f, "I/O error for file '{}': {}", path.display(), err)
                 } else {
@@ -47,15 +51,30 @@ impl Debug for GResourceXMLError {
     }
 }
 
+/// Result type for GResourceXMLError
 pub type GResourceXMLResult<T> = Result<T, GResourceXMLError>;
 
+/// Error type for creating a GResource XML file
 pub enum GResourceBuilderError {
+    /// An internal error occurred during creation of the GVDB file
     Gvdb(GvdbWriterError),
+
+    /// I/O error
     Io(std::io::Error, Option<std::path::PathBuf>),
+
+    /// This error can occur when using xml-stripblanks and the provided XML file is invalid
     XmlRead(xml::reader::Error, Option<std::path::PathBuf>),
+
+    /// This error can occur when using xml-stripblanks and the provided XML file is invalid
     XmlWrite(xml::writer::Error, Option<std::path::PathBuf>),
+
+    /// A file needs to be interpreted as UTF-8 (for stripping whitespace etc.) but it is invalid
     Utf8(std::string::FromUtf8Error, Option<std::path::PathBuf>),
+
+    /// This error can occur when using json-stripblanks and the provided JSON file is invalid
     Json(json::Error, Option<std::path::PathBuf>),
+
+    /// This feature is not implemented in gvdb-rs
     Unimplemented(String),
 }
 
@@ -164,4 +183,5 @@ impl Debug for GResourceBuilderError {
     }
 }
 
+/// Result type for [`GResourceBuilderError`]
 pub type GResourceBuilderResult<T> = Result<T, GResourceBuilderError>;

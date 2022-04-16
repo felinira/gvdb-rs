@@ -6,49 +6,66 @@ use std::borrow::Cow;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+/// A GResource XML document
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct GResourceXMLDoc {
+    /// The list of GResource sections
     #[serde(rename = "gresource")]
     pub gresources: Vec<GResource>,
 
+    /// The directory of the XML file
     #[serde(default)]
     pub dir: PathBuf,
 }
 
+/// A GResource section inside a GResource XML document
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct GResource {
+    /// The files for this GResource section
     #[serde(rename = "file", default)]
     pub files: Vec<File>,
 
+    /// An optional prefix to prepend to the containing file keys
     #[serde(default)]
     pub prefix: String,
 }
 
+/// A file within a GResource section
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct File {
+    /// The on-disk file name of the file
     #[serde(rename = "$value")]
     pub filename: String,
 
+    /// The alias for this file if it should be named differently inside the GResource file
     pub alias: Option<String>,
 
+    /// Whether the file should be compressed using zlib
     #[serde(deserialize_with = "parse_bool_value", default)]
     pub compressed: bool,
 
+    /// A list of preprocessing options
     #[serde(deserialize_with = "parse_preprocess_options", default)]
     pub preprocess: PreprocessOptions,
 }
 
+/// Preprocessing options
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq)]
 #[non_exhaustive]
 pub struct PreprocessOptions {
+    /// Strip whitespace from XML file
     pub xml_stripblanks: bool,
+
+    /// Unimplemented
     pub to_pixdata: bool,
+
+    /// Strip whitespace from JSON file
     pub json_stripblanks: bool,
 }
 
@@ -87,21 +104,23 @@ where
 }
 
 impl GResourceXMLDoc {
+    /// Load a GResource XML file from disk using `path`
     pub fn from_file(path: &Path) -> GResourceXMLResult<Self> {
         let mut file = std::fs::File::open(path)
-            .map_err(|err| GResourceXMLError::IO(err, Some(path.to_path_buf())))?;
+            .map_err(|err| GResourceXMLError::Io(err, Some(path.to_path_buf())))?;
         let mut data = Vec::with_capacity(
             file.metadata()
-                .map_err(|err| GResourceXMLError::IO(err, Some(path.to_path_buf())))?
+                .map_err(|err| GResourceXMLError::Io(err, Some(path.to_path_buf())))?
                 .len() as usize,
         );
         file.read_to_end(&mut data)
-            .map_err(|err| GResourceXMLError::IO(err, Some(path.to_path_buf())))?;
+            .map_err(|err| GResourceXMLError::Io(err, Some(path.to_path_buf())))?;
 
         let dir = path.parent().unwrap();
         Self::from_bytes(dir, Cow::Owned(data))
     }
 
+    /// Load a GResource XML file from the provided `Cow<[u8]>` bytes
     pub fn from_bytes(dir: &Path, data: Cow<'_, [u8]>) -> GResourceXMLResult<Self> {
         let config = ParserConfig::new()
             .trim_whitespace(true)
@@ -113,6 +132,7 @@ impl GResourceXMLDoc {
         Ok(this)
     }
 
+    /// Load a GResource XML file from a `&str` or `String`
     pub fn from_string(dir: &Path, str: impl ToString) -> GResourceXMLResult<Self> {
         Self::from_bytes(dir, Cow::Borrowed(str.to_string().as_bytes()))
     }

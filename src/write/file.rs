@@ -12,6 +12,21 @@ use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::mem::size_of;
 
+/// Create hash tables for use in GVDB files
+///
+/// # Example
+///
+/// ```
+/// use glib::ToVariant;
+/// use gvdb::write::file::{GvdbFileWriter, GvdbHashTableBuilder};
+///
+/// let file_writer = GvdbFileWriter::new();
+/// let mut table_builder = GvdbHashTableBuilder::new();
+/// table_builder
+///     .insert_string("string", "test string")
+///     .unwrap();
+/// let gvdb_data = file_writer.write_to_vec_with_table(table_builder).unwrap();
+/// ```
 #[derive(Debug)]
 pub struct GvdbHashTableBuilder {
     items: HashMap<String, GvdbBuilderItemValue>,
@@ -19,10 +34,22 @@ pub struct GvdbHashTableBuilder {
 }
 
 impl GvdbHashTableBuilder {
+    /// Create a new empty GvdbHashTableBuilder with the default path separator `/`
+    ///
+    /// ```
+    /// # use gvdb::write::file::GvdbHashTableBuilder;
+    /// let mut table_builder = GvdbHashTableBuilder::new();
+    /// ```
     pub fn new() -> Self {
         Self::with_path_separator(Some("/"))
     }
 
+    /// Create a new empty GvdbHashTableBuilder a different path separator than `/` or none at all
+    ///
+    /// ```
+    /// # use gvdb::write::file::GvdbHashTableBuilder;
+    /// let mut table_builder = GvdbHashTableBuilder::with_path_separator(Some(":"));
+    /// ```
     pub fn with_path_separator(sep: Option<&str>) -> Self {
         Self {
             items: Default::default(),
@@ -80,6 +107,14 @@ impl GvdbHashTableBuilder {
         Ok(())
     }
 
+    /// Insert GVariant `item` for `key`
+    ///
+    /// ```
+    /// # use glib::ToVariant;
+    /// # let mut table_builder = gvdb::write::file::GvdbHashTableBuilder::new();
+    /// let variant = 123u32.to_variant();
+    /// table_builder.insert_variant("variant_123", variant);
+    /// ```
     pub fn insert_variant<S: Into<String>>(
         &mut self,
         key: S,
@@ -89,17 +124,44 @@ impl GvdbHashTableBuilder {
         self.insert(key, item)
     }
 
+    /// Convenience method to create a string type GVariant for `value` and insert it at `key`
+    ///
+    /// ```
+    /// # let mut table_builder = gvdb::write::file::GvdbHashTableBuilder::new();
+    /// table_builder.insert_string("string_key", "string_data");
+    /// ```
     pub fn insert_string<S: Into<String>>(&mut self, key: S, value: &str) -> GvdbBuilderResult<()> {
         let variant = value.to_variant();
         self.insert_variant(key, variant)
     }
 
+    /// Convenience method to create a byte type GVariant for `value` and insert it at `key`
+    ///
+    /// ```
+    /// # let mut table_builder = gvdb::write::file::GvdbHashTableBuilder::new();
+    /// table_builder.insert_bytes("bytes", &[1, 2, 3, 4, 5]);
+    /// ```
     pub fn insert_bytes<S: Into<String>>(&mut self, key: S, bytes: &[u8]) -> GvdbBuilderResult<()> {
         let bytes = glib::Bytes::from(bytes);
         let variant = glib::Variant::from_bytes_with_type(&bytes, glib::VariantTy::BYTE_STRING);
         self.insert_variant(key, variant)
     }
 
+    /// Insert an entire hash table at `key`.
+    ///
+    /// ```
+    /// # use glib::ToVariant;
+    /// # use gvdb::write::file::GvdbHashTableBuilder;
+    /// let mut table_builder = GvdbHashTableBuilder::new();
+    /// let mut table_builder_2 = GvdbHashTableBuilder::new();
+    /// table_builder_2
+    ///     .insert_variant("int", 42u32.to_variant())
+    ///     .unwrap();
+    ///
+    /// table_builder
+    ///     .insert_table("table", table_builder_2)
+    ///     .unwrap();
+    /// ```
     pub fn insert_table<S: Into<String>>(
         &mut self,
         key: S,
@@ -109,15 +171,17 @@ impl GvdbHashTableBuilder {
         self.insert(key, item)
     }
 
+    /// The number of items contained in the hash table builder
     pub fn len(&self) -> usize {
         self.items.len()
     }
 
+    /// Whether the hash table builder contains no items
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
 
-    pub fn build(self) -> GvdbBuilderResult<SimpleHashTable> {
+    pub(crate) fn build(self) -> GvdbBuilderResult<SimpleHashTable> {
         let mut hash_table = SimpleHashTable::with_n_buckets(self.items.len());
 
         for (key, value) in self.items.into_iter() {
@@ -147,11 +211,6 @@ impl Default for GvdbHashTableBuilder {
     }
 }
 
-pub enum GvdbItemValue {
-    Value(glib::Variant),
-    Table(SimpleHashTable),
-}
-
 struct GvdbChunk {
     // The pointer that points to the data where the chunk will be in memory in the finished file
     pointer: GvdbPointer,
@@ -178,6 +237,22 @@ impl GvdbChunk {
     }
 }
 
+/// Create GVDB files
+///
+/// # Example
+/// ```
+/// use glib::ToVariant;
+/// use gvdb::write::file::{GvdbFileWriter, GvdbHashTableBuilder};
+///
+/// fn create_gvdb_file() {
+///     let mut file_writer = GvdbFileWriter::new();
+///     let mut table_builder = GvdbHashTableBuilder::new();
+///     table_builder
+///            .insert_string("string", "test string")
+///            .unwrap();
+///     let file_data = file_writer.write_to_vec_with_table(table_builder).unwrap();
+/// }
+/// ```
 pub struct GvdbFileWriter {
     offset: usize,
     chunks: VecDeque<GvdbChunk>,
@@ -185,7 +260,34 @@ pub struct GvdbFileWriter {
 }
 
 impl GvdbFileWriter {
-    pub fn new(byteswap: bool) -> Self {
+    /// Create a new instance configured for writing little endian data (preferred endianness)
+    /// ```
+    /// let file_writer = gvdb::write::file::GvdbFileWriter::new();
+    /// ```
+    pub fn new() -> Self {
+        #[cfg(target_endian = "little")]
+        let byteswap = false;
+        #[cfg(target_endian = "big")]
+        let byteswap = true;
+        Self::with_byteswap(byteswap)
+    }
+
+    /// Create a new instance configured for writing big endian data
+    /// (not recommended for most use cases)
+    /// ```
+    /// let file_writer = gvdb::write::file::GvdbFileWriter::new();
+    /// ```
+    pub fn for_big_endian() -> Self {
+        #[cfg(target_endian = "little")]
+        let byteswap = true;
+        #[cfg(target_endian = "big")]
+        let byteswap = false;
+        Self::with_byteswap(byteswap)
+    }
+
+    /// Specify manually whether you want to swap the endianness of the file. The default is to
+    /// always create a little-endian file
+    fn with_byteswap(byteswap: bool) -> Self {
         let mut this = Self {
             offset: 0,
             chunks: Default::default(),
@@ -196,7 +298,7 @@ impl GvdbFileWriter {
         this
     }
 
-    /// Allocate a chunk and return its index
+    /// Allocate a chunk
     fn allocate_chunk_with_data(
         &mut self,
         data: Box<[u8]>,
@@ -386,6 +488,7 @@ impl GvdbFileWriter {
         Ok(vec)
     }
 
+    /// Write the GVDB file into the provided [`std::io::Write`]
     pub fn write_with_table(
         mut self,
         table_builder: GvdbHashTableBuilder,
@@ -395,7 +498,8 @@ impl GvdbFileWriter {
         self.serialize(index, writer)
     }
 
-    pub fn write_into_vec_with_table(
+    /// Create a [`Vec<u8>`] with the GVDB file data
+    pub fn write_to_vec_with_table(
         mut self,
         table_builder: GvdbHashTableBuilder,
     ) -> GvdbBuilderResult<Vec<u8>> {
@@ -501,7 +605,7 @@ mod test {
 
     #[test]
     pub fn file_builder_file_1() {
-        let mut file_builder = GvdbFileWriter::new(false);
+        let mut file_builder = GvdbFileWriter::new();
         let mut table_builder = GvdbHashTableBuilder::new();
 
         let value1 = 1234u32.to_variant();
@@ -519,7 +623,7 @@ mod test {
 
     #[test]
     pub fn file_builder_file_2() {
-        let mut file_builder = GvdbFileWriter::new(false);
+        let mut file_builder = GvdbFileWriter::new();
         let mut table_builder = GvdbHashTableBuilder::new();
 
         table_builder

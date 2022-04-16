@@ -159,11 +159,13 @@ impl<'a> FileData<'a> {
     }
 }
 
+/// Create a GResource binary file
 pub struct GResourceBuilder<'a> {
     files: Vec<FileData<'a>>,
 }
 
 impl<'a> GResourceBuilder<'a> {
+    /// Create this builder from a GResource XML file
     pub fn from_xml(xml: super::xml::GResourceXMLDoc) -> GResourceBuilderResult<Self> {
         let mut files = Vec::new();
 
@@ -203,13 +205,9 @@ impl<'a> GResourceBuilder<'a> {
         Ok(Self { files })
     }
 
+    /// Build the binary GResource data
     pub fn build(self) -> GResourceBuilderResult<Vec<u8>> {
-        #[cfg(target_endian = "big")]
-        let byteswap = true;
-        #[cfg(target_endian = "little")]
-        let byteswap = false;
-
-        let builder = GvdbFileWriter::new(byteswap);
+        let builder = GvdbFileWriter::new();
         let mut table_builder = GvdbHashTableBuilder::new();
 
         for file_data in self.files {
@@ -223,7 +221,7 @@ impl<'a> GResourceBuilder<'a> {
             table_builder.insert_variant(file_data.key(), variant)?;
         }
 
-        Ok(builder.write_into_vec_with_table(table_builder)?)
+        Ok(builder.write_to_vec_with_table(table_builder)?)
     }
 }
 

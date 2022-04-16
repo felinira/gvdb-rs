@@ -10,12 +10,6 @@ use std::io::Read;
 use std::mem::size_of;
 use std::path::Path;
 
-#[derive(Debug)]
-pub struct GvdbFile<'a> {
-    data: Cow<'a, [u8]>,
-    byteswapped: bool,
-}
-
 /// The root of a GVDB file
 ///
 /// # Examples
@@ -69,6 +63,12 @@ pub struct GvdbFile<'a> {
 ///     assert_eq!(int_value.get::<u32>().unwrap(), 42);
 /// }
 /// ```
+#[derive(Debug)]
+pub struct GvdbFile<'a> {
+    data: Cow<'a, [u8]>,
+    byteswapped: bool,
+}
+
 impl<'a> GvdbFile<'a> {
     /// Get the GVDB file header. Will err with GvdbError::DataOffset if the header doesn't fit
     fn get_header(&self) -> GvdbReaderResult<GvdbHeader> {
@@ -105,7 +105,7 @@ impl<'a> GvdbFile<'a> {
         }
     }
 
-    /// Interpret a chunk of bytes as a GVDB file
+    /// Interpret a slice of bytes as a GVDB file
     pub fn from_bytes(bytes: Cow<'a, [u8]>) -> GvdbReaderResult<GvdbFile<'a>> {
         let mut this = Self {
             data: bytes,

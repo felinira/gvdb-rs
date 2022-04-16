@@ -30,7 +30,6 @@ impl SimpleHashTable {
         (hash_value % self.buckets.len() as u32) as usize
     }
 
-    /// Insert the item for the specified key
     pub fn insert(&mut self, key: &str, item: GvdbBuilderItemValue) -> Rc<GvdbBuilderItem> {
         let hash_value = djb_hash(key);
         let bucket = self.hash_bucket(hash_value);

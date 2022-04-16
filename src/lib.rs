@@ -5,13 +5,13 @@
 //!
 //! ## Examples
 //!
-//! Example: Load a GResource file from disk with [`GvdbFile`](crate::read::file::GvdbFile)
+//! Load a GResource file from disk with [`GvdbFile`](crate::read::file::GvdbFile)
 //!
 //! ```
 //! use std::path::PathBuf;
 //! use gvdb::read::file::GvdbFile;
 //!
-//! pub fn main() {
+//! pub fn read_gresource_file() {
 //!     let path = PathBuf::from("test/data/test3.gresource");
 //!     let file = GvdbFile::from_file(&path).unwrap();
 //!     let table = file.hash_table().unwrap();
@@ -36,7 +36,7 @@
 //! use gvdb::write::file::{GvdbFileWriter, GvdbHashTableBuilder};
 //!
 //! fn create_gvdb_file() {
-//!     let mut file_builder = GvdbFileWriter::new(false);
+//!     let mut file_writer = GvdbFileWriter::new();
 //!     let mut table_builder = GvdbHashTableBuilder::new();
 //!     table_builder
 //!            .insert_string("string", "test string")
@@ -50,12 +50,47 @@
 //!     table_builder
 //!         .insert_table("table", table_builder_2)
 //!         .unwrap();
-//!     let root_index = file_builder.write_into_vec_with_table(table_builder).unwrap();
+//!     let file_data = file_writer.write_to_vec_with_table(table_builder).unwrap();
 //! }
 //! ```
+//!
+//! Create a GResource XML file with [`GResourceXMLDoc`](crate::gresource::xml::GResourceXMLDoc) and
+//! [`GResourceBuilder`](crate::gresource::builder::GResourceBuilder)
+//! ```
+//! use std::borrow::Cow;
+//! use std::path::PathBuf;
+//! use gvdb::gresource::builder::GResourceBuilder;
+//! use gvdb::gresource::xml::GResourceXMLDoc;
+//! use gvdb::read::file::GvdbFile;
+//!
+//! const GRESOURCE_XML: &str = "test/data/gresource/test3.gresource.xml";
+//!
+//! fn create_gresource() {
+//!     let doc = GResourceXMLDoc::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
+//!     let builder = GResourceBuilder::from_xml(doc).unwrap();
+//!     let data = builder.build().unwrap();
+//!     let root = GvdbFile::from_bytes(Cow::Owned(data)).unwrap();
+//! }
+//! ```
+//!
+//! ## Features
+//!
+//! To use the GResource XML module, the `gresource` feature must be enabled. This is done by
+//! default. You can opt out of the GResource functionality by specifying `default-features = false`
+//! in the gvdb dependency declaration
+//!
+//! ## Macros
+//!
+//! The [gvdb-macros](https://crates.io/crates/gvdb-macros) crate provides useful macros for
+//! GResource file creation.
 
-extern crate core;
+#![warn(missing_docs)]
 
+/// Read GResource XML files and compile a GResource file
+///
+/// Use [`GResourceXMLDoc`](crate::gresource::xml::GResourceXMLDoc) for XML file reading and
+/// [`GResourceBuilder`](crate::gresource::builder::GResourceBuilder) to create the GResource binary
+/// file
 #[cfg(feature = "gresource")]
 pub mod gresource;
 

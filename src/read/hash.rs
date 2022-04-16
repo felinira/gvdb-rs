@@ -10,6 +10,7 @@ use std::cmp::min;
 use std::fmt::{Debug, Formatter};
 use std::mem::size_of;
 
+/// The header of a GVDB hash table
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq)]
 pub struct GvdbHashHeader {
@@ -20,6 +21,8 @@ pub struct GvdbHashHeader {
 unsafe impl TriviallyTransmutable for GvdbHashHeader {}
 
 impl GvdbHashHeader {
+    /// Create a new GvdbHashHeader using the provided `bloom_shift`, `n_bloom_words` and
+    /// `n_buckets`
     pub fn new(bloom_shift: u32, n_bloom_words: u32, n_buckets: u32) -> Self {
         assert!(n_bloom_words < (1 << 27));
         let n_bloom_words = bloom_shift << 27 | n_bloom_words;
@@ -30,18 +33,22 @@ impl GvdbHashHeader {
         }
     }
 
+    /// Number of bloom words in the hash table header
     pub fn n_bloom_words(&self) -> u32 {
         u32::from_le(self.n_bloom_words) & ((1 << 27) - 1)
     }
 
+    /// Size of the bloom words section in the header
     pub fn bloom_words_len(&self) -> usize {
         self.n_bloom_words() as usize * size_of::<u32>()
     }
 
+    /// Number of hash buckets in the hash table header
     pub fn n_buckets(&self) -> u32 {
         u32::from_le(self.n_buckets)
     }
 
+    /// Length of the hash buckets section in the header
     pub fn buckets_len(&self) -> usize {
         self.n_buckets() as usize * size_of::<u32>()
     }
@@ -58,6 +65,9 @@ impl Debug for GvdbHashHeader {
     }
 }
 
+/// A hash table inside a GVDB file
+///
+///
 #[repr(C)]
 #[derive(Clone)]
 pub struct GvdbHashTable<'a> {
@@ -101,7 +111,7 @@ impl<'a> GvdbHashTable<'a> {
     }
 
     /// Read the hash table header
-    pub fn hash_header(data: &'a [u8]) -> GvdbReaderResult<GvdbHashHeader> {
+    fn hash_header(data: &'a [u8]) -> GvdbReaderResult<GvdbHashHeader> {
         let bytes: &[u8] = data
             .get(0..size_of::<GvdbHashHeader>())
             .ok_or(GvdbReaderError::DataOffset)?;
@@ -109,6 +119,7 @@ impl<'a> GvdbHashTable<'a> {
         Ok(transmute_one(bytes)?)
     }
 
+    /// Returns the header for this hash table
     pub fn get_header(&self) -> GvdbHashHeader {
         self.header
     }
@@ -129,7 +140,9 @@ impl<'a> GvdbHashTable<'a> {
         self.bloom_words_offset() + self.header.bloom_words_len()
     }
 
-    pub fn bloom_words(&self) -> Option<&[u32]> {
+    /// Returns the bloom words for this hash table
+    #[allow(dead_code)]
+    fn bloom_words(&self) -> Option<&[u32]> {
         let data_u8 = self
             .data
             .get(self.bloom_words_offset()..self.bloom_words_end());
@@ -150,8 +163,8 @@ impl<'a> GvdbHashTable<'a> {
         0
     }
 
-    /// gvdb_table_bloom_filter
-    pub fn bloom_filter(&self, hash_value: u32) -> bool {
+    /// Check whether the hash value corresponds to the bloom filter
+    fn bloom_filter(&self, hash_value: u32) -> bool {
         if self.header.n_bloom_words() == 0 {
             return true;
         }
@@ -204,7 +217,7 @@ impl<'a> GvdbHashTable<'a> {
         Ok(transmute_one_pedantic(data)?)
     }
 
-    /// Gets a list of keys
+    /// Gets a list of keys contained in the hash table
     pub fn get_names(&self) -> GvdbReaderResult<Vec<String>> {
         let count = self.n_hash_items();
         let mut names = vec![None; count];
@@ -280,6 +293,7 @@ impl<'a> GvdbHashTable<'a> {
         false
     }
 
+    /// Gets the item at key `key`
     pub fn get_hash_item(&self, key: &str) -> GvdbReaderResult<GvdbHashItem> {
         if self.header.n_buckets() == 0 || self.n_hash_items() == 0 {
             return Err(GvdbReaderError::KeyError(key.to_string()));
@@ -314,14 +328,17 @@ impl<'a> GvdbHashTable<'a> {
         Err(GvdbReaderError::KeyError(key.to_string()))
     }
 
+    /// Get the item at key `key` and try to interpret it as a [`struct@glib::Variant`]
     pub fn get_value(&self, key: &str) -> GvdbReaderResult<glib::Variant> {
         self.get_value_for_item(&self.get_hash_item(key)?)
     }
 
+    /// Get the item at key `key` and try to interpret it as a [`GvdbHashTable`]
     pub fn get_hash_table(&self, key: &str) -> GvdbReaderResult<GvdbHashTable> {
         self.get_hash_table_for_item(&self.get_hash_item(key)?)
     }
 
+    /// Get the item at key `key` from the hash table
     pub fn get(&self, key: &str) -> GvdbReaderResult<GvdbValue> {
         let item = self.get_hash_item(key)?;
 
