@@ -1,6 +1,5 @@
 use crate::gvdb::read::hash_item::GvdbHashItemType;
 use crate::gvdb::write::builder::GvdbHashTableBuilder;
-use crate::gvdb::write::error::{GvdbBuilderError, GvdbBuilderResult};
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::rc::Rc;
 
@@ -131,14 +130,6 @@ impl GvdbBuilderItem {
 
     pub fn parent_mut(&self) -> RefMut<Option<Rc<GvdbBuilderItem>>> {
         self.parent.borrow_mut()
-    }
-
-    pub fn set_parent(&self, parent: &GvdbBuilderItem) -> GvdbBuilderResult<()> {
-        if !self.key.starts_with(&parent.key) {
-            return Err(GvdbBuilderError::WrongParentPrefix);
-        }
-
-        Ok(())
     }
 
     pub fn assigned_index(&self) -> u32 {

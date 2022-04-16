@@ -67,9 +67,15 @@ impl<'a> GvdbFile<'a> {
 
     /// Open a file and interpret the data as GVDB
     pub fn from_file(filename: &Path) -> GvdbResult<Self> {
-        let mut file = File::open(filename)?;
-        let mut data = Vec::with_capacity(file.metadata()?.len() as usize);
-        file.read_to_end(&mut data)?;
+        let mut file =
+            File::open(filename).map_err(|err| GvdbError::IO(err, Some(filename.to_path_buf())))?;
+        let mut data = Vec::with_capacity(
+            file.metadata()
+                .map_err(|err| GvdbError::IO(err, Some(filename.to_path_buf())))?
+                .len() as usize,
+        );
+        file.read_to_end(&mut data)
+            .map_err(|err| GvdbError::IO(err, Some(filename.to_path_buf())))?;
         Self::from_bytes(Cow::Owned(data), false)
     }
 

@@ -15,7 +15,7 @@ const BYTE_COMPATIBILITY: bool = false;
 
 const FLAG_COMPRESSED: u32 = 1 << 0;
 
-pub struct FileData<'a> {
+struct FileData<'a> {
     key: String,
     data: Cow<'a, [u8]>,
     flags: u32,
@@ -166,7 +166,7 @@ pub struct GResourceBuilder<'a> {
 }
 
 impl<'a> GResourceBuilder<'a> {
-    pub fn from_xml(xml: super::xml::Document) -> GResourceBuilderResult<Self> {
+    pub fn from_xml(xml: super::xml::GResourceXMLDoc) -> GResourceBuilderResult<Self> {
         let mut files = Vec::new();
 
         for gresource in &xml.gresources {
@@ -205,10 +205,6 @@ impl<'a> GResourceBuilder<'a> {
         Ok(Self { files })
     }
 
-    pub fn files(&self) -> &[FileData] {
-        &self.files
-    }
-
     pub fn build(self) -> GResourceBuilderResult<Vec<u8>> {
         #[cfg(target_endian = "big")]
         let byteswap = true;
@@ -226,7 +222,7 @@ impl<'a> GResourceBuilder<'a> {
             ];
             let variant = glib::Variant::tuple_from_iter(tuple);
 
-            table_builder.insert_variant(file_data.key, variant)?;
+            table_builder.insert_variant(file_data.key(), variant)?;
         }
 
         Ok(builder.write_into_vec_with_table(table_builder)?)
@@ -236,7 +232,7 @@ impl<'a> GResourceBuilder<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::gresource::xml::Document;
+    use crate::gresource::xml::GResourceXMLDoc;
     use crate::gvdb::read::file::test::{assert_is_file_3, byte_compare_file_3};
     use crate::gvdb::read::file::GvdbFile;
 
@@ -244,10 +240,10 @@ mod test {
 
     #[test]
     fn file_data() {
-        let doc = Document::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
+        let doc = GResourceXMLDoc::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
         let builder = GResourceBuilder::from_xml(doc).unwrap();
 
-        for file in builder.files() {
+        for file in builder.files {
             assert!(file.key().starts_with("/gvdb/rs/test"));
 
             if !vec![
@@ -264,7 +260,7 @@ mod test {
 
     #[test]
     fn test_file_3() {
-        let doc = Document::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
+        let doc = GResourceXMLDoc::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
         let builder = GResourceBuilder::from_xml(doc).unwrap();
         let data = builder.build().unwrap();
         let root = GvdbFile::from_bytes(Cow::Owned(data), false).unwrap();

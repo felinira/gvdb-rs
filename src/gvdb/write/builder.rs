@@ -284,7 +284,10 @@ impl GvdbFileWriter {
             };
 
             if key.is_empty() {
-                return Err(GvdbBuilderError::EmptyKey);
+                return Err(GvdbBuilderError::Consistency(format!(
+                    "Item '{}' already exists in hash map",
+                    current_item.key()
+                )));
             }
 
             let key_ptr = self.add_string(key).1.pointer;
@@ -345,7 +348,10 @@ impl GvdbFileWriter {
         let root_ptr = self
             .chunks
             .get(root_chunk_index)
-            .ok_or(GvdbBuilderError::InvalidRootChunk)?
+            .ok_or(GvdbBuilderError::Consistency(format!(
+                "Root chunk with id {} not found",
+                root_chunk_index
+            )))?
             .pointer;
         let header = GvdbHeader::new(self.byteswap, 0, root_ptr);
         self.chunks[0].data_mut()[0..size_of::<GvdbHeader>()]

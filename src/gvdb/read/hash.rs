@@ -279,12 +279,12 @@ impl<'a> GvdbHashTable<'a> {
 
     pub fn get_hash_item(&self, key: &str) -> GvdbResult<GvdbHashItem> {
         if self.header.n_buckets() == 0 || self.n_hash_items() == 0 {
-            return Err(GvdbError::KeyError);
+            return Err(GvdbError::KeyError(key.to_string()));
         }
 
         let hash_value = djb_hash(key);
         if !self.bloom_filter(hash_value) {
-            return Err(GvdbError::KeyError);
+            return Err(GvdbError::KeyError(key.to_string()));
         }
 
         let bucket = hash_value % self.header.n_buckets();
@@ -310,7 +310,7 @@ impl<'a> GvdbHashTable<'a> {
             itemno += 1;
         }
 
-        Err(GvdbError::KeyError)
+        Err(GvdbError::KeyError(key.to_string()))
     }
 
     pub fn get_value(&self, key: &str) -> GvdbResult<glib::Variant> {

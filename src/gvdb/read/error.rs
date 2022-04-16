@@ -1,18 +1,18 @@
 use safe_transmute::{Error, GuardError};
+use std::fmt::{Display, Formatter};
 use std::num::TryFromIntError;
+use std::path::PathBuf;
 use std::string::FromUtf8Error;
 
 #[derive(Debug)]
 pub enum GvdbError {
     UTF8(FromUtf8Error),
-    IO(std::io::Error),
-    Transmute,
+    IO(std::io::Error, Option<PathBuf>),
     DataOffset,
     DataAlignment,
     InvalidData,
     DataError(String),
-    TooMuchData,
-    KeyError,
+    KeyError(String),
 }
 
 impl From<FromUtf8Error> for GvdbError {
@@ -23,7 +23,7 @@ impl From<FromUtf8Error> for GvdbError {
 
 impl From<std::io::Error> for GvdbError {
     fn from(err: std::io::Error) -> Self {
-        Self::IO(err)
+        Self::IO(err, None)
     }
 }
 
@@ -54,6 +54,46 @@ impl<S, T> From<safe_transmute::Error<'_, S, T>> for GvdbError {
             },
             Error::Unaligned(_) => Self::DataError("Unaligned data read".to_string()),
             _ => Self::InvalidData,
+        }
+    }
+}
+
+impl Display for GvdbError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GvdbError::UTF8(err) => write!(f, "Error converting string to UTF-8: {}", err),
+            GvdbError::IO(err, path) => {
+                if let Some(path) = path {
+                    write!(f, "I/O error for file '{}': {}", path.display(), err)
+                } else {
+                    write!(f, "I/O error: {}", err)
+                }
+            }
+            GvdbError::DataOffset => {
+                write!(f, "Tried to access an invalid data offset. Most likely reason is a corrupted GVDB file")
+            }
+            GvdbError::DataAlignment => {
+                write!(
+                    f,
+                    "Tried to read unaligned data. Most likely reason is a corrupted GVDB file"
+                )
+            }
+            GvdbError::InvalidData => {
+                write!(
+                    f,
+                    "Unexpected data. Most likely reason is a corrupted GVDB file"
+                )
+            }
+            GvdbError::DataError(msg) => {
+                write!(
+                    f,
+                    "A data inconsistency error occured while reading gvdb file: {}",
+                    msg
+                )
+            }
+            GvdbError::KeyError(key) => {
+                write!(f, "The item with the key '{}' does not exist", key)
+            }
         }
     }
 }

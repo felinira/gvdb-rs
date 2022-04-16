@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct Document {
+pub struct GResourceXMLDoc {
     #[serde(rename = "gresource")]
     pub(crate) gresources: Vec<GResource>,
 
@@ -92,7 +92,7 @@ where
     Ok(this)
 }
 
-impl Document {
+impl GResourceXMLDoc {
     pub fn from_file(path: &Path) -> GResourceXMLResult<Self> {
         let mut file = std::fs::File::open(path)
             .map_err(|err| GResourceXMLError::IO(err, Some(path.to_path_buf())))?;
@@ -136,7 +136,7 @@ mod test {
         let test_path = PathBuf::from("/TEST");
 
         let data = r#"<gresources><gresource><file compressed="false">test</file></gresource></gresources>"#;
-        let doc = Document::from_bytes(&test_path, Cow::Borrowed(data.as_bytes())).unwrap();
+        let doc = GResourceXMLDoc::from_bytes(&test_path, Cow::Borrowed(data.as_bytes())).unwrap();
         assert_eq!(doc.gresources.len(), 1);
         assert_eq!(doc.gresources[0].files.len(), 1);
         assert_eq!(doc.gresources[0].files[0].filename, "test");
@@ -154,7 +154,7 @@ mod test {
         let test_path = PathBuf::from("/TEST");
 
         let data = r#"<gresources><gresource prefix="/bla/blub"><file compressed="true" preprocess="json-stripblanks,to-pixdata">test.json</file></gresource></gresources>"#;
-        let doc = Document::from_bytes(&test_path, Cow::Borrowed(data.as_bytes())).unwrap();
+        let doc = GResourceXMLDoc::from_bytes(&test_path, Cow::Borrowed(data.as_bytes())).unwrap();
         assert_eq!(doc.gresources.len(), 1);
         assert_eq!(doc.gresources[0].files.len(), 1);
         assert_eq!(doc.gresources[0].files[0].filename, "test.json");
@@ -170,42 +170,42 @@ mod test {
         let test_path = PathBuf::from("/TEST");
 
         assert_matches!(
-            Document::from_string(&test_path, r#"<wrong></wrong>"#),
+            GResourceXMLDoc::from_string(&test_path, r#"<wrong></wrong>"#),
             Err(GResourceXMLError::Serde(serde_xml_rs::Error::Custom {
                 field
             }, _)) if field == "missing field `gresource`"
         );
 
         assert_matches!(
-            Document::from_string(&test_path, r#"<gresources><gresource><file></file></gresource></gresources>"#),
+            GResourceXMLDoc::from_string(&test_path, r#"<gresources><gresource><file></file></gresource></gresources>"#),
             Err(GResourceXMLError::Serde(serde_xml_rs::Error::Custom {
                 field
             }, _)) if field == "missing field `$value`"
         );
 
         assert_matches!(
-            Document::from_string(&test_path, r#"<gresources><gresource><file compressed="nobool">filename</file></gresource></gresources>"#),
+            GResourceXMLDoc::from_string(&test_path, r#"<gresources><gresource><file compressed="nobool">filename</file></gresource></gresources>"#),
             Err(GResourceXMLError::Serde(serde_xml_rs::Error::Custom {
                 field
             }, _)) if field.starts_with("got 'nobool', but expected any of")
         );
 
         assert_matches!(
-            Document::from_string(&test_path, r#"<gresources><wrong></wrong></gresources>"#),
+            GResourceXMLDoc::from_string(&test_path, r#"<gresources><wrong></wrong></gresources>"#),
             Err(GResourceXMLError::Serde(serde_xml_rs::Error::Custom {
                 field
             }, _)) if field.starts_with("unknown field `wrong`, expected `gresource`")
         );
 
         assert_matches!(
-            Document::from_string(&test_path, r#"<gresources><gresource><wrong>filename</wrong></gresource></gresources>"#),
+            GResourceXMLDoc::from_string(&test_path, r#"<gresources><gresource><wrong>filename</wrong></gresource></gresources>"#),
             Err(GResourceXMLError::Serde(serde_xml_rs::Error::Custom {
                 field
             }, _)) if field.starts_with("unknown field `wrong`, expected `file` or `prefix`")
         );
 
         assert_matches!(
-            Document::from_string(&test_path, r#"<gresources><gresource><file wrong="1">filename</file></gresource></gresources>"#),
+            GResourceXMLDoc::from_string(&test_path, r#"<gresources><gresource><file wrong="1">filename</file></gresource></gresources>"#),
             Err(GResourceXMLError::Serde(serde_xml_rs::Error::Custom {
                 field
             }, _)) if field.starts_with("unknown field `wrong`, expected one of")
