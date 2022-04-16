@@ -3,7 +3,7 @@ use crate::gvdb::read::hash::GvdbHashTable;
 use crate::gvdb::read::hash_item::{GvdbHashItem, GvdbHashItemType};
 use crate::gvdb::read::header::GvdbHeader;
 use crate::gvdb::read::pointer::GvdbPointer;
-use safe_transmute::{transmute_one, transmute_one_pedantic, transmute_one_to_bytes};
+use safe_transmute::transmute_one_pedantic;
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::Read;
@@ -74,25 +74,6 @@ impl<'a> GvdbFile<'a> {
         Self::from_bytes(Cow::Owned(data))
     }
 
-    pub(crate) fn with_empty_header(byteswap: bool) -> Self {
-        let header = GvdbHeader::new(byteswap, 0, GvdbPointer::NULL);
-        let header_data = transmute_one_to_bytes(&header);
-
-        let mut data: Cow<[u8]> = Cow::Owned(Vec::new());
-        data.to_mut().extend_from_slice(header_data);
-
-        Self {
-            data,
-            byteswapped: false,
-        }
-    }
-
-    pub(crate) fn set_root(&mut self, root: GvdbPointer) -> GvdbResult<()> {
-        let mut header: GvdbHeader = transmute_one(&self.data)?;
-        header.set_root(root);
-        Ok(())
-    }
-
     /// gvdb_table_item_get_key
     pub(crate) fn get_key(&self, item: &GvdbHashItem) -> GvdbResult<String> {
         let data = self.dereference(&item.key_ptr(), 1)?;
@@ -127,10 +108,6 @@ impl<'a> GvdbFile<'a> {
                 typ
             )))
         }
-    }
-
-    pub(crate) fn data(&self) -> &[u8] {
-        &self.data
     }
 }
 
@@ -168,7 +145,7 @@ pub mod test {
 
         assert_bytes_eq(
             &reference_data,
-            &file.data(),
+            &file.data,
             &format!("Byte comparing with file '{}'", reference_filename),
         );
     }

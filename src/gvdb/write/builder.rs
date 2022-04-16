@@ -173,8 +173,8 @@ impl GvdbChunk {
         self.data
     }
 
-    pub fn pointer(&self) -> &GvdbPointer {
-        &self.pointer
+    pub fn pointer(&self) -> GvdbPointer {
+        self.pointer
     }
 }
 
@@ -222,10 +222,6 @@ impl GvdbFileWriter {
     fn allocate_empty_chunk(&mut self, size: usize, alignment: usize) -> (usize, &mut GvdbChunk) {
         let data = vec![0; size].into_boxed_slice();
         self.allocate_chunk_with_data(data, alignment)
-    }
-
-    fn chunk_mut(&mut self, index: usize) -> Option<&mut GvdbChunk> {
-        self.chunks.get_mut(index)
     }
 
     fn add_variant(&mut self, variant: &glib::Variant) -> (usize, &mut GvdbChunk) {
@@ -299,12 +295,12 @@ impl GvdbFileWriter {
                 )));
             }
 
-            let key_ptr = self.add_string(key).1.pointer;
+            let key_ptr = self.add_string(key).1.pointer();
             let typ = current_item.value_ref().typ();
 
             let value_ptr = match current_item.value().take() {
-                GvdbBuilderItemValue::Value(value) => self.add_variant(&value).1.pointer,
-                GvdbBuilderItemValue::TableBuilder(tb) => self.add_hash_table(tb)?.1.pointer,
+                GvdbBuilderItemValue::Value(value) => self.add_variant(&value).1.pointer(),
+                GvdbBuilderItemValue::TableBuilder(tb) => self.add_hash_table(tb)?.1.pointer(),
                 GvdbBuilderItemValue::Container(children) => {
                     let size = children.len() * size_of::<u32>();
                     let chunk = self.allocate_empty_chunk(size, 4).1;
@@ -326,7 +322,7 @@ impl GvdbFileWriter {
                         }
                     }
 
-                    chunk.pointer
+                    chunk.pointer()
                 }
             };
 
@@ -346,7 +342,7 @@ impl GvdbFileWriter {
     }
 
     fn file_size(&self) -> usize {
-        self.chunks[self.chunks.len() - 1].pointer.end() as usize
+        self.chunks[self.chunks.len() - 1].pointer().end() as usize
     }
 
     fn serialize(
@@ -363,7 +359,7 @@ impl GvdbFileWriter {
                     root_chunk_index
                 ))
             })?
-            .pointer;
+            .pointer();
         let header = GvdbHeader::new(self.byteswap, 0, root_ptr);
         self.chunks[0].data_mut()[0..size_of::<GvdbHeader>()]
             .copy_from_slice(transmute_one_to_bytes(&header));
@@ -371,13 +367,13 @@ impl GvdbFileWriter {
         let mut size = 0;
         for chunk in self.chunks.into_iter() {
             // Align
-            if size < chunk.pointer.start() as usize {
-                let padding = chunk.pointer.start() as usize - size;
+            if size < chunk.pointer().start() as usize {
+                let padding = chunk.pointer().start() as usize - size;
                 size += padding;
                 writer.write_all(&vec![0; padding])?;
             }
 
-            size += chunk.pointer.size() as usize;
+            size += chunk.pointer().size() as usize;
             writer.write_all(&chunk.into_data())?;
         }
 

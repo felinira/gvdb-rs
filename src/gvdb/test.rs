@@ -114,9 +114,3 @@ pub fn assert_bytes_eq(a: &[u8], b: &[u8], context: &str) {
         panic!("b is too big, expected {} bytes, got {}", a.len(), b.len());
     }
 }
-
-pub fn pretty_print_bytes(data: &[u8]) -> std::io::Result<()> {
-    let out = std::io::stdout();
-    let mut outl = out.lock();
-    write_byte_rows(&mut outl, 0, usize::MAX, usize::MAX, 16, data)
-}

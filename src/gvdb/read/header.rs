@@ -74,6 +74,7 @@ mod test {
     use super::*;
     use safe_transmute::{transmute_one_pedantic, transmute_one_to_bytes};
 
+    #[test]
     fn header_serialize() {
         let header = GvdbHeader::new(false, 123, GvdbPointer::NULL);
         assert_eq!(header.is_byteswap().unwrap(), false);
