@@ -16,6 +16,57 @@ pub struct GvdbFile<'a> {
     byteswapped: bool,
 }
 
+/// The root of a GVDB file
+///
+/// Example: Load a GResource file from disk
+///
+/// ```
+/// use std::path::PathBuf;
+/// use gvdb::read::file::GvdbFile;
+/// use gvdb::gvdb::read::file::GvdbFile;
+///
+/// pub fn main() {
+///     let path = PathBuf::from("test/data/test3.gresource");
+///     let file = GvdbFile::from_file(&path).unwrap();
+///
+///     let svg1 = table
+///         .get_value("/gvdb/rs/test/online-symbolic.svg")
+///         .unwrap()
+///         .child_value(0);
+///     let svg1_size = svg1.child_value(0).get::<u32>().unwrap();
+///     let svg1_flags = svg1.child_value(1).get::<u32>().unwrap();
+///     let svg1_content = svg1.child_value(2).data_as_bytes();
+///     let svg1_str = std::str::from_utf8(&svg1_content[0..svg1_content.len() - 1]).unwrap();
+///
+///     println!("{}", svg1_str);
+/// }
+/// ```
+///
+/// Example: Query the root hash table
+///
+/// ```
+/// use gvdb::gvdb::read::file::GvdbFile;
+///
+/// fn query_hash_table(file: GvdbFile) {
+///     let table = file.hash_table().unwrap();
+///     let names = table.get_names().unwrap();
+///     assert_eq!(names.len(), 2);
+///     assert_eq!(names[0], "string");
+///     assert_eq!(names[1], "table");
+///
+///     let str_value = table.get_value("string").unwrap().child_value(0);
+///     assert!(str_value.is_type(glib::VariantTy::STRING));
+///     assert_eq!(str_value.get::<String>().unwrap(), "test string");
+///
+///     let sub_table = table.get_hash_table("table").unwrap();
+///     let sub_table_names = sub_table.get_names().unwrap();
+///     assert_eq!(sub_table_names.len(), 1);
+///     assert_eq!(sub_table_names[0], "int");
+///
+///     let int_value = sub_table.get_value("int").unwrap().child_value(0);
+///     assert_eq!(int_value.get::<u32>().unwrap(), 42);
+/// }
+/// ```
 impl<'a> GvdbFile<'a> {
     /// Get the GVDB file header. Will err with GvdbError::DataOffset if the header doesn't fit
     fn get_header(&self) -> GvdbResult<GvdbHeader> {
@@ -34,7 +85,7 @@ impl<'a> GvdbFile<'a> {
     }
 
     /// Dereference a pointer
-    pub fn dereference(&self, pointer: &GvdbPointer, alignment: u32) -> GvdbResult<&[u8]> {
+    pub(super) fn dereference(&self, pointer: &GvdbPointer, alignment: u32) -> GvdbResult<&[u8]> {
         let start: usize = pointer.start() as usize;
         let end: usize = pointer.end() as usize;
         let alignment: usize = alignment as usize;
@@ -74,6 +125,10 @@ impl<'a> GvdbFile<'a> {
     }
 
     /// Open a file and interpret the data as GVDB
+    /// ```
+    /// let path = std::path::PathBuf::from("test/data/test3.gresource");
+    /// let file = gvdb::gvdb::read::file::GvdbFile::from_file(&path).unwrap();
+    /// ```
     pub fn from_file(filename: &Path) -> GvdbResult<Self> {
         let mut file =
             File::open(filename).map_err(|err| GvdbError::Io(err, Some(filename.to_path_buf())))?;
