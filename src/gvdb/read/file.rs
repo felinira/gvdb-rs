@@ -14,7 +14,6 @@ use std::path::Path;
 pub struct GvdbFile<'a> {
     data: Cow<'a, [u8]>,
     byteswapped: bool,
-    trusted: bool,
 }
 
 impl<'a> GvdbFile<'a> {
@@ -53,11 +52,10 @@ impl<'a> GvdbFile<'a> {
     }
 
     /// Interpret a chunk of bytes as a GVDB file
-    pub fn from_bytes(bytes: Cow<'a, [u8]>, trusted: bool) -> GvdbResult<GvdbFile<'a>> {
+    pub fn from_bytes(bytes: Cow<'a, [u8]>) -> GvdbResult<GvdbFile<'a>> {
         let mut this = Self {
             data: bytes,
             byteswapped: false,
-            trusted,
         };
 
         let header = this.get_header()?;
@@ -76,7 +74,7 @@ impl<'a> GvdbFile<'a> {
         );
         file.read_to_end(&mut data)
             .map_err(|err| GvdbError::IO(err, Some(filename.to_path_buf())))?;
-        Self::from_bytes(Cow::Owned(data), false)
+        Self::from_bytes(Cow::Owned(data))
     }
 
     pub(crate) fn with_empty_header(byteswap: bool) -> Self {
@@ -89,7 +87,6 @@ impl<'a> GvdbFile<'a> {
         Self {
             data,
             byteswapped: false,
-            trusted: true,
         }
     }
 

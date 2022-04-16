@@ -263,7 +263,7 @@ mod test {
         let doc = GResourceXMLDoc::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
         let builder = GResourceBuilder::from_xml(doc).unwrap();
         let data = builder.build().unwrap();
-        let root = GvdbFile::from_bytes(Cow::Owned(data), false).unwrap();
+        let root = GvdbFile::from_bytes(Cow::Owned(data)).unwrap();
         assert_is_file_3(&root);
         byte_compare_file_3(&root);
     }
