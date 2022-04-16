@@ -1,6 +1,6 @@
 use crate::gresource::error::{GResourceBuilderError, GResourceBuilderResult};
 use crate::gresource::xml::PreprocessOptions;
-use crate::gvdb::builder::{GvdbFileWriter, GvdbHashTableBuilder};
+use crate::gvdb::write::builder::{GvdbFileWriter, GvdbHashTableBuilder};
 use flate2::write::ZlibEncoder;
 use glib::ToVariant;
 use std::borrow::Cow;
@@ -237,8 +237,8 @@ impl<'a> GResourceBuilder<'a> {
 mod test {
     use super::*;
     use crate::gresource::xml::Document;
-    use crate::gvdb::file::test::{assert_is_file_3, byte_compare_file_3};
-    use crate::gvdb::file::GvdbFile;
+    use crate::gvdb::read::file::test::{assert_is_file_3, byte_compare_file_3};
+    use crate::gvdb::read::file::GvdbFile;
 
     const GRESOURCE_XML: &str = "test/data/gresource/test3.gresource.xml";
 

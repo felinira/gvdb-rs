@@ -1,6 +1,6 @@
-use crate::gvdb::error::{GvdbError, GvdbResult};
-use crate::gvdb::file::GvdbFile;
-use crate::gvdb::hash_item::{GvdbHashItem, GvdbHashItemType, GvdbValue};
+use crate::gvdb::read::error::{GvdbError, GvdbResult};
+use crate::gvdb::read::file::GvdbFile;
+use crate::gvdb::read::hash_item::{GvdbHashItem, GvdbHashItemType, GvdbValue};
 use crate::gvdb::util::djb_hash;
 use safe_transmute::{
     transmute_many_pedantic, transmute_one, transmute_one_pedantic, TriviallyTransmutable,
@@ -348,8 +348,8 @@ impl<'a> GvdbHashTable<'a> {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use crate::gvdb::hash::GvdbHashTable;
-    use crate::gvdb::hash_item::GvdbHashItemType;
+    use crate::gvdb::read::hash::GvdbHashTable;
+    use crate::gvdb::read::hash_item::GvdbHashItemType;
     use crate::gvdb::test::assert_bytes_eq;
 
     pub fn byte_compare_gvdb_hash_table(a: &GvdbHashTable, b: &GvdbHashTable) {

@@ -1,11 +1,6 @@
-pub mod builder;
-pub mod error;
-pub mod file;
+pub mod read;
+pub mod write;
 
-mod hash;
-mod hash_item;
-mod header;
-mod pointer;
 mod util;
 
 #[cfg(test)]

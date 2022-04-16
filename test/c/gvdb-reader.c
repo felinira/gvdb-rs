@@ -365,7 +365,7 @@ gvdb_table_get_names (GvdbTable *table,
    * we would need to implement some sort of recursion along with checks
    * for self-referential items.
    *
-   * Instead, we do a number of passes.  Each pass will build up one
+   * Instead, we do a number of passes.  Each pass will write up one
    * level of names (starting from the root).  We continue to do passes
    * until no more items are left.  The first pass will only add root
    * items and each further pass will only add items whose direct parent

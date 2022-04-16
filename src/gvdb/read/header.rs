@@ -1,5 +1,5 @@
-use crate::gvdb::error::{GvdbError, GvdbResult};
-use crate::gvdb::pointer::GvdbPointer;
+use crate::gvdb::read::error::{GvdbError, GvdbResult};
+use crate::gvdb::read::pointer::GvdbPointer;
 use safe_transmute::TriviallyTransmutable;
 
 // This is just a string, but it is stored in the byteorder of the file

@@ -1,304 +1,16 @@
-use crate::gvdb::builder::GvdbBuilderItemValue::Container;
-use crate::gvdb::error::{GvdbBuilderError, GvdbBuilderResult};
-use crate::gvdb::hash::GvdbHashHeader;
-use crate::gvdb::hash_item::{GvdbHashItem, GvdbHashItemType};
-use crate::gvdb::header::GvdbHeader;
-use crate::gvdb::pointer::GvdbPointer;
-use crate::gvdb::util::{align_offset, djb_hash};
+use crate::gvdb::read::hash::GvdbHashHeader;
+use crate::gvdb::read::hash_item::GvdbHashItem;
+use crate::gvdb::read::header::GvdbHeader;
+use crate::gvdb::read::pointer::GvdbPointer;
+use crate::gvdb::util::align_offset;
+use crate::gvdb::write::error::{GvdbBuilderError, GvdbBuilderResult};
+use crate::gvdb::write::hash::SimpleHashTable;
+use crate::gvdb::write::item::GvdbBuilderItemValue;
 use glib::ToVariant;
 use safe_transmute::transmute_one_to_bytes;
-use std::cell::{Cell, Ref, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::io::Write;
-use std::iter::Map;
 use std::mem::size_of;
-use std::rc::Rc;
-
-#[derive(Debug)]
-pub enum GvdbBuilderItemValue {
-    Value(glib::Variant),
-    TableBuilder(GvdbHashTableBuilder),
-
-    // A child container with no additional value
-    Container(Vec<String>),
-}
-
-impl Default for GvdbBuilderItemValue {
-    fn default() -> Self {
-        Self::Container(Vec::new())
-    }
-}
-
-impl GvdbBuilderItemValue {
-    pub fn typ(&self) -> GvdbHashItemType {
-        match self {
-            GvdbBuilderItemValue::Value(_) => GvdbHashItemType::Value,
-            GvdbBuilderItemValue::TableBuilder(_) => GvdbHashItemType::HashTable,
-            GvdbBuilderItemValue::Container(_) => GvdbHashItemType::Container,
-        }
-    }
-
-    pub fn variant(&self) -> Option<&glib::Variant> {
-        match self {
-            GvdbBuilderItemValue::Value(variant) => Some(variant),
-            _ => None,
-        }
-    }
-
-    pub fn table_builder(&self) -> Option<&GvdbHashTableBuilder> {
-        match self {
-            GvdbBuilderItemValue::TableBuilder(tb) => Some(tb),
-            _ => None,
-        }
-    }
-
-    pub fn container(&self) -> Option<&Vec<String>> {
-        match self {
-            GvdbBuilderItemValue::Container(children) => Some(children),
-            _ => None,
-        }
-    }
-}
-
-impl Into<GvdbBuilderItemValue> for glib::Variant {
-    fn into(self) -> GvdbBuilderItemValue {
-        GvdbBuilderItemValue::Value(self)
-    }
-}
-
-impl Into<GvdbBuilderItemValue> for GvdbHashTableBuilder {
-    fn into(self) -> GvdbBuilderItemValue {
-        GvdbBuilderItemValue::TableBuilder(self)
-    }
-}
-
-#[derive(Debug)]
-pub struct GvdbBuilderItem {
-    // The key string of the item
-    key: String,
-
-    // The djb hash
-    hash: u32,
-
-    // An arbitrary data container
-    value: RefCell<GvdbBuilderItemValue>,
-
-    // The assigned index for the gvdb file
-    assigned_index: Cell<u32>,
-
-    // The parent item of this builder item
-    parent: RefCell<Option<Rc<GvdbBuilderItem>>>,
-
-    // The next item in the hash bucket
-    next: RefCell<Option<Rc<GvdbBuilderItem>>>,
-}
-
-impl GvdbBuilderItem {
-    pub fn new(key: &str, hash: u32, value: GvdbBuilderItemValue) -> Self {
-        let key = key.to_string();
-
-        Self {
-            key,
-            hash,
-            value: RefCell::new(value),
-            assigned_index: Cell::new(u32::MAX),
-            parent: Default::default(),
-            next: Default::default(),
-        }
-    }
-
-    pub fn key(&self) -> &str {
-        &self.key
-    }
-
-    pub fn hash(&self) -> u32 {
-        self.hash
-    }
-
-    pub fn value_ref(&self) -> Ref<GvdbBuilderItemValue> {
-        self.value.borrow()
-    }
-
-    pub fn set_parent(&self, parent: &GvdbBuilderItem) -> GvdbBuilderResult<()> {
-        if !self.key.starts_with(&parent.key) {
-            return Err(GvdbBuilderError::WrongParentPrefix);
-        }
-
-        Ok(())
-    }
-}
-
-pub struct SimpleHashTable {
-    buckets: Vec<Option<Rc<GvdbBuilderItem>>>,
-    n_items: usize,
-}
-
-impl SimpleHashTable {
-    pub fn with_n_buckets(n_buckets: usize) -> Self {
-        let mut buckets = Vec::with_capacity(n_buckets);
-        buckets.resize_with(n_buckets, || None);
-
-        Self {
-            buckets,
-            n_items: 0,
-        }
-    }
-
-    pub fn n_buckets(&self) -> usize {
-        self.buckets.len()
-    }
-
-    pub fn n_items(&self) -> usize {
-        self.n_items
-    }
-
-    fn hash_bucket(&self, hash_value: u32) -> usize {
-        (hash_value % self.buckets.len() as u32) as usize
-    }
-
-    /// Insert the item for the specified key
-    pub fn insert(&mut self, key: &str, item: GvdbBuilderItemValue) -> Rc<GvdbBuilderItem> {
-        let hash_value = djb_hash(key);
-        let bucket = self.hash_bucket(hash_value);
-
-        let item = Rc::new(GvdbBuilderItem::new(key, hash_value, item));
-        let replaced_item = std::mem::replace(&mut self.buckets[bucket], Some(item.clone()));
-        if let Some(replaced_item) = replaced_item {
-            if replaced_item.key == key {
-                // Replace
-                self.buckets[bucket]
-                    .as_ref()
-                    .unwrap()
-                    .next
-                    .replace(replaced_item.next.take());
-            } else {
-                // Insert
-                self.buckets[bucket]
-                    .as_ref()
-                    .unwrap()
-                    .next
-                    .replace(Some(replaced_item));
-                self.n_items += 1;
-            }
-        } else {
-            // Insert to empty bucket
-            self.n_items += 1;
-        }
-
-        item
-    }
-
-    /// Remove the item with the specified key
-    pub fn remove(&mut self, key: &str) {
-        let hash_value = djb_hash(key);
-        let bucket = self.hash_bucket(hash_value);
-
-        // Remove the item if it already exists
-        if let Some((previous, item)) = self.get_from_bucket(key, bucket) {
-            if let Some(previous) = previous {
-                previous.next.replace(item.next.take());
-            } else {
-                self.buckets[bucket] = item.next.take();
-            }
-
-            self.n_items -= 1;
-        }
-    }
-
-    fn get_from_bucket(
-        &self,
-        key: &str,
-        bucket: usize,
-    ) -> Option<(Option<Rc<GvdbBuilderItem>>, Rc<GvdbBuilderItem>)> {
-        let mut item = self.buckets.get(bucket)?.clone();
-        let mut previous = None;
-
-        while let Some(current_item) = item {
-            if current_item.key == key {
-                return Some((previous, current_item.clone()));
-            } else {
-                previous = Some(current_item.clone());
-                item = current_item.next.borrow().clone();
-            }
-        }
-
-        None
-    }
-
-    pub fn get(&self, key: &str) -> Option<Rc<GvdbBuilderItem>> {
-        let hash_value = djb_hash(key);
-        let bucket = self.hash_bucket(hash_value);
-        self.get_from_bucket(key, bucket).map(|r| r.1)
-    }
-
-    pub fn into_buckets(self) -> Vec<Option<Rc<GvdbBuilderItem>>> {
-        self.buckets
-    }
-
-    pub fn iter(&self) -> SimpleHashTableIter<'_> {
-        SimpleHashTableIter {
-            hash_table: self,
-            bucket: 0,
-            last_item: None,
-        }
-    }
-
-    pub fn items_iter(
-        &self,
-    ) -> Map<SimpleHashTableIter<'_>, fn((usize, Rc<GvdbBuilderItem>)) -> Rc<GvdbBuilderItem>> {
-        self.iter().map(|(_bucket, item)| item)
-    }
-}
-
-pub struct SimpleHashTableIter<'a> {
-    hash_table: &'a SimpleHashTable,
-    bucket: usize,
-    last_item: Option<Rc<GvdbBuilderItem>>,
-}
-
-impl<'a> Iterator for SimpleHashTableIter<'a> {
-    type Item = (usize, Rc<GvdbBuilderItem>);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(last_item) = self.last_item.clone() {
-            // First check if there are more items in this bucket
-            if let Some(next_item) = &*last_item.next.borrow() {
-                // Next item in the same bucket
-                self.last_item = Some(next_item.clone());
-                return Some((self.bucket, next_item.clone()));
-            } else {
-                // Last item in the bucket, check the next bucket
-                self.bucket += 1;
-            }
-        }
-
-        while let Some(bucket_item) = self.hash_table.buckets.get(self.bucket) {
-            self.last_item = None;
-
-            // This bucket might be empty
-            if let Some(item) = bucket_item {
-                // We found something
-                self.last_item = Some(item.clone());
-                return Some((self.bucket, item.clone()));
-            } else {
-                // Empty bucket, continue with next bucket
-                self.bucket += 1;
-            }
-        }
-
-        // Nothing left
-        None
-    }
-}
-
-impl<'a> IntoIterator for &'a SimpleHashTable {
-    type Item = (usize, Rc<GvdbBuilderItem>);
-    type IntoIter = SimpleHashTableIter<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
 
 #[derive(Debug)]
 pub struct GvdbHashTableBuilder {
@@ -338,7 +50,7 @@ impl GvdbHashTableBuilder {
 
                 if let Some(last_key) = last_key {
                     if let Some(last_item) = self.items.get_mut(&last_key) {
-                        if let Container(ref mut container) = last_item {
+                        if let GvdbBuilderItemValue::Container(ref mut container) = last_item {
                             if !container.contains(&this_key) {
                                 container.push(this_key.clone());
                             }
@@ -410,11 +122,11 @@ impl GvdbHashTableBuilder {
         }
 
         for (key, item) in &hash_table {
-            if let Some(container) = item.value.borrow().container() {
+            if let Some(container) = item.value_ref().container() {
                 for child in container {
                     let child_item = hash_table.get(child);
                     if let Some(child_item) = child_item {
-                        child_item.parent.replace(Some(item.clone()));
+                        child_item.parent().replace(Some(item.clone()));
                     } else {
                         return Err(GvdbBuilderError::Consistency(format!("Tried to set parent for child '{}' to '{}' but the child was not found.", child, key)));
                     }
@@ -531,7 +243,7 @@ impl GvdbFileWriter {
         let table = table_builder.build()?;
 
         for (index, item) in table.items_iter().enumerate() {
-            item.assigned_index.set(index as u32);
+            item.set_assigned_index(index as u32);
         }
 
         let header = GvdbHashHeader::new(5, 0, table.n_buckets() as u32);
@@ -559,14 +271,14 @@ impl GvdbFileWriter {
                     .copy_from_slice(u32::to_le_bytes(n_item as u32).as_slice());
             }
 
-            let parent = if let Some(parent) = &*current_item.parent.borrow() {
-                parent.assigned_index.get()
+            let parent = if let Some(parent) = &*current_item.parent_ref() {
+                parent.assigned_index()
             } else {
                 u32::MAX
             };
 
-            let key = if let Some(parent) = &*current_item.parent.borrow() {
-                current_item.key().strip_prefix(&parent.key).unwrap_or("")
+            let key = if let Some(parent) = &*current_item.parent_ref() {
+                current_item.key().strip_prefix(&parent.key()).unwrap_or("")
             } else {
                 current_item.key()
             };
@@ -578,7 +290,7 @@ impl GvdbFileWriter {
             let key_ptr = self.add_string(key).1.pointer;
             let typ = current_item.value_ref().typ();
 
-            let value_ptr = match current_item.value.take() {
+            let value_ptr = match current_item.value().take() {
                 GvdbBuilderItemValue::Value(value) => self.add_variant(&value).1.pointer,
                 GvdbBuilderItemValue::TableBuilder(tb) => self.add_hash_table(tb)?.1.pointer,
                 GvdbBuilderItemValue::Container(children) => {
@@ -589,11 +301,10 @@ impl GvdbFileWriter {
                     for child in children {
                         let child_item = table.get(&child);
                         if let Some(child_item) = child_item {
-                            child_item.parent.replace(Some(current_item.clone()));
+                            child_item.parent().replace(Some(current_item.clone()));
 
-                            chunk.data_mut()[offset..offset + size_of::<u32>()].copy_from_slice(
-                                &u32::to_le_bytes(child_item.assigned_index.get()),
-                            );
+                            chunk.data_mut()[offset..offset + size_of::<u32>()]
+                                .copy_from_slice(&u32::to_le_bytes(child_item.assigned_index()));
                             offset += size_of::<u32>();
                         } else {
                             return Err(GvdbBuilderError::Consistency(format!(
@@ -607,7 +318,7 @@ impl GvdbFileWriter {
                 }
             };
 
-            let hash_item = GvdbHashItem::new(current_item.hash, parent, key_ptr, typ, value_ptr);
+            let hash_item = GvdbHashItem::new(current_item.hash(), parent, key_ptr, typ, value_ptr);
 
             let hash_item_start = hash_items_offset + n_item * size_of::<GvdbHashItem>();
             let hash_item_end = hash_item_start + size_of::<GvdbHashItem>();
@@ -683,8 +394,8 @@ impl GvdbFileWriter {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::gvdb::file::test::*;
-    use crate::gvdb::file::GvdbFile;
+    use crate::gvdb::read::file::test::*;
+    use crate::gvdb::read::file::GvdbFile;
     use glib::{Bytes, ToVariant};
     use matches::assert_matches;
     use std::borrow::Cow;
@@ -697,7 +408,7 @@ mod test {
         let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
         let item = GvdbBuilderItemValue::Value("test".to_variant());
         table.insert("test", item);
-        assert_eq!(table.n_items, 1);
+        assert_eq!(table.n_items(), 1);
         assert_eq!(
             table.get("test").unwrap().value_ref().variant().unwrap(),
             &"test".to_variant()
@@ -711,7 +422,7 @@ mod test {
             table.insert(&format!("{}", index), index.to_variant().into());
         }
 
-        assert_eq!(table.n_items, 20);
+        assert_eq!(table.n_items(), 20);
 
         for index in 0..20 {
             assert_eq!(
@@ -760,7 +471,7 @@ mod test {
 
         let item = table.get("table").unwrap();
         assert_matches!(item.value_ref().table_builder(), Some(_));
-        let val = item.value.take();
+        let val = item.value().take();
         assert_matches!(val, GvdbBuilderItemValue::TableBuilder(..));
         let tb = if let GvdbBuilderItemValue::TableBuilder(tb) = val {
             tb

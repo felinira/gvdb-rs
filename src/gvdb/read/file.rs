@@ -1,8 +1,8 @@
-use crate::gvdb::error::{GvdbError, GvdbResult};
-use crate::gvdb::hash::GvdbHashTable;
-use crate::gvdb::hash_item::{GvdbHashItem, GvdbHashItemType};
-use crate::gvdb::header::GvdbHeader;
-use crate::gvdb::pointer::GvdbPointer;
+use crate::gvdb::read::error::{GvdbError, GvdbResult};
+use crate::gvdb::read::hash::GvdbHashTable;
+use crate::gvdb::read::hash_item::{GvdbHashItem, GvdbHashItemType};
+use crate::gvdb::read::header::GvdbHeader;
+use crate::gvdb::read::pointer::GvdbPointer;
 use safe_transmute::{transmute_one, transmute_one_pedantic, transmute_one_to_bytes};
 use std::borrow::Cow;
 use std::fs::File;
@@ -136,8 +136,8 @@ impl<'a> GvdbFile<'a> {
 
 #[cfg(test)]
 pub mod test {
-    use crate::gvdb::file::GvdbFile;
-    use crate::gvdb::hash::test::byte_compare_gvdb_hash_table;
+    use crate::gvdb::read::file::GvdbFile;
+    use crate::gvdb::read::hash::test::byte_compare_gvdb_hash_table;
     use std::io::Read;
     use std::path::PathBuf;
     use std::str::FromStr;
