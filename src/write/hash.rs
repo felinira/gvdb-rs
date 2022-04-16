@@ -1,5 +1,5 @@
-use crate::gvdb::util::djb_hash;
-use crate::gvdb::write::item::{GvdbBuilderItem, GvdbBuilderItemValue};
+use crate::util::djb_hash;
+use crate::write::item::{GvdbBuilderItem, GvdbBuilderItemValue};
 use std::rc::Rc;
 
 pub struct SimpleHashTable {

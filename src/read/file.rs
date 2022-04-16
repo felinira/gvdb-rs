@@ -1,8 +1,8 @@
-use crate::gvdb::read::error::{GvdbError, GvdbResult};
-use crate::gvdb::read::hash::GvdbHashTable;
-use crate::gvdb::read::hash_item::{GvdbHashItem, GvdbHashItemType};
-use crate::gvdb::read::header::GvdbHeader;
-use crate::gvdb::read::pointer::GvdbPointer;
+use crate::read::error::{GvdbError, GvdbResult};
+use crate::read::hash::GvdbHashTable;
+use crate::read::hash_item::{GvdbHashItem, GvdbHashItemType};
+use crate::read::header::GvdbHeader;
+use crate::read::pointer::GvdbPointer;
 use safe_transmute::transmute_one_pedantic;
 use std::borrow::Cow;
 use std::fs::File;
@@ -23,11 +23,11 @@ pub struct GvdbFile<'a> {
 /// ```
 /// use std::path::PathBuf;
 /// use gvdb::read::file::GvdbFile;
-/// use gvdb::gvdb::read::file::GvdbFile;
 ///
 /// pub fn main() {
 ///     let path = PathBuf::from("test/data/test3.gresource");
 ///     let file = GvdbFile::from_file(&path).unwrap();
+///     let table = file.hash_table().unwrap();
 ///
 ///     let svg1 = table
 ///         .get_value("/gvdb/rs/test/online-symbolic.svg")
@@ -45,7 +45,7 @@ pub struct GvdbFile<'a> {
 /// Example: Query the root hash table
 ///
 /// ```
-/// use gvdb::gvdb::read::file::GvdbFile;
+/// use gvdb::read::file::GvdbFile;
 ///
 /// fn query_hash_table(file: GvdbFile) {
 ///     let table = file.hash_table().unwrap();
@@ -85,7 +85,7 @@ impl<'a> GvdbFile<'a> {
     }
 
     /// Dereference a pointer
-    pub(super) fn dereference(&self, pointer: &GvdbPointer, alignment: u32) -> GvdbResult<&[u8]> {
+    pub(crate) fn dereference(&self, pointer: &GvdbPointer, alignment: u32) -> GvdbResult<&[u8]> {
         let start: usize = pointer.start() as usize;
         let end: usize = pointer.end() as usize;
         let alignment: usize = alignment as usize;
@@ -127,7 +127,7 @@ impl<'a> GvdbFile<'a> {
     /// Open a file and interpret the data as GVDB
     /// ```
     /// let path = std::path::PathBuf::from("test/data/test3.gresource");
-    /// let file = gvdb::gvdb::read::file::GvdbFile::from_file(&path).unwrap();
+    /// let file = gvdb::read::file::GvdbFile::from_file(&path).unwrap();
     /// ```
     pub fn from_file(filename: &Path) -> GvdbResult<Self> {
         let mut file =
@@ -143,12 +143,12 @@ impl<'a> GvdbFile<'a> {
     }
 
     /// gvdb_table_item_get_key
-    pub(super) fn get_key(&self, item: &GvdbHashItem) -> GvdbResult<String> {
+    pub(crate) fn get_key(&self, item: &GvdbHashItem) -> GvdbResult<String> {
         let data = self.dereference(&item.key_ptr(), 1)?;
         Ok(String::from_utf8(data.to_vec())?)
     }
 
-    pub(super) fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbResult<glib::Variant> {
+    pub(crate) fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbResult<glib::Variant> {
         let typ = item.typ()?;
         if typ == GvdbHashItemType::Value {
             let data: &[u8] = self.dereference(item.value_ptr(), 8)?;
@@ -165,7 +165,7 @@ impl<'a> GvdbFile<'a> {
         }
     }
 
-    pub(super) fn get_hash_table_for_item(&self, item: &GvdbHashItem) -> GvdbResult<GvdbHashTable> {
+    pub(crate) fn get_hash_table_for_item(&self, item: &GvdbHashItem) -> GvdbResult<GvdbHashTable> {
         let typ = item.typ()?;
         if typ == GvdbHashItemType::HashTable {
             GvdbHashTable::for_bytes(self.dereference(item.value_ptr(), 4)?, self)
@@ -181,13 +181,13 @@ impl<'a> GvdbFile<'a> {
 
 #[cfg(test)]
 pub mod test {
-    use crate::gvdb::read::file::GvdbFile;
-    use crate::gvdb::read::hash::test::byte_compare_gvdb_hash_table;
+    use crate::read::file::GvdbFile;
+    use crate::read::hash::test::byte_compare_gvdb_hash_table;
     use std::io::Read;
     use std::path::PathBuf;
     use std::str::FromStr;
 
-    use crate::gvdb::test::assert_bytes_eq;
+    use crate::test::assert_bytes_eq;
     #[allow(unused_imports)]
     use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
 

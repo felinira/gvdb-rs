@@ -1,6 +1,6 @@
-use crate::gvdb::read::error::{GvdbError, GvdbResult};
-use crate::gvdb::read::hash::GvdbHashTable;
-use crate::gvdb::read::pointer::GvdbPointer;
+use crate::read::error::{GvdbError, GvdbResult};
+use crate::read::hash::GvdbHashTable;
+use crate::read::pointer::GvdbPointer;
 use safe_transmute::TriviallyTransmutable;
 use std::fmt::{Display, Formatter};
 

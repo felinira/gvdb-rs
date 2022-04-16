@@ -1,5 +1,5 @@
-use crate::gvdb::read::hash_item::GvdbHashItemType;
-use crate::gvdb::write::builder::GvdbHashTableBuilder;
+use crate::read::hash_item::GvdbHashItemType;
+use crate::write::builder::GvdbHashTableBuilder;
 use glib::Variant;
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::rc::Rc;

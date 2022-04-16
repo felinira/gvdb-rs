@@ -1,11 +1,11 @@
-use crate::gvdb::read::hash::GvdbHashHeader;
-use crate::gvdb::read::hash_item::GvdbHashItem;
-use crate::gvdb::read::header::GvdbHeader;
-use crate::gvdb::read::pointer::GvdbPointer;
-use crate::gvdb::util::align_offset;
-use crate::gvdb::write::error::{GvdbBuilderError, GvdbBuilderResult};
-use crate::gvdb::write::hash::SimpleHashTable;
-use crate::gvdb::write::item::GvdbBuilderItemValue;
+use crate::read::hash::GvdbHashHeader;
+use crate::read::hash_item::GvdbHashItem;
+use crate::read::header::GvdbHeader;
+use crate::read::pointer::GvdbPointer;
+use crate::util::align_offset;
+use crate::write::error::{GvdbBuilderError, GvdbBuilderResult};
+use crate::write::hash::SimpleHashTable;
+use crate::write::item::GvdbBuilderItemValue;
 use glib::ToVariant;
 use safe_transmute::transmute_one_to_bytes;
 use std::collections::{HashMap, VecDeque};
@@ -407,8 +407,8 @@ impl GvdbFileWriter {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::gvdb::read::file::test::*;
-    use crate::gvdb::read::file::GvdbFile;
+    use crate::read::file::test::*;
+    use crate::read::file::GvdbFile;
     use glib::{Bytes, ToVariant};
     use matches::assert_matches;
     use std::borrow::Cow;
