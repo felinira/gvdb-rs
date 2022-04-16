@@ -1,4 +1,4 @@
-use crate::read::error::{GvdbError, GvdbResult};
+use crate::read::error::{GvdbReaderError, GvdbReaderResult};
 use crate::read::hash::GvdbHashTable;
 use crate::read::pointer::GvdbPointer;
 use safe_transmute::TriviallyTransmutable;
@@ -27,7 +27,7 @@ impl From<GvdbHashItemType> for u8 {
 }
 
 impl TryFrom<u8> for GvdbHashItemType {
-    type Error = GvdbError;
+    type Error = GvdbReaderError;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         let chr = value as char;
@@ -38,7 +38,7 @@ impl TryFrom<u8> for GvdbHashItemType {
         } else if chr == 'L' {
             Ok(GvdbHashItemType::Container)
         } else {
-            Err(GvdbError::InvalidData)
+            Err(GvdbReaderError::InvalidData)
         }
     }
 }
@@ -120,7 +120,7 @@ impl GvdbHashItem {
         )
     }
 
-    pub fn typ(&self) -> GvdbResult<GvdbHashItemType> {
+    pub fn typ(&self) -> GvdbReaderResult<GvdbHashItemType> {
         self.typ.try_into()
     }
 

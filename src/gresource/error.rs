@@ -1,4 +1,4 @@
-use crate::write::error::GvdbBuilderError;
+use crate::write::error::GvdbWriterError;
 use serde_xml_rs::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::string::FromUtf8Error;
@@ -50,7 +50,7 @@ impl Debug for GResourceXMLError {
 pub type GResourceXMLResult<T> = Result<T, GResourceXMLError>;
 
 pub enum GResourceBuilderError {
-    Gvdb(GvdbBuilderError),
+    Gvdb(GvdbWriterError),
     Io(std::io::Error, Option<std::path::PathBuf>),
     XmlRead(xml::reader::Error, Option<std::path::PathBuf>),
     XmlWrite(xml::writer::Error, Option<std::path::PathBuf>),
@@ -59,8 +59,8 @@ pub enum GResourceBuilderError {
     Unimplemented(String),
 }
 
-impl From<GvdbBuilderError> for GResourceBuilderError {
-    fn from(err: GvdbBuilderError) -> Self {
+impl From<GvdbWriterError> for GResourceBuilderError {
+    fn from(err: GvdbWriterError) -> Self {
         Self::Gvdb(err)
     }
 }

@@ -1,6 +1,6 @@
 use crate::gresource::error::{GResourceBuilderError, GResourceBuilderResult};
 use crate::gresource::xml::PreprocessOptions;
-use crate::write::builder::{GvdbFileWriter, GvdbHashTableBuilder};
+use crate::write::file::{GvdbFileWriter, GvdbHashTableBuilder};
 use flate2::write::ZlibEncoder;
 use glib::ToVariant;
 use std::borrow::Cow;

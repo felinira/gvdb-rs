@@ -3,7 +3,7 @@ use crate::read::hash_item::GvdbHashItem;
 use crate::read::header::GvdbHeader;
 use crate::read::pointer::GvdbPointer;
 use crate::util::align_offset;
-use crate::write::error::{GvdbBuilderError, GvdbBuilderResult};
+use crate::write::error::{GvdbBuilderResult, GvdbWriterError};
 use crate::write::hash::SimpleHashTable;
 use crate::write::item::GvdbBuilderItemValue;
 use glib::ToVariant;
@@ -54,7 +54,7 @@ impl GvdbHashTableBuilder {
                                 container.push(this_key.clone());
                             }
                         } else {
-                            return Err(GvdbBuilderError::Consistency(format!(
+                            return Err(GvdbWriterError::Consistency(format!(
                                 "Parent item with key '{}' is not of type container",
                                 this_key
                             )));
@@ -131,7 +131,7 @@ impl GvdbHashTableBuilder {
                     if let Some(child_item) = child_item {
                         child_item.parent().replace(Some(item.clone()));
                     } else {
-                        return Err(GvdbBuilderError::Consistency(format!("Tried to set parent for child '{}' to '{}' but the child was not found.", child, key)));
+                        return Err(GvdbWriterError::Consistency(format!("Tried to set parent for child '{}' to '{}' but the child was not found.", child, key)));
                     }
                 }
             }
@@ -289,7 +289,7 @@ impl GvdbFileWriter {
             };
 
             if key.is_empty() {
-                return Err(GvdbBuilderError::Consistency(format!(
+                return Err(GvdbWriterError::Consistency(format!(
                     "Item '{}' already exists in hash map",
                     current_item.key()
                 )));
@@ -315,7 +315,7 @@ impl GvdbFileWriter {
                                 .copy_from_slice(&u32::to_le_bytes(child_item.assigned_index()));
                             offset += size_of::<u32>();
                         } else {
-                            return Err(GvdbBuilderError::Consistency(format!(
+                            return Err(GvdbWriterError::Consistency(format!(
                                 "Child item '{}' not found for parent: '{}'",
                                 child, key
                             )));
@@ -354,7 +354,7 @@ impl GvdbFileWriter {
             .chunks
             .get(root_chunk_index)
             .ok_or_else(|| {
-                GvdbBuilderError::Consistency(format!(
+                GvdbWriterError::Consistency(format!(
                     "Root chunk with id {} not found",
                     root_chunk_index
                 ))

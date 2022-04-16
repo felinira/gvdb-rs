@@ -1,4 +1,4 @@
-use crate::read::error::{GvdbError, GvdbResult};
+use crate::read::error::{GvdbReaderError, GvdbReaderResult};
 use crate::read::hash::GvdbHashTable;
 use crate::read::hash_item::{GvdbHashItem, GvdbHashItemType};
 use crate::read::header::GvdbHeader;
@@ -18,7 +18,9 @@ pub struct GvdbFile<'a> {
 
 /// The root of a GVDB file
 ///
-/// Example: Load a GResource file from disk
+/// # Examples
+///
+/// Load a GResource file from disk
 ///
 /// ```
 /// use std::path::PathBuf;
@@ -42,7 +44,7 @@ pub struct GvdbFile<'a> {
 /// }
 /// ```
 ///
-/// Example: Query the root hash table
+/// Query the root hash table
 ///
 /// ```
 /// use gvdb::read::file::GvdbFile;
@@ -69,38 +71,42 @@ pub struct GvdbFile<'a> {
 /// ```
 impl<'a> GvdbFile<'a> {
     /// Get the GVDB file header. Will err with GvdbError::DataOffset if the header doesn't fit
-    fn get_header(&self) -> GvdbResult<GvdbHeader> {
+    fn get_header(&self) -> GvdbReaderResult<GvdbHeader> {
         let header_data = self
             .data
             .get(0..size_of::<GvdbHeader>())
-            .ok_or(GvdbError::DataOffset)?;
+            .ok_or(GvdbReaderError::DataOffset)?;
         Ok(transmute_one_pedantic(header_data)?)
     }
 
     /// Returns the root hash table of the file
-    pub fn hash_table(&self) -> GvdbResult<GvdbHashTable> {
+    pub fn hash_table(&self) -> GvdbReaderResult<GvdbHashTable> {
         let header = self.get_header()?;
         let root_ptr = header.root();
         GvdbHashTable::for_bytes(self.dereference(root_ptr, 4)?, self)
     }
 
     /// Dereference a pointer
-    pub(crate) fn dereference(&self, pointer: &GvdbPointer, alignment: u32) -> GvdbResult<&[u8]> {
+    pub(crate) fn dereference(
+        &self,
+        pointer: &GvdbPointer,
+        alignment: u32,
+    ) -> GvdbReaderResult<&[u8]> {
         let start: usize = pointer.start() as usize;
         let end: usize = pointer.end() as usize;
         let alignment: usize = alignment as usize;
 
         if start > end {
-            Err(GvdbError::DataOffset)
+            Err(GvdbReaderError::DataOffset)
         } else if start & (alignment - 1) != 0 {
-            Err(GvdbError::DataAlignment)
+            Err(GvdbReaderError::DataAlignment)
         } else {
-            self.data.get(start..end).ok_or(GvdbError::DataOffset)
+            self.data.get(start..end).ok_or(GvdbReaderError::DataOffset)
         }
     }
 
     /// Interpret a chunk of bytes as a GVDB file
-    pub fn from_bytes(bytes: Cow<'a, [u8]>) -> GvdbResult<GvdbFile<'a>> {
+    pub fn from_bytes(bytes: Cow<'a, [u8]>) -> GvdbReaderResult<GvdbFile<'a>> {
         let mut this = Self {
             data: bytes,
             byteswapped: false,
@@ -108,7 +114,7 @@ impl<'a> GvdbFile<'a> {
 
         let header = this.get_header()?;
         if !header.header_valid() {
-            return Err(GvdbError::DataError(
+            return Err(GvdbReaderError::DataError(
                 "Invalid GVDB header. Is this a GVDB file?".to_string(),
             ));
         }
@@ -116,7 +122,7 @@ impl<'a> GvdbFile<'a> {
         this.byteswapped = header.is_byteswap()?;
 
         if header.version() != 0 {
-            return Err(GvdbError::DataError(format!(
+            return Err(GvdbReaderError::DataError(format!(
                 "Unknown GVDB file format version: {}",
                 header.version()
             )));
@@ -129,26 +135,29 @@ impl<'a> GvdbFile<'a> {
     /// let path = std::path::PathBuf::from("test/data/test3.gresource");
     /// let file = gvdb::read::file::GvdbFile::from_file(&path).unwrap();
     /// ```
-    pub fn from_file(filename: &Path) -> GvdbResult<Self> {
-        let mut file =
-            File::open(filename).map_err(|err| GvdbError::Io(err, Some(filename.to_path_buf())))?;
+    pub fn from_file(filename: &Path) -> GvdbReaderResult<Self> {
+        let mut file = File::open(filename)
+            .map_err(|err| GvdbReaderError::Io(err, Some(filename.to_path_buf())))?;
         let mut data = Vec::with_capacity(
             file.metadata()
-                .map_err(|err| GvdbError::Io(err, Some(filename.to_path_buf())))?
+                .map_err(|err| GvdbReaderError::Io(err, Some(filename.to_path_buf())))?
                 .len() as usize,
         );
         file.read_to_end(&mut data)
-            .map_err(|err| GvdbError::Io(err, Some(filename.to_path_buf())))?;
+            .map_err(|err| GvdbReaderError::Io(err, Some(filename.to_path_buf())))?;
         Self::from_bytes(Cow::Owned(data))
     }
 
     /// gvdb_table_item_get_key
-    pub(crate) fn get_key(&self, item: &GvdbHashItem) -> GvdbResult<String> {
+    pub(crate) fn get_key(&self, item: &GvdbHashItem) -> GvdbReaderResult<String> {
         let data = self.dereference(&item.key_ptr(), 1)?;
         Ok(String::from_utf8(data.to_vec())?)
     }
 
-    pub(crate) fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbResult<glib::Variant> {
+    pub(crate) fn get_value_for_item(
+        &self,
+        item: &GvdbHashItem,
+    ) -> GvdbReaderResult<glib::Variant> {
         let typ = item.typ()?;
         if typ == GvdbHashItemType::Value {
             let data: &[u8] = self.dereference(item.value_ptr(), 8)?;
@@ -157,7 +166,7 @@ impl<'a> GvdbFile<'a> {
                 glib::VariantTy::VARIANT,
             ))
         } else {
-            Err(GvdbError::DataError(format!(
+            Err(GvdbReaderError::DataError(format!(
                 "Unable to parse item for key '{}' as GVariant: Expected type 'v', got type {}",
                 self.get_key(item)?,
                 typ
@@ -165,12 +174,15 @@ impl<'a> GvdbFile<'a> {
         }
     }
 
-    pub(crate) fn get_hash_table_for_item(&self, item: &GvdbHashItem) -> GvdbResult<GvdbHashTable> {
+    pub(crate) fn get_hash_table_for_item(
+        &self,
+        item: &GvdbHashItem,
+    ) -> GvdbReaderResult<GvdbHashTable> {
         let typ = item.typ()?;
         if typ == GvdbHashItemType::HashTable {
             GvdbHashTable::for_bytes(self.dereference(item.value_ptr(), 4)?, self)
         } else {
-            Err(GvdbError::DataError(format!(
+            Err(GvdbReaderError::DataError(format!(
                 "Unable to parse item for key '{}' as hash table: Expected type 'H', got type {}",
                 self.get_key(item)?,
                 typ

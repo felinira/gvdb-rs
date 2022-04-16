@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::string::FromUtf8Error;
 
 #[derive(Debug)]
-pub enum GvdbError {
+pub enum GvdbReaderError {
     Utf8(FromUtf8Error),
     Io(std::io::Error, Option<PathBuf>),
     DataOffset,
@@ -15,25 +15,25 @@ pub enum GvdbError {
     KeyError(String),
 }
 
-impl From<FromUtf8Error> for GvdbError {
+impl From<FromUtf8Error> for GvdbReaderError {
     fn from(err: FromUtf8Error) -> Self {
         Self::Utf8(err)
     }
 }
 
-impl From<std::io::Error> for GvdbError {
+impl From<std::io::Error> for GvdbReaderError {
     fn from(err: std::io::Error) -> Self {
         Self::Io(err, None)
     }
 }
 
-impl From<TryFromIntError> for GvdbError {
+impl From<TryFromIntError> for GvdbReaderError {
     fn from(_err: TryFromIntError) -> Self {
         Self::DataOffset
     }
 }
 
-impl<S, T> From<safe_transmute::Error<'_, S, T>> for GvdbError {
+impl<S, T> From<safe_transmute::Error<'_, S, T>> for GvdbReaderError {
     fn from(err: Error<S, T>) -> Self {
         match err {
             Error::Guard(GuardError {
@@ -56,44 +56,44 @@ impl<S, T> From<safe_transmute::Error<'_, S, T>> for GvdbError {
     }
 }
 
-impl Display for GvdbError {
+impl Display for GvdbReaderError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            GvdbError::Utf8(err) => write!(f, "Error converting string to UTF-8: {}", err),
-            GvdbError::Io(err, path) => {
+            GvdbReaderError::Utf8(err) => write!(f, "Error converting string to UTF-8: {}", err),
+            GvdbReaderError::Io(err, path) => {
                 if let Some(path) = path {
                     write!(f, "I/O error for file '{}': {}", path.display(), err)
                 } else {
                     write!(f, "I/O error: {}", err)
                 }
             }
-            GvdbError::DataOffset => {
+            GvdbReaderError::DataOffset => {
                 write!(f, "Tried to access an invalid data offset. Most likely reason is a corrupted GVDB file")
             }
-            GvdbError::DataAlignment => {
+            GvdbReaderError::DataAlignment => {
                 write!(
                     f,
                     "Tried to read unaligned data. Most likely reason is a corrupted GVDB file"
                 )
             }
-            GvdbError::InvalidData => {
+            GvdbReaderError::InvalidData => {
                 write!(
                     f,
                     "Unexpected data. Most likely reason is a corrupted GVDB file"
                 )
             }
-            GvdbError::DataError(msg) => {
+            GvdbReaderError::DataError(msg) => {
                 write!(
                     f,
                     "A data inconsistency error occured while reading gvdb file: {}",
                     msg
                 )
             }
-            GvdbError::KeyError(key) => {
+            GvdbReaderError::KeyError(key) => {
                 write!(f, "The item with the key '{}' does not exist", key)
             }
         }
     }
 }
 
-pub type GvdbResult<T> = std::result::Result<T, GvdbError>;
+pub type GvdbReaderResult<T> = std::result::Result<T, GvdbReaderError>;

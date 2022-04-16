@@ -2,7 +2,7 @@
 name = "gvdb"
 version = "0.1.0"
 edition = "2021"
-description = "Read and write glib GVariant database files"
+description = "Read and write GLib GVariant database files"
 repository = "https://github.com/felinira/gvdb-rs"
 license = "LGPL-3.0-or-later"
 

@@ -1,4 +1,4 @@
-use crate::read::error::{GvdbError, GvdbResult};
+use crate::read::error::{GvdbReaderError, GvdbReaderResult};
 use crate::read::pointer::GvdbPointer;
 use safe_transmute::TriviallyTransmutable;
 
@@ -36,7 +36,7 @@ impl GvdbHeader {
         }
     }
 
-    pub fn is_byteswap(&self) -> GvdbResult<bool> {
+    pub fn is_byteswap(&self) -> GvdbReaderResult<bool> {
         if self.signature[0] == GVDB_SIGNATURE0 && self.signature[1] == GVDB_SIGNATURE1 {
             Ok(false)
         } else if self.signature[0] == GVDB_SIGNATURE0.swap_bytes()
@@ -44,7 +44,7 @@ impl GvdbHeader {
         {
             Ok(true)
         } else {
-            Err(GvdbError::InvalidData)
+            Err(GvdbReaderError::InvalidData)
         }
     }
 

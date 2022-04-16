@@ -1,4 +1,4 @@
-use crate::read::error::{GvdbError, GvdbResult};
+use crate::read::error::{GvdbReaderError, GvdbReaderResult};
 use crate::read::file::GvdbFile;
 use crate::read::hash_item::{GvdbHashItem, GvdbHashItemType, GvdbValue};
 use crate::util::djb_hash;
@@ -69,7 +69,7 @@ pub struct GvdbHashTable<'a> {
 impl<'a> GvdbHashTable<'a> {
     /// Interpret a chunk of bytes as a HashTable. The table_ptr should point to the hash table.
     /// Data has to be the complete GVDB file, as hash table items are stored somewhere else.
-    pub fn for_bytes(data: &'a [u8], root: &'a GvdbFile) -> GvdbResult<Self> {
+    pub fn for_bytes(data: &'a [u8], root: &'a GvdbFile) -> GvdbReaderResult<Self> {
         let header = Self::hash_header(data)?;
         let data = Cow::Borrowed(data);
 
@@ -83,14 +83,14 @@ impl<'a> GvdbHashTable<'a> {
         let required_len = header_len + bloom_words_len + hash_buckets_len + hash_items_len;
 
         if required_len > this.data.len() {
-            Err(GvdbError::DataError(format!(
+            Err(GvdbReaderError::DataError(format!(
                 "Not enough bytes to fit hash table: Expected at least {} bytes, got {}",
                 required_len,
                 this.data.len()
             )))
         } else if hash_items_len % size_of::<GvdbHashItem>() != 0 {
             // Wrong data length
-            Err(GvdbError::DataError(format!(
+            Err(GvdbReaderError::DataError(format!(
                 "Remaining size invalid: Expected a multiple of {}, got {}",
                 size_of::<GvdbHashItem>(),
                 this.data.len()
@@ -101,10 +101,10 @@ impl<'a> GvdbHashTable<'a> {
     }
 
     /// Read the hash table header
-    pub fn hash_header(data: &'a [u8]) -> GvdbResult<GvdbHashHeader> {
+    pub fn hash_header(data: &'a [u8]) -> GvdbReaderResult<GvdbHashHeader> {
         let bytes: &[u8] = data
             .get(0..size_of::<GvdbHashHeader>())
-            .ok_or(GvdbError::DataOffset)?;
+            .ok_or(GvdbReaderError::DataOffset)?;
 
         Ok(transmute_one(bytes)?)
     }
@@ -113,11 +113,11 @@ impl<'a> GvdbHashTable<'a> {
         self.header
     }
 
-    fn get_u32(&self, offset: usize) -> GvdbResult<u32> {
+    fn get_u32(&self, offset: usize) -> GvdbReaderResult<u32> {
         let bytes = self
             .data
             .get(offset..offset + size_of::<u32>())
-            .ok_or(GvdbError::DataOffset)?;
+            .ok_or(GvdbReaderError::DataOffset)?;
         Ok(u32::from_le_bytes(bytes.try_into().unwrap()))
     }
 
@@ -140,7 +140,7 @@ impl<'a> GvdbHashTable<'a> {
         }
     }
 
-    fn get_bloom_word(&self, index: usize) -> GvdbResult<u32> {
+    fn get_bloom_word(&self, index: usize) -> GvdbReaderResult<u32> {
         let start = self.bloom_words_offset() + index * size_of::<u32>();
         self.get_u32(start)
     }
@@ -173,7 +173,7 @@ impl<'a> GvdbHashTable<'a> {
         self.hash_buckets_offset() + self.header.buckets_len()
     }
 
-    fn get_hash(&self, index: usize) -> GvdbResult<u32> {
+    fn get_hash(&self, index: usize) -> GvdbReaderResult<u32> {
         let start = self.hash_buckets_offset() + index * size_of::<u32>();
         self.get_u32(start)
     }
@@ -192,17 +192,20 @@ impl<'a> GvdbHashTable<'a> {
     }
 
     /// Get the hash item at hash item index
-    fn get_hash_item_for_index(&self, index: usize) -> GvdbResult<GvdbHashItem> {
+    fn get_hash_item_for_index(&self, index: usize) -> GvdbReaderResult<GvdbHashItem> {
         let size = size_of::<GvdbHashItem>();
         let start = self.hash_items_offset() + size * index;
         let end = start + size;
 
-        let data = self.data.get(start..end).ok_or(GvdbError::DataOffset)?;
+        let data = self
+            .data
+            .get(start..end)
+            .ok_or(GvdbReaderError::DataOffset)?;
         Ok(transmute_one_pedantic(data)?)
     }
 
     /// Gets a list of keys
-    pub fn get_names(&self) -> GvdbResult<Vec<String>> {
+    pub fn get_names(&self) -> GvdbReaderResult<Vec<String>> {
         let count = self.n_hash_items();
         let mut names = vec![None; count];
 
@@ -228,7 +231,7 @@ impl<'a> GvdbHashTable<'a> {
                         let _ = std::mem::replace(&mut names[index], Some(full_name));
                         inserted += 1;
                     } else if parent > count {
-                        return Err(GvdbError::DataError(format!(
+                        return Err(GvdbReaderError::DataError(format!(
                             "Parent with invalid offset encountered: {}",
                             parent
                         )));
@@ -239,7 +242,7 @@ impl<'a> GvdbHashTable<'a> {
             if last_inserted == inserted {
                 // No insertion took place this round, there must be a parent loop
                 // We fail instead of infinitely looping
-                return Err(GvdbError::DataError(
+                return Err(GvdbReaderError::DataError(
                     "Error finding all parent items. The file appears to have a loop".to_string(),
                 ));
             }
@@ -277,14 +280,14 @@ impl<'a> GvdbHashTable<'a> {
         false
     }
 
-    pub fn get_hash_item(&self, key: &str) -> GvdbResult<GvdbHashItem> {
+    pub fn get_hash_item(&self, key: &str) -> GvdbReaderResult<GvdbHashItem> {
         if self.header.n_buckets() == 0 || self.n_hash_items() == 0 {
-            return Err(GvdbError::KeyError(key.to_string()));
+            return Err(GvdbReaderError::KeyError(key.to_string()));
         }
 
         let hash_value = djb_hash(key);
         if !self.bloom_filter(hash_value) {
-            return Err(GvdbError::KeyError(key.to_string()));
+            return Err(GvdbReaderError::KeyError(key.to_string()));
         }
 
         let bucket = hash_value % self.header.n_buckets();
@@ -308,18 +311,18 @@ impl<'a> GvdbHashTable<'a> {
             itemno += 1;
         }
 
-        Err(GvdbError::KeyError(key.to_string()))
+        Err(GvdbReaderError::KeyError(key.to_string()))
     }
 
-    pub fn get_value(&self, key: &str) -> GvdbResult<glib::Variant> {
+    pub fn get_value(&self, key: &str) -> GvdbReaderResult<glib::Variant> {
         self.get_value_for_item(&self.get_hash_item(key)?)
     }
 
-    pub fn get_hash_table(&self, key: &str) -> GvdbResult<GvdbHashTable> {
+    pub fn get_hash_table(&self, key: &str) -> GvdbReaderResult<GvdbHashTable> {
         self.get_hash_table_for_item(&self.get_hash_item(key)?)
     }
 
-    pub fn get(&self, key: &str) -> GvdbResult<GvdbValue> {
+    pub fn get(&self, key: &str) -> GvdbReaderResult<GvdbValue> {
         let item = self.get_hash_item(key)?;
 
         match item.typ()? {
@@ -327,19 +330,19 @@ impl<'a> GvdbHashTable<'a> {
             GvdbHashItemType::HashTable => {
                 Ok(GvdbValue::HashTable(self.get_hash_table_for_item(&item)?))
             }
-            GvdbHashItemType::Container => Err(GvdbError::InvalidData),
+            GvdbHashItemType::Container => Err(GvdbReaderError::InvalidData),
         }
     }
 
-    fn get_key(&self, item: &GvdbHashItem) -> GvdbResult<String> {
+    fn get_key(&self, item: &GvdbHashItem) -> GvdbReaderResult<String> {
         self.root.get_key(item)
     }
 
-    fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbResult<glib::Variant> {
+    fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<glib::Variant> {
         self.root.get_value_for_item(item)
     }
 
-    fn get_hash_table_for_item(&self, item: &GvdbHashItem) -> GvdbResult<GvdbHashTable> {
+    fn get_hash_table_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<GvdbHashTable> {
         self.root.get_hash_table_for_item(item)
     }
 }
