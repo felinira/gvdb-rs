@@ -1,6 +1,7 @@
 pub mod error;
 pub mod file;
 pub mod hash;
-pub mod hash_item;
-pub mod header;
-pub mod pointer;
+
+pub(super) mod hash_item;
+pub(super) mod header;
+pub(super) mod pointer;

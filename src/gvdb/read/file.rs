@@ -56,7 +56,20 @@ impl<'a> GvdbFile<'a> {
         };
 
         let header = this.get_header()?;
+        if !header.header_valid() {
+            return Err(GvdbError::DataError(
+                "Invalid GVDB header. Is this a GVDB file?".to_string(),
+            ));
+        }
+
         this.byteswapped = header.is_byteswap()?;
+
+        if header.version() != 0 {
+            return Err(GvdbError::DataError(format!(
+                "Unknown GVDB file format version: {}",
+                header.version()
+            )));
+        }
         Ok(this)
     }
 
@@ -75,12 +88,12 @@ impl<'a> GvdbFile<'a> {
     }
 
     /// gvdb_table_item_get_key
-    pub(crate) fn get_key(&self, item: &GvdbHashItem) -> GvdbResult<String> {
+    pub(super) fn get_key(&self, item: &GvdbHashItem) -> GvdbResult<String> {
         let data = self.dereference(&item.key_ptr(), 1)?;
         Ok(String::from_utf8(data.to_vec())?)
     }
 
-    pub(crate) fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbResult<glib::Variant> {
+    pub(super) fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbResult<glib::Variant> {
         let typ = item.typ()?;
         if typ == GvdbHashItemType::Value {
             let data: &[u8] = self.dereference(item.value_ptr(), 8)?;
@@ -97,7 +110,7 @@ impl<'a> GvdbFile<'a> {
         }
     }
 
-    pub(crate) fn get_hash_table_for_item(&self, item: &GvdbHashItem) -> GvdbResult<GvdbHashTable> {
+    pub(super) fn get_hash_table_for_item(&self, item: &GvdbHashItem) -> GvdbResult<GvdbHashTable> {
         let typ = item.typ()?;
         if typ == GvdbHashItemType::HashTable {
             GvdbHashTable::for_bytes(self.dereference(item.value_ptr(), 4)?, self)

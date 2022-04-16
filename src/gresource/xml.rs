@@ -8,44 +8,48 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
+#[non_exhaustive]
 pub struct GResourceXMLDoc {
     #[serde(rename = "gresource")]
-    pub(crate) gresources: Vec<GResource>,
+    pub gresources: Vec<GResource>,
 
     #[serde(default)]
-    pub(crate) dir: PathBuf,
+    pub dir: PathBuf,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
+#[non_exhaustive]
 pub struct GResource {
     #[serde(rename = "file", default)]
-    pub(crate) files: Vec<File>,
+    pub files: Vec<File>,
 
     #[serde(default)]
-    pub(crate) prefix: String,
+    pub prefix: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
+#[non_exhaustive]
 pub struct File {
     #[serde(rename = "$value")]
-    pub(crate) filename: String,
+    pub filename: String,
 
-    pub(crate) alias: Option<String>,
+    pub alias: Option<String>,
 
     #[serde(deserialize_with = "parse_bool_value", default)]
-    pub(crate) compressed: bool,
+    pub compressed: bool,
 
     #[serde(deserialize_with = "parse_preprocess_options", default)]
-    pub(crate) preprocess: PreprocessOptions,
+    pub preprocess: PreprocessOptions,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq)]
+#[non_exhaustive]
 pub struct PreprocessOptions {
-    pub(crate) xml_stripblanks: bool,
-    pub(crate) to_pixdata: bool,
-    pub(crate) json_stripblanks: bool,
+    pub xml_stripblanks: bool,
+    pub to_pixdata: bool,
+    pub json_stripblanks: bool,
 }
 
 fn parse_bool_value<'de, D>(d: D) -> Result<bool, D::Error>
