@@ -29,11 +29,8 @@ impl<'a> GvdbFile<'a> {
     /// Returns the root hash table of the file
     pub fn hash_table(&self) -> GvdbResult<GvdbHashTable> {
         let header = self.get_header()?;
-        let root_ptr = header.root().clone();
-        Ok(GvdbHashTable::for_bytes(
-            self.dereference(&root_ptr, 4)?,
-            &self,
-        )?)
+        let root_ptr = header.root();
+        GvdbHashTable::for_bytes(self.dereference(root_ptr, 4)?, self)
     }
 
     /// Dereference a pointer
@@ -66,14 +63,14 @@ impl<'a> GvdbFile<'a> {
     /// Open a file and interpret the data as GVDB
     pub fn from_file(filename: &Path) -> GvdbResult<Self> {
         let mut file =
-            File::open(filename).map_err(|err| GvdbError::IO(err, Some(filename.to_path_buf())))?;
+            File::open(filename).map_err(|err| GvdbError::Io(err, Some(filename.to_path_buf())))?;
         let mut data = Vec::with_capacity(
             file.metadata()
-                .map_err(|err| GvdbError::IO(err, Some(filename.to_path_buf())))?
+                .map_err(|err| GvdbError::Io(err, Some(filename.to_path_buf())))?
                 .len() as usize,
         );
         file.read_to_end(&mut data)
-            .map_err(|err| GvdbError::IO(err, Some(filename.to_path_buf())))?;
+            .map_err(|err| GvdbError::Io(err, Some(filename.to_path_buf())))?;
         Self::from_bytes(Cow::Owned(data))
     }
 
@@ -105,7 +102,7 @@ impl<'a> GvdbFile<'a> {
     pub(crate) fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbResult<glib::Variant> {
         let typ = item.typ()?;
         if typ == GvdbHashItemType::Value {
-            let data: &[u8] = self.dereference(&item.value_ptr(), 8)?;
+            let data: &[u8] = self.dereference(item.value_ptr(), 8)?;
             Ok(glib::Variant::from_data_with_type(
                 data,
                 glib::VariantTy::VARIANT,
@@ -113,7 +110,7 @@ impl<'a> GvdbFile<'a> {
         } else {
             Err(GvdbError::DataError(format!(
                 "Unable to parse item for key '{}' as GVariant: Expected type 'v', got type {}",
-                self.get_key(&item)?,
+                self.get_key(item)?,
                 typ
             )))
         }
@@ -122,11 +119,11 @@ impl<'a> GvdbFile<'a> {
     pub(crate) fn get_hash_table_for_item(&self, item: &GvdbHashItem) -> GvdbResult<GvdbHashTable> {
         let typ = item.typ()?;
         if typ == GvdbHashItemType::HashTable {
-            GvdbHashTable::for_bytes(self.dereference(&item.value_ptr(), 4)?, &self)
+            GvdbHashTable::for_bytes(self.dereference(item.value_ptr(), 4)?, self)
         } else {
             Err(GvdbError::DataError(format!(
                 "Unable to parse item for key '{}' as hash table: Expected type 'H', got type {}",
-                self.get_key(&item)?,
+                self.get_key(item)?,
                 typ
             )))
         }

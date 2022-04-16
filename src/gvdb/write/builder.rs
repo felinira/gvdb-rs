@@ -39,10 +39,9 @@ impl GvdbHashTableBuilder {
 
         if let Some(sep) = &self.path_separator {
             let mut this_key = "".to_string();
-            let mut iter = key.split(sep).into_iter().peekable();
             let mut last_key: Option<String> = None;
 
-            while let Some(segment) = iter.next() {
+            for segment in key.split(sep) {
                 this_key += segment;
                 if this_key != key {
                     this_key += sep;
@@ -75,7 +74,7 @@ impl GvdbHashTableBuilder {
                 last_key = Some(this_key.clone());
             }
         } else {
-            self.items.insert(key.into(), item);
+            self.items.insert(key, item);
         }
 
         Ok(())
@@ -114,6 +113,10 @@ impl GvdbHashTableBuilder {
         self.items.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
     pub fn build(self) -> GvdbBuilderResult<SimpleHashTable> {
         let mut hash_table = SimpleHashTable::with_n_buckets(self.items.len());
 
@@ -135,6 +138,12 @@ impl GvdbHashTableBuilder {
         }
 
         Ok(hash_table)
+    }
+}
+
+impl Default for GvdbHashTableBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -242,7 +251,7 @@ impl GvdbFileWriter {
     ) -> GvdbBuilderResult<(usize, &mut GvdbChunk)> {
         let table = table_builder.build()?;
 
-        for (index, item) in table.items_iter().enumerate() {
+        for (index, (_bucket, item)) in table.iter().enumerate() {
             item.set_assigned_index(index as u32);
         }
 
@@ -348,10 +357,12 @@ impl GvdbFileWriter {
         let root_ptr = self
             .chunks
             .get(root_chunk_index)
-            .ok_or(GvdbBuilderError::Consistency(format!(
-                "Root chunk with id {} not found",
-                root_chunk_index
-            )))?
+            .ok_or_else(|| {
+                GvdbBuilderError::Consistency(format!(
+                    "Root chunk with id {} not found",
+                    root_chunk_index
+                ))
+            })?
             .pointer;
         let header = GvdbHeader::new(self.byteswap, 0, root_ptr);
         self.chunks[0].data_mut()[0..size_of::<GvdbHeader>()]

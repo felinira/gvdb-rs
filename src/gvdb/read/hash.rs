@@ -31,7 +31,7 @@ impl GvdbHashHeader {
     }
 
     pub fn n_bloom_words(&self) -> u32 {
-        u32::from_le(self.n_bloom_words) & (1 << 27) - 1
+        u32::from_le(self.n_bloom_words) & ((1 << 27) - 1)
     }
 
     pub fn bloom_words_len(&self) -> usize {
@@ -264,7 +264,7 @@ impl<'a> GvdbHashTable<'a> {
             return true;
         }
 
-        if parent < self.n_hash_items() as u32 && key.len() > 0 {
+        if parent < self.n_hash_items() as u32 && !key.is_empty() {
             let parent_item = match self.get_hash_item_for_index(parent as usize) {
                 Ok(p) => p,
                 Err(_) => return false,
@@ -301,10 +301,8 @@ impl<'a> GvdbHashTable<'a> {
 
         while itemno < lastno {
             let item = self.get_hash_item_for_index(itemno)?;
-            if hash_value == item.hash_value() {
-                if self.check_name(&item, key) {
-                    return Ok(item);
-                }
+            if hash_value == item.hash_value() && self.check_name(&item, key) {
+                return Ok(item);
             }
 
             itemno += 1;

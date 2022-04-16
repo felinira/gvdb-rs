@@ -2,20 +2,20 @@ use std::fmt::{Debug, Display, Formatter};
 use std::path::PathBuf;
 
 pub enum GvdbBuilderError {
-    IO(std::io::Error, Option<PathBuf>),
+    Io(std::io::Error, Option<PathBuf>),
     Consistency(String),
 }
 
 impl From<std::io::Error> for GvdbBuilderError {
     fn from(err: std::io::Error) -> Self {
-        Self::IO(err, None)
+        Self::Io(err, None)
     }
 }
 
 impl Display for GvdbBuilderError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            GvdbBuilderError::IO(err, path) => {
+            GvdbBuilderError::Io(err, path) => {
                 if let Some(path) = path {
                     write!(f, "I/O error for file '{}': {}", path.display(), err)
                 } else {

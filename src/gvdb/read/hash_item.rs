@@ -19,9 +19,9 @@ pub enum GvdbHashItemType {
 impl From<GvdbHashItemType> for u8 {
     fn from(item: GvdbHashItemType) -> Self {
         match item {
-            GvdbHashItemType::Value => 'v' as u8,
-            GvdbHashItemType::HashTable => 'H' as u8,
-            GvdbHashItemType::Container => 'L' as u8,
+            GvdbHashItemType::Value => b'v',
+            GvdbHashItemType::HashTable => b'H',
+            GvdbHashItemType::Container => b'L',
         }
     }
 }
@@ -84,7 +84,7 @@ impl GvdbHashItem {
         let key_start = key_ptr.start();
         let key_size = key_ptr.size() as u16;
 
-        let typ = typ.try_into().unwrap_or('v' as u8);
+        let typ = typ.try_into().unwrap_or(b'v');
 
         Self {
             hash_value: hash_value.to_le(),

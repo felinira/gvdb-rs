@@ -41,21 +41,11 @@ pub struct File {
     pub(crate) preprocess: PreprocessOptions,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct PreprocessOptions {
     pub(crate) xml_stripblanks: bool,
     pub(crate) to_pixdata: bool,
     pub(crate) json_stripblanks: bool,
-}
-
-impl Default for PreprocessOptions {
-    fn default() -> Self {
-        Self {
-            xml_stripblanks: false,
-            to_pixdata: false,
-            json_stripblanks: false,
-        }
-    }
 }
 
 fn parse_bool_value<'de, D>(d: D) -> Result<bool, D::Error>
@@ -75,7 +65,7 @@ where
 {
     let mut this = PreprocessOptions::default();
 
-    for item in String::deserialize(d)?.split(",") {
+    for item in String::deserialize(d)?.split(',') {
         match item {
             "json-stripblanks" => this.json_stripblanks = true,
             "xml-stripblanks" => this.xml_stripblanks = true,
@@ -105,7 +95,7 @@ impl GResourceXMLDoc {
             .map_err(|err| GResourceXMLError::IO(err, Some(path.to_path_buf())))?;
 
         let dir = path.parent().unwrap();
-        Ok(Self::from_bytes(dir, Cow::Owned(data))?)
+        Self::from_bytes(dir, Cow::Owned(data))
     }
 
     pub fn from_bytes(dir: &Path, data: Cow<'_, [u8]>) -> GResourceXMLResult<Self> {

@@ -6,8 +6,8 @@ use std::string::FromUtf8Error;
 
 #[derive(Debug)]
 pub enum GvdbError {
-    UTF8(FromUtf8Error),
-    IO(std::io::Error, Option<PathBuf>),
+    Utf8(FromUtf8Error),
+    Io(std::io::Error, Option<PathBuf>),
     DataOffset,
     DataAlignment,
     InvalidData,
@@ -17,13 +17,13 @@ pub enum GvdbError {
 
 impl From<FromUtf8Error> for GvdbError {
     fn from(err: FromUtf8Error) -> Self {
-        Self::UTF8(err)
+        Self::Utf8(err)
     }
 }
 
 impl From<std::io::Error> for GvdbError {
     fn from(err: std::io::Error) -> Self {
-        Self::IO(err, None)
+        Self::Io(err, None)
     }
 }
 
@@ -36,22 +36,20 @@ impl From<TryFromIntError> for GvdbError {
 impl<S, T> From<safe_transmute::Error<'_, S, T>> for GvdbError {
     fn from(err: Error<S, T>) -> Self {
         match err {
-            Error::Guard(gerr) => match gerr {
-                GuardError {
-                    required,
-                    actual,
-                    reason: _,
-                } => {
-                    if actual > required {
-                        Self::DataError(format!(
-                            "Found {} unexpected trailing bytes at the end while reading data",
-                            actual - required
-                        ))
-                    } else {
-                        Self::DataError(format!("Missing {} bytes to read data", actual - required))
-                    }
+            Error::Guard(GuardError {
+                required,
+                actual,
+                reason: _,
+            }) => {
+                if actual > required {
+                    Self::DataError(format!(
+                        "Found {} unexpected trailing bytes at the end while reading data",
+                        actual - required
+                    ))
+                } else {
+                    Self::DataError(format!("Missing {} bytes to read data", actual - required))
                 }
-            },
+            }
             Error::Unaligned(_) => Self::DataError("Unaligned data read".to_string()),
             _ => Self::InvalidData,
         }
@@ -61,8 +59,8 @@ impl<S, T> From<safe_transmute::Error<'_, S, T>> for GvdbError {
 impl Display for GvdbError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            GvdbError::UTF8(err) => write!(f, "Error converting string to UTF-8: {}", err),
-            GvdbError::IO(err, path) => {
+            GvdbError::Utf8(err) => write!(f, "Error converting string to UTF-8: {}", err),
+            GvdbError::Io(err, path) => {
                 if let Some(path) = path {
                     write!(f, "I/O error for file '{}': {}", path.display(), err)
                 } else {

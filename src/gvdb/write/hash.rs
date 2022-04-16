@@ -1,6 +1,5 @@
 use crate::gvdb::util::djb_hash;
 use crate::gvdb::write::item::{GvdbBuilderItem, GvdbBuilderItemValue};
-use std::iter::Map;
 use std::rc::Rc;
 
 pub struct SimpleHashTable {
@@ -90,7 +89,7 @@ impl SimpleHashTable {
 
         while let Some(current_item) = item {
             if current_item.key() == key {
-                return Some((previous, current_item.clone()));
+                return Some((previous, current_item));
             } else {
                 previous = Some(current_item.clone());
                 item = current_item.next().borrow().clone();
@@ -116,12 +115,6 @@ impl SimpleHashTable {
             bucket: 0,
             last_item: None,
         }
-    }
-
-    pub fn items_iter(
-        &self,
-    ) -> Map<SimpleHashTableIter<'_>, fn((usize, Rc<GvdbBuilderItem>)) -> Rc<GvdbBuilderItem>> {
-        self.iter().map(|(_bucket, item)| item)
     }
 }
 

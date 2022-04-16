@@ -37,10 +37,8 @@ impl<'a> FileData<'a> {
         if compressed {
             data = Self::compress(data, path)?;
             flags |= FLAG_COMPRESSED;
-        } else {
-            if BYTE_COMPATIBILITY {
-                data.to_mut().push(0);
-            }
+        } else if BYTE_COMPATIBILITY {
+            data.to_mut().push(0);
         }
 
         Ok(Self {
@@ -76,11 +74,11 @@ impl<'a> FileData<'a> {
 
         for event in event_reader {
             if let Some(writer_event) = event
-                .map_err(|err| GResourceBuilderError::XMLRead(err, Some(path.to_path_buf())))?
+                .map_err(|err| GResourceBuilderError::XmlRead(err, Some(path.to_path_buf())))?
                 .as_writer_event()
             {
                 event_writer.write(writer_event).map_err(|err| {
-                    GResourceBuilderError::XMLWrite(err, Some(path.to_path_buf()))
+                    GResourceBuilderError::XmlWrite(err, Some(path.to_path_buf()))
                 })?;
             }
         }
@@ -96,14 +94,14 @@ impl<'a> FileData<'a> {
 
         let json = json::parse(
             &String::from_utf8(data.to_vec())
-                .map_err(|err| GResourceBuilderError::UTF8(err, Some(path.to_path_buf())))?,
+                .map_err(|err| GResourceBuilderError::Utf8(err, Some(path.to_path_buf())))?,
         )
-        .map_err(|err| GResourceBuilderError::JSON(err, Some(path.to_path_buf())))?;
+        .map_err(|err| GResourceBuilderError::Json(err, Some(path.to_path_buf())))?;
         json.write(&mut output)
-            .map_err(|err| GResourceBuilderError::IO(err, Some(path.to_path_buf())))?;
+            .map_err(|err| GResourceBuilderError::Io(err, Some(path.to_path_buf())))?;
 
         if BYTE_COMPATIBILITY {
-            output.push('\n' as u8);
+            output.push(b'\n');
         }
 
         Ok(Cow::Owned(output))
@@ -136,9 +134,9 @@ impl<'a> FileData<'a> {
         let mut encoder = ZlibEncoder::new(Vec::new(), flate2::Compression::best());
         encoder
             .write_all(&data)
-            .map_err(|err| GResourceBuilderError::IO(err, Some(path.to_path_buf())))?;
+            .map_err(|err| GResourceBuilderError::Io(err, Some(path.to_path_buf())))?;
         Ok(Cow::Owned(encoder.finish().map_err(|err| {
-            GResourceBuilderError::IO(err, Some(path.to_path_buf()))
+            GResourceBuilderError::Io(err, Some(path.to_path_buf()))
         })?))
     }
 
@@ -172,7 +170,7 @@ impl<'a> GResourceBuilder<'a> {
         for gresource in &xml.gresources {
             for file in &gresource.files {
                 let mut key = gresource.prefix.clone();
-                if !key.ends_with("/") {
+                if !key.ends_with('/') {
                     key.push('/');
                 }
 
@@ -186,11 +184,11 @@ impl<'a> GResourceBuilder<'a> {
                 filename.push(PathBuf::from(&file.filename));
 
                 let mut open_file = std::fs::File::open(&filename)
-                    .map_err(|err| GResourceBuilderError::IO(err, Some(filename.to_path_buf())))?;
+                    .map_err(|err| GResourceBuilderError::Io(err, Some(filename.to_path_buf())))?;
                 let mut data = Vec::new();
                 open_file
                     .read_to_end(&mut data)
-                    .map_err(|err| GResourceBuilderError::IO(err, Some(filename.to_path_buf())))?;
+                    .map_err(|err| GResourceBuilderError::Io(err, Some(filename.to_path_buf())))?;
                 let file_data = FileData::new(
                     key,
                     Cow::Owned(data),
