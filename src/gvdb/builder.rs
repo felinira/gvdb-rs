@@ -1,3 +1,4 @@
+use crate::gvdb::builder::GvdbBuilderItemValue::Container;
 use crate::gvdb::error::{GvdbBuilderError, GvdbBuilderResult};
 use crate::gvdb::hash::GvdbHashHeader;
 use crate::gvdb::hash_item::{GvdbHashItem, GvdbHashItemType};
@@ -7,18 +8,19 @@ use crate::gvdb::util::{align_offset, djb_hash};
 use glib::ToVariant;
 use safe_transmute::transmute_one_to_bytes;
 use std::cell::{Cell, Ref, RefCell};
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::iter::Map;
 use std::mem::size_of;
 use std::rc::Rc;
 
+#[derive(Debug)]
 pub enum GvdbBuilderItemValue {
     Value(glib::Variant),
     TableBuilder(GvdbHashTableBuilder),
 
     // A child container with no additional value
-    Container(Vec<Rc<GvdbBuilderItem>>),
+    Container(Vec<String>),
 }
 
 impl Default for GvdbBuilderItemValue {
@@ -50,7 +52,7 @@ impl GvdbBuilderItemValue {
         }
     }
 
-    pub fn container(&self) -> Option<&Vec<Rc<GvdbBuilderItem>>> {
+    pub fn container(&self) -> Option<&Vec<String>> {
         match self {
             GvdbBuilderItemValue::Container(children) => Some(children),
             _ => None,
@@ -70,6 +72,7 @@ impl Into<GvdbBuilderItemValue> for GvdbHashTableBuilder {
     }
 }
 
+#[derive(Debug)]
 pub struct GvdbBuilderItem {
     // The key string of the item
     key: String,
@@ -297,58 +300,129 @@ impl<'a> IntoIterator for &'a SimpleHashTable {
     }
 }
 
+#[derive(Debug)]
 pub struct GvdbHashTableBuilder {
-    items: Vec<(String, GvdbBuilderItemValue)>,
+    items: HashMap<String, GvdbBuilderItemValue>,
+    path_separator: Option<String>,
 }
 
 impl GvdbHashTableBuilder {
     pub fn new() -> Self {
+        Self::with_path_separator(Some("/"))
+    }
+
+    pub fn with_path_separator(sep: Option<&str>) -> Self {
         Self {
             items: Default::default(),
+            path_separator: sep.map(|s| s.to_string()),
         }
     }
 
-    fn insert<S: Into<String>>(&mut self, key: S, item: GvdbBuilderItemValue) {
-        self.items.push((key.into(), item));
+    fn insert<S: Into<String>>(
+        &mut self,
+        key: S,
+        item: GvdbBuilderItemValue,
+    ) -> GvdbBuilderResult<()> {
+        let key = key.into();
+
+        if let Some(sep) = &self.path_separator {
+            let mut this_key = "".to_string();
+            let mut iter = key.split(sep).into_iter().peekable();
+            let mut last_key: Option<String> = None;
+
+            while let Some(segment) = iter.next() {
+                this_key += segment;
+                if this_key != key {
+                    this_key += sep;
+                }
+
+                if let Some(last_key) = last_key {
+                    if let Some(last_item) = self.items.get_mut(&last_key) {
+                        if let Container(ref mut container) = last_item {
+                            if !container.contains(&this_key) {
+                                container.push(this_key.clone());
+                            }
+                        } else {
+                            return Err(GvdbBuilderError::Consistency(format!(
+                                "Parent item with key '{}' is not of type container",
+                                this_key
+                            )));
+                        }
+                    } else {
+                        let parent_item = GvdbBuilderItemValue::Container(vec![this_key.clone()]);
+                        self.items.insert(last_key.to_string(), parent_item);
+                    }
+                }
+
+                if key == this_key {
+                    // The item we actually want to insert
+                    self.items.insert(key.to_string(), item);
+                    break;
+                }
+
+                last_key = Some(this_key.clone());
+            }
+        } else {
+            self.items.insert(key.into(), item);
+        }
+
+        Ok(())
     }
 
-    pub fn insert_variant<S: Into<String>>(&mut self, key: S, variant: glib::Variant) {
+    pub fn insert_variant<S: Into<String>>(
+        &mut self,
+        key: S,
+        variant: glib::Variant,
+    ) -> GvdbBuilderResult<()> {
         let item = GvdbBuilderItemValue::Value(variant);
-        self.insert(key, item);
+        self.insert(key, item)
     }
 
-    pub fn insert_string<S: Into<String>>(&mut self, key: S, value: &str) {
+    pub fn insert_string<S: Into<String>>(&mut self, key: S, value: &str) -> GvdbBuilderResult<()> {
         let variant = value.to_variant();
         self.insert_variant(key, variant)
     }
 
-    pub fn insert_bytes<S: Into<String>>(&mut self, key: S, bytes: &[u8]) {
+    pub fn insert_bytes<S: Into<String>>(&mut self, key: S, bytes: &[u8]) -> GvdbBuilderResult<()> {
         let bytes = glib::Bytes::from(bytes);
         let variant = glib::Variant::from_bytes_with_type(&bytes, glib::VariantTy::BYTE_STRING);
-        self.insert_variant(key, variant);
+        self.insert_variant(key, variant)
     }
 
-    pub fn insert_table<S: Into<String>>(&mut self, key: S, table_builder: GvdbHashTableBuilder) {
+    pub fn insert_table<S: Into<String>>(
+        &mut self,
+        key: S,
+        table_builder: GvdbHashTableBuilder,
+    ) -> GvdbBuilderResult<()> {
         let item = GvdbBuilderItemValue::TableBuilder(table_builder);
-        self.insert(key, item);
+        self.insert(key, item)
     }
 
     pub fn len(&self) -> usize {
         self.items.len()
     }
 
-    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, (String, GvdbBuilderItemValue)> {
-        self.items.iter_mut()
-    }
-
-    pub fn build(self) -> SimpleHashTable {
+    pub fn build(self) -> GvdbBuilderResult<SimpleHashTable> {
         let mut hash_table = SimpleHashTable::with_n_buckets(self.items.len());
 
         for (key, value) in self.items.into_iter() {
             hash_table.insert(&key, value);
         }
 
-        hash_table
+        for (key, item) in &hash_table {
+            if let Some(container) = item.value.borrow().container() {
+                for child in container {
+                    let child_item = hash_table.get(child);
+                    if let Some(child_item) = child_item {
+                        child_item.parent.replace(Some(item.clone()));
+                    } else {
+                        return Err(GvdbBuilderError::Consistency(format!("Tried to set parent for child '{}' to '{}' but the child was not found.", child, key)));
+                    }
+                }
+            }
+        }
+
+        Ok(hash_table)
     }
 }
 
@@ -383,13 +457,13 @@ impl GvdbChunk {
     }
 }
 
-struct GvdbFileBuilder {
+pub struct GvdbFileWriter {
     offset: usize,
     chunks: VecDeque<GvdbChunk>,
     byteswap: bool,
 }
 
-impl GvdbFileBuilder {
+impl GvdbFileWriter {
     pub fn new(byteswap: bool) -> Self {
         let mut this = Self {
             offset: 0,
@@ -433,7 +507,7 @@ impl GvdbFileBuilder {
         self.chunks.get_mut(index)
     }
 
-    pub fn add_variant(&mut self, variant: &glib::Variant) -> (usize, &mut GvdbChunk) {
+    fn add_variant(&mut self, variant: &glib::Variant) -> (usize, &mut GvdbChunk) {
         let value = if self.byteswap {
             glib::Variant::from_variant(&variant.byteswap())
         } else {
@@ -445,16 +519,16 @@ impl GvdbFileBuilder {
         self.allocate_chunk_with_data(data.to_vec().into_boxed_slice(), 8)
     }
 
-    pub fn add_string(&mut self, string: &str) -> (usize, &mut GvdbChunk) {
+    fn add_string(&mut self, string: &str) -> (usize, &mut GvdbChunk) {
         let data = string.to_string().into_boxed_str().into_boxed_bytes();
         self.allocate_chunk_with_data(data, 1)
     }
 
-    pub fn add_hash_table(
+    fn add_hash_table(
         &mut self,
         table_builder: GvdbHashTableBuilder,
     ) -> GvdbBuilderResult<(usize, &mut GvdbChunk)> {
-        let table = table_builder.build();
+        let table = table_builder.build()?;
 
         for (index, item) in table.items_iter().enumerate() {
             item.assigned_index.set(index as u32);
@@ -476,14 +550,20 @@ impl GvdbFileBuilder {
 
         let mut current_bucket = usize::MAX;
         for (n_item, (n_bucket, current_item)) in table.iter().enumerate() {
-            if current_bucket != n_bucket {
-                current_bucket = n_bucket;
-                let hash_bucket_start = hash_buckets_offset + n_bucket * size_of::<u32>();
+            while current_bucket != n_bucket {
+                current_bucket = current_bucket.wrapping_add(1);
+                let hash_bucket_start = hash_buckets_offset + current_bucket * size_of::<u32>();
                 let hash_bucket_end = hash_bucket_start + size_of::<u32>();
 
                 self.chunks[hash_table_chunk_index].data[hash_bucket_start..hash_bucket_end]
                     .copy_from_slice(u32::to_le_bytes(n_item as u32).as_slice());
             }
+
+            let parent = if let Some(parent) = &*current_item.parent.borrow() {
+                parent.assigned_index.get()
+            } else {
+                u32::MAX
+            };
 
             let key = if let Some(parent) = &*current_item.parent.borrow() {
                 current_item.key().strip_prefix(&parent.key).unwrap_or("")
@@ -494,12 +574,6 @@ impl GvdbFileBuilder {
             if key.is_empty() {
                 return Err(GvdbBuilderError::EmptyKey);
             }
-
-            let parent = if let Some(parent) = &*current_item.parent.borrow() {
-                parent.assigned_index.get()
-            } else {
-                u32::MAX
-            };
 
             let key_ptr = self.add_string(key).1.pointer;
             let typ = current_item.value_ref().typ();
@@ -513,9 +587,20 @@ impl GvdbFileBuilder {
 
                     let mut offset = 0;
                     for child in children {
-                        chunk.data_mut()[offset..offset + size_of::<u32>()]
-                            .copy_from_slice(&u32::to_le_bytes(child.assigned_index.get()));
-                        offset += size_of::<u32>();
+                        let child_item = table.get(&child);
+                        if let Some(child_item) = child_item {
+                            child_item.parent.replace(Some(current_item.clone()));
+
+                            chunk.data_mut()[offset..offset + size_of::<u32>()].copy_from_slice(
+                                &u32::to_le_bytes(child_item.assigned_index.get()),
+                            );
+                            offset += size_of::<u32>();
+                        } else {
+                            return Err(GvdbBuilderError::Consistency(format!(
+                                "Child item '{}' not found for parent: '{}'",
+                                child, key
+                            )));
+                        }
                     }
 
                     chunk.pointer
@@ -537,11 +622,11 @@ impl GvdbFileBuilder {
         ))
     }
 
-    pub fn file_size(&self) -> usize {
+    fn file_size(&self) -> usize {
         self.chunks[self.chunks.len() - 1].pointer.end() as usize
     }
 
-    pub fn serialize(
+    fn serialize(
         mut self,
         root_chunk_index: usize,
         writer: &mut dyn Write,
@@ -571,10 +656,27 @@ impl GvdbFileBuilder {
         Ok(size)
     }
 
-    pub fn serialize_to_vec(self, root_chunk_index: usize) -> GvdbBuilderResult<Vec<u8>> {
+    fn serialize_to_vec(self, root_chunk_index: usize) -> GvdbBuilderResult<Vec<u8>> {
         let mut vec = Vec::with_capacity(self.file_size());
         self.serialize(root_chunk_index, &mut vec)?;
         Ok(vec)
+    }
+
+    pub fn write_with_table(
+        mut self,
+        table_builder: GvdbHashTableBuilder,
+        writer: &mut dyn Write,
+    ) -> GvdbBuilderResult<usize> {
+        let index = self.add_hash_table(table_builder)?.0;
+        self.serialize(index, writer)
+    }
+
+    pub fn write_into_vec_with_table(
+        mut self,
+        table_builder: GvdbHashTableBuilder,
+    ) -> GvdbBuilderResult<Vec<u8>> {
+        let index = self.add_hash_table(table_builder)?.0;
+        self.serialize_to_vec(index)
     }
 }
 
@@ -586,6 +688,7 @@ mod test {
         assert_is_file_1, assert_is_file_2, byte_compare_file_1, byte_compare_file_2,
     };
     use glib::{Bytes, ToVariant};
+    use matches::assert_matches;
     use std::borrow::Cow;
 
     #[allow(unused_imports)]
@@ -638,14 +741,14 @@ mod test {
     #[test]
     pub fn gvdb_hash_table_builder() {
         let mut builder = GvdbHashTableBuilder::new();
-        builder.insert_string("string", "Test");
-        builder.insert_variant("123", 123u32.to_variant());
+        builder.insert_string("string", "Test").unwrap();
+        builder.insert_variant("123", 123u32.to_variant()).unwrap();
 
         let mut builder2 = GvdbHashTableBuilder::new();
-        builder2.insert_bytes("bytes", &[1, 2, 3, 4]);
-        builder.insert_table("table", builder2);
+        builder2.insert_bytes("bytes", &[1, 2, 3, 4]).unwrap();
+        builder.insert_table("table", builder2).unwrap();
 
-        let table = builder.build();
+        let table = builder.build().unwrap();
 
         assert_eq!(
             table.get("string").unwrap().value_ref().variant().unwrap(),
@@ -658,15 +761,16 @@ mod test {
         );
 
         let item = table.get("table").unwrap();
-        assert!(matches!(item.value_ref().table_builder(), Some(_)));
+        assert_matches!(item.value_ref().table_builder(), Some(_));
         let val = item.value.take();
+        assert_matches!(val, GvdbBuilderItemValue::TableBuilder(..));
         let tb = if let GvdbBuilderItemValue::TableBuilder(tb) = val {
             tb
         } else {
             panic!("Invalid value");
         };
 
-        let table2 = tb.build();
+        let table2 = tb.build().unwrap();
         assert_eq!(
             table2.get("bytes").unwrap().value_ref().variant().unwrap(),
             &Bytes::from(&[1, 2, 3, 4]).to_variant()
@@ -675,7 +779,7 @@ mod test {
 
     #[test]
     pub fn file_builder_file_1() {
-        let mut file_builder = GvdbFileBuilder::new(false);
+        let mut file_builder = GvdbFileWriter::new(false);
         let mut table_builder = GvdbHashTableBuilder::new();
 
         let value1 = 1234u32.to_variant();
@@ -683,7 +787,7 @@ mod test {
         let value3 = "TEST_STRING_VALUE".to_variant();
         let tuple_data = vec![value1, value2, value3];
         let variant = glib::Variant::tuple_from_iter(&tuple_data);
-        table_builder.insert_variant("root_key", variant);
+        table_builder.insert_variant("root_key", variant).unwrap();
         let root_index = file_builder.add_hash_table(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
         let root = GvdbRoot::from_bytes(Cow::Owned(bytes), true).unwrap();
@@ -693,15 +797,21 @@ mod test {
 
     #[test]
     pub fn file_builder_file_2() {
-        let mut file_builder = GvdbFileBuilder::new(false);
+        let mut file_builder = GvdbFileWriter::new(false);
         let mut table_builder = GvdbHashTableBuilder::new();
 
-        table_builder.insert_string("string", "test string");
+        table_builder
+            .insert_string("string", "test string")
+            .unwrap();
 
         let mut table_builder_2 = GvdbHashTableBuilder::new();
-        table_builder_2.insert_variant("int", 42u32.to_variant());
+        table_builder_2
+            .insert_variant("int", 42u32.to_variant())
+            .unwrap();
 
-        table_builder.insert_table("table", table_builder_2);
+        table_builder
+            .insert_table("table", table_builder_2)
+            .unwrap();
         let root_index = file_builder.add_hash_table(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
         let root = GvdbRoot::from_bytes(Cow::Owned(bytes), true).unwrap();

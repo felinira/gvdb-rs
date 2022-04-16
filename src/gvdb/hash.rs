@@ -321,8 +321,8 @@ impl<'a> GvdbHashTable<'a> {
         self.get_hash_table_for_item(&self.get_hash_item(key)?)
     }
 
-    pub fn get(&self, table: &GvdbHashTable, key: &str) -> GvdbResult<GvdbValue> {
-        let item = table.get_hash_item(key)?;
+    pub fn get(&self, key: &str) -> GvdbResult<GvdbValue> {
+        let item = self.get_hash_item(key)?;
 
         match item.typ()? {
             GvdbHashItemType::Value => Ok(GvdbValue::Variant(self.get_value_for_item(&item)?)),
@@ -343,5 +343,52 @@ impl<'a> GvdbHashTable<'a> {
 
     fn get_hash_table_for_item(&self, item: &GvdbHashItem) -> GvdbResult<GvdbHashTable> {
         self.root.get_hash_table_for_item(item)
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test {
+    use crate::gvdb::hash::GvdbHashTable;
+    use crate::gvdb::hash_item::GvdbHashItemType;
+    use crate::gvdb::test::util::assert_bytes_eq;
+
+    pub fn byte_compare_gvdb_hash_table(a: &GvdbHashTable, b: &GvdbHashTable) {
+        assert_eq!(a.header, b.header);
+
+        let mut keys_a = a.get_names().unwrap();
+        let mut keys_b = b.get_names().unwrap();
+        keys_a.sort();
+        keys_b.sort();
+        assert_eq!(keys_a, keys_b);
+
+        for key in keys_a {
+            let item_a = a.get_hash_item(&key).unwrap();
+            let item_b = b.get_hash_item(&key).unwrap();
+
+            assert_eq!(item_a.hash_value(), item_b.hash_value());
+            assert_eq!(item_a.key_size(), item_b.key_size());
+            assert_eq!(item_a.typ().unwrap(), item_b.typ().unwrap());
+
+            let data_a = item_a.value_ptr().dereference(a.root.data(), 1).unwrap();
+            let data_b = item_b.value_ptr().dereference(b.root.data(), 1).unwrap();
+
+            // We don't compare containers, only their length
+            if item_a.typ().unwrap() == GvdbHashItemType::Container {
+                if data_a.len() != data_b.len() {
+                    // The lengths should not be different. For context we will compare the data
+                    assert_bytes_eq(
+                        data_a,
+                        data_b,
+                        &format!("Containers with key '{}' have different lengths", key),
+                    );
+                }
+            } else {
+                assert_bytes_eq(
+                    data_a,
+                    data_b,
+                    &format!("Comparing items with key '{}'", key),
+                );
+            }
+        }
     }
 }

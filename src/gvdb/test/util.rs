@@ -71,19 +71,15 @@ fn write_byte_rows(
     Ok(())
 }
 
-pub fn assert_bytes_eq(a: &[u8], b: &[u8]) {
+pub fn assert_bytes_eq(a: &[u8], b: &[u8], context: &str) {
     const WIDTH: usize = 16;
     const EXTRA_ROWS_TOP: usize = 8;
     const EXTRA_ROWS_BOTTOM: usize = 4;
 
     for (index, a_byte) in a.iter().enumerate() {
-        let b_byte = b.get(index).expect(&format!(
-            "b is too small, expected {} bytes, got {}",
-            a.len(),
-            b.len()
-        ));
+        let b_byte = b.get(index);
 
-        if a_byte != b_byte {
+        if b_byte.is_none() || a_byte != b_byte.unwrap() {
             let mut a_bytes_buf = Vec::new();
             write_byte_rows(
                 &mut a_bytes_buf,
@@ -108,11 +104,13 @@ pub fn assert_bytes_eq(a: &[u8], b: &[u8]) {
             .unwrap();
             let str_b = String::from_utf8(b_bytes_buf).unwrap();
 
+            eprintln!("{}", context);
             assert_str_eq!(str_a, str_b);
         }
     }
 
     if a.len() > b.len() {
+        eprintln!("{}", context);
         panic!("b is too big, expected {} bytes, got {}", a.len(), b.len());
     }
 }

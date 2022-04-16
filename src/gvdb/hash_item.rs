@@ -9,7 +9,7 @@ pub enum GvdbValue<'a> {
     HashTable(GvdbHashTable<'a>),
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum GvdbHashItemType {
     Value,
     HashTable,

@@ -66,6 +66,7 @@ pub enum GvdbBuilderError {
     EmptyKey,
     InvalidRootChunk,
     IO(std::io::Error),
+    Consistency(String),
 }
 
 impl From<std::io::Error> for GvdbBuilderError {

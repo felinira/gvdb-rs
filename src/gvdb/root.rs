@@ -118,3 +118,18 @@ impl<'a> GvdbRoot<'a> {
         &self.data
     }
 }
+
+#[cfg(test)]
+pub mod test {
+    use crate::gvdb::hash::test::byte_compare_gvdb_hash_table;
+    use crate::gvdb::root::GvdbRoot;
+
+    pub fn byte_compare_gvdb_file(a: &GvdbRoot, b: &GvdbRoot) {
+        assert_eq!(a.data.len(), b.data.len());
+        assert_eq!(a.get_header().unwrap(), b.get_header().unwrap());
+
+        let a_hash = a.hash_table().unwrap();
+        let b_hash = b.hash_table().unwrap();
+        byte_compare_gvdb_hash_table(&a_hash, &b_hash);
+    }
+}

@@ -9,4 +9,4 @@ mod pointer;
 mod util;
 
 #[cfg(test)]
-mod test;
+pub(crate) mod test;

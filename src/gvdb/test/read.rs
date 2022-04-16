@@ -5,6 +5,7 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use crate::gvdb::root::test::byte_compare_gvdb_file;
 #[allow(unused_imports)]
 use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
 
@@ -19,7 +20,11 @@ fn byte_compare_file(file: &GvdbRoot, reference_filename: &str) {
     let mut reference_data = Vec::new();
     reference_file.read_to_end(&mut reference_data).unwrap();
 
-    assert_bytes_eq(&reference_data, &file.data());
+    assert_bytes_eq(
+        &reference_data,
+        &file.data(),
+        &format!("Byte comparing with file '{}'", reference_filename),
+    );
 }
 
 pub fn byte_compare_file_1(file: &GvdbRoot) {
@@ -72,15 +77,95 @@ pub fn assert_is_file_2(file: &GvdbRoot) {
 
 pub fn byte_compare_file_3(file: &GvdbRoot) {
     let reference_filename = TEST_FILE_DIR.to_string() + TEST_FILE_3;
-    byte_compare_file(file, &reference_filename);
+    let ref_root = GvdbRoot::from_file(&PathBuf::from(reference_filename)).unwrap();
+    byte_compare_gvdb_file(&ref_root, file);
 }
 
 pub fn assert_is_file_3(file: &GvdbRoot) {
     let table = file.hash_table().unwrap();
-    let _names = table.get_names().unwrap();
-    let _value = table
-        .get_value("/gvdb/rs/test/builder/gvdb-builder.h")
+    let mut names = table.get_names().unwrap();
+    names.sort();
+    let reference_names = vec![
+        "/",
+        "/gvdb/",
+        "/gvdb/rs/",
+        "/gvdb/rs/test/",
+        "/gvdb/rs/test/icons/",
+        "/gvdb/rs/test/icons/scalable/",
+        "/gvdb/rs/test/icons/scalable/actions/",
+        "/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg",
+        "/gvdb/rs/test/json/",
+        "/gvdb/rs/test/json/test.json",
+        "/gvdb/rs/test/online-symbolic.svg",
+    ];
+    assert_eq!(names, reference_names);
+
+    let svg1 = table
+        .get_value("/gvdb/rs/test/online-symbolic.svg")
+        .unwrap()
+        .child_value(0);
+    let svg1_size = svg1.child_value(0).get::<u32>().unwrap();
+    let svg1_flags = svg1.child_value(1).get::<u32>().unwrap();
+    let svg1_content = svg1.child_value(2).data_as_bytes();
+
+    assert_eq!(svg1_size, 1390);
+    assert_eq!(svg1_flags, 0);
+    assert_eq!(svg1_size as usize, svg1_content.len() - 1);
+
+    // Ensure the last byte is zero because of zero-padding defined in the format
+    assert_eq!(svg1_content[svg1_content.len() - 1], 0);
+    let svg1_str = std::str::from_utf8(&svg1_content[0..svg1_content.len() - 1]).unwrap();
+    assert!(svg1_str.starts_with(
+        &(r#"<?xml version="1.0" encoding="UTF-8"?>"#.to_string()
+            + "\n\n"
+            + r#"<svg xmlns="http://www.w3.org/2000/svg" height="16px""#)
+    ));
+
+    let svg2 = table
+        .get_value("/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg")
+        .unwrap()
+        .child_value(0);
+    let svg2_size = svg2.child_value(0).get::<u32>().unwrap();
+    let svg2_flags = svg2.child_value(1).get::<u32>().unwrap();
+    let svg2_content: &[u8] = &svg2.child_value(2).data_as_bytes();
+
+    assert_eq!(svg2_size, 345);
+    assert_eq!(svg2_flags, 1);
+    let mut decoder = flate2::read::ZlibDecoder::new(svg2_content);
+    let mut svg2_data = Vec::new();
+    decoder.read_to_end(&mut svg2_data).unwrap();
+
+    // Ensure the last byte is *not* zero and len is not one bigger than specified because
+    // compressed data is not zero-padded
+    assert_ne!(svg2_data[svg2_data.len() - 1], 0);
+    assert_eq!(svg2_size as usize, svg2_data.len());
+    let svg2_str = std::str::from_utf8(&svg2_data).unwrap();
+
+    let mut svg2_reference = String::new();
+    File::open("test/data/gresource/icons/scalable/actions/send-symbolic.svg")
+        .unwrap()
+        .read_to_string(&mut svg2_reference)
         .unwrap();
+    assert_str_eq!(svg2_str, svg2_reference);
+
+    let json = table
+        .get_value("/gvdb/rs/test/json/test.json")
+        .unwrap()
+        .child_value(0);
+    let json_size = json.child_value(0).get::<u32>().unwrap();
+    let json_flags = json.child_value(1).get::<u32>().unwrap();
+    let json_content = json.child_value(2).data_as_bytes().to_vec();
+
+    // Ensure the last byte is zero because of zero-padding defined in the format
+    assert_eq!(json_content[json_content.len() - 1], 0);
+    assert_eq!(json_size as usize, json_content.len() - 1);
+    let json_str = std::str::from_utf8(&json_content[0..json_content.len() - 1]).unwrap();
+
+    assert_eq!(json_flags, 0);
+    assert_str_eq!(
+        json_str,
+        r#"{"test":"test_string","int":42,"table":{"bool":true}}"#.to_string() + "\n"
+    );
 }
 
 #[test]
