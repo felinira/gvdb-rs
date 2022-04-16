@@ -1,5 +1,3 @@
-use crate::gvdb::error::{GvdbError, GvdbResult};
-
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct GvdbPointer {
@@ -34,19 +32,5 @@ impl GvdbPointer {
 
     pub fn size(&self) -> usize {
         (self.end() - self.start()) as usize
-    }
-
-    pub fn dereference<'a>(&self, data: &'a [u8], alignment: u32) -> GvdbResult<&'a [u8]> {
-        let start: usize = self.start() as usize;
-        let end: usize = self.end() as usize;
-        let alignment: usize = alignment as usize;
-
-        if start > end {
-            Err(GvdbError::DataOffset)
-        } else if start & (alignment - 1) != 0 {
-            Err(GvdbError::DataAlignment)
-        } else {
-            data.get(start..end).ok_or(GvdbError::DataOffset)
-        }
     }
 }

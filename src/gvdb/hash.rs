@@ -369,8 +369,8 @@ pub(crate) mod test {
             assert_eq!(item_a.key_size(), item_b.key_size());
             assert_eq!(item_a.typ().unwrap(), item_b.typ().unwrap());
 
-            let data_a = item_a.value_ptr().dereference(a.root.data(), 1).unwrap();
-            let data_b = item_b.value_ptr().dereference(b.root.data(), 1).unwrap();
+            let data_a = a.root.dereference(item_a.value_ptr(), 1).unwrap();
+            let data_b = b.root.dereference(item_b.value_ptr(), 1).unwrap();
 
             // We don't compare containers, only their length
             if item_a.typ().unwrap() == GvdbHashItemType::Container {

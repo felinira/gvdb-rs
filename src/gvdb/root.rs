@@ -32,9 +32,24 @@ impl<'a> GvdbRoot<'a> {
         let header = self.get_header()?;
         let root_ptr = header.root().clone();
         Ok(GvdbHashTable::for_bytes(
-            root_ptr.dereference(&self.data, 4)?,
+            self.dereference(&root_ptr, 4)?,
             &self,
         )?)
+    }
+
+    /// Dereference a pointer
+    pub fn dereference(&self, pointer: &GvdbPointer, alignment: u32) -> GvdbResult<&[u8]> {
+        let start: usize = pointer.start() as usize;
+        let end: usize = pointer.end() as usize;
+        let alignment: usize = alignment as usize;
+
+        if start > end {
+            Err(GvdbError::DataOffset)
+        } else if start & (alignment - 1) != 0 {
+            Err(GvdbError::DataAlignment)
+        } else {
+            self.data.get(start..end).ok_or(GvdbError::DataOffset)
+        }
     }
 
     /// Interpret a chunk of bytes as a GVDB file
@@ -80,14 +95,14 @@ impl<'a> GvdbRoot<'a> {
 
     /// gvdb_table_item_get_key
     pub(crate) fn get_key(&self, item: &GvdbHashItem) -> GvdbResult<String> {
-        let data = item.key_ptr().dereference(&self.data, 1)?;
+        let data = self.dereference(&item.key_ptr(), 1)?;
         Ok(String::from_utf8(data.to_vec())?)
     }
 
     pub(crate) fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbResult<glib::Variant> {
         let typ = item.typ()?;
         if typ == GvdbHashItemType::Value {
-            let data: &[u8] = item.value_ptr().dereference(&self.data, 8)?;
+            let data: &[u8] = self.dereference(&item.value_ptr(), 8)?;
             Ok(glib::Variant::from_data_with_type(
                 data,
                 glib::VariantTy::VARIANT,
@@ -104,7 +119,7 @@ impl<'a> GvdbRoot<'a> {
     pub(crate) fn get_hash_table_for_item(&self, item: &GvdbHashItem) -> GvdbResult<GvdbHashTable> {
         let typ = item.typ()?;
         if typ == GvdbHashItemType::HashTable {
-            GvdbHashTable::for_bytes(item.value_ptr().dereference(&self.data, 4)?, &self)
+            GvdbHashTable::for_bytes(self.dereference(&item.value_ptr(), 4)?, &self)
         } else {
             Err(GvdbError::DataError(format!(
                 "Unable to parse item for key '{}' as hash table: Expected type 'H', got type {}",
