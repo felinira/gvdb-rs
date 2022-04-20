@@ -15,6 +15,7 @@ use walkdir::WalkDir;
 
 const FLAG_COMPRESSED: u32 = 1 << 0;
 const SKIPPED_FILE_NAMES: &[&str] = &["meson.build", "gresource.xml"];
+const COMPRESS_EXTENSIONS: &[&str] = &[".ui", ".css"];
 
 struct FileData<'a> {
     key: String,
@@ -256,7 +257,8 @@ impl<'a> GResourceBuilder<'a> {
     ///
     /// ## `compress`
     ///
-    /// Compresses all files
+    /// Compresses all files that end with the preconfigured patterns.
+    /// Compressed files are currently: ".ui", ".css"
     pub fn from_directory(
         prefix: &str,
         directory: &Path,
@@ -285,6 +287,17 @@ impl<'a> GResourceBuilder<'a> {
                     }
                 }
 
+                let mut compress_this = false;
+
+                if compress {
+                    for name in COMPRESS_EXTENSIONS {
+                        if filename.ends_with(name) {
+                            compress_this = true;
+                            break;
+                        }
+                    }
+                }
+
                 let file_abs_path = entry.path();
                 let file_path_relative = file_abs_path.strip_prefix(directory).map_err(|_| {
                     GResourceBuilderError::Generic("Strip prefix error".to_string())
@@ -308,7 +321,7 @@ impl<'a> GResourceBuilder<'a> {
                 };
 
                 let key = format!("{}{}", prefix, file_path_str_relative);
-                let file_data = FileData::from_file(key, file_abs_path, compress, &options)?;
+                let file_data = FileData::from_file(key, file_abs_path, compress_this, &options)?;
                 files.push(file_data);
             }
         }
@@ -439,17 +452,13 @@ mod test {
             .child_value(0);
         let svg2_size = svg2.child_value(0).get::<u32>().unwrap();
         let svg2_flags = svg2.child_value(1).get::<u32>().unwrap();
-        let svg2_content: &[u8] = &svg2.child_value(2).data_as_bytes();
+        let svg2_data: &[u8] = &svg2.child_value(2).data_as_bytes();
 
         assert_eq!(svg2_size, 339);
-        assert_eq!(svg2_flags, 1);
-        let mut decoder = flate2::read::ZlibDecoder::new(svg2_content);
-        let mut svg2_data = Vec::new();
-        decoder.read_to_end(&mut svg2_data).unwrap();
+        assert_eq!(svg2_flags, 0);
 
-        // Ensure the last byte is *not* zero and len is not one bigger than specified because
-        // compressed data is not zero-padded
-        assert_ne!(svg2_data[svg2_data.len() - 1], 0);
-        assert_eq!(svg2_size as usize, svg2_data.len());
+        // Check for null byte
+        assert_eq!(svg2_data[svg2_data.len() - 1], 0);
+        assert_eq!(svg2_size as usize, svg2_data.len() - 1);
     }
 }
