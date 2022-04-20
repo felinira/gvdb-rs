@@ -65,7 +65,7 @@ impl<'a> FileData<'a> {
         open_file
             .read_to_end(&mut data)
             .map_err(|err| GResourceBuilderError::Io(err, Some(file_path.to_path_buf())))?;
-        FileData::new(key, Cow::Owned(data), &file_path, compressed, preprocess)
+        FileData::new(key, Cow::Owned(data), file_path, compressed, preprocess)
     }
 
     pub fn xml_stripblanks(
@@ -309,7 +309,7 @@ impl<'a> GResourceBuilder<'a> {
             let entry = match res {
                 Ok(entry) => entry,
                 Err(err) => {
-                    let path = PathBuf::from(err.path().unwrap_or(Path::new("")));
+                    let path = PathBuf::from(err.path().unwrap_or_else(|| Path::new("")));
                     return if err.io_error().is_some() {
                         Err(GResourceBuilderError::Io(
                             err.into_io_error().unwrap(),
