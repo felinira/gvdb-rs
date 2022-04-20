@@ -391,6 +391,7 @@ pub(crate) mod test {
             assert_eq!(item_a.hash_value(), item_b.hash_value());
             assert_eq!(item_a.key_size(), item_b.key_size());
             assert_eq!(item_a.typ().unwrap(), item_b.typ().unwrap());
+            assert_eq!(item_a.value_ptr().size(), item_b.value_ptr().size());
 
             let data_a = a.root.dereference(item_a.value_ptr(), 1).unwrap();
             let data_b = b.root.dereference(item_b.value_ptr(), 1).unwrap();

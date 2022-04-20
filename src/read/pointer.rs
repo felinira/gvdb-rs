@@ -10,8 +10,8 @@ impl GvdbPointer {
 
     pub fn new(start: usize, end: usize) -> Self {
         Self {
-            start: start as u32,
-            end: end as u32,
+            start: (start as u32).to_le(),
+            end: (end as u32).to_le(),
         }
     }
 

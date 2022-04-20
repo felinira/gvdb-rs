@@ -41,7 +41,7 @@ impl<'a> FileData<'a> {
         if compressed {
             data = Self::compress(data, path)?;
             flags |= FLAG_COMPRESSED;
-        } else if BYTE_COMPATIBILITY {
+        } else {
             data.to_mut().push(0);
         }
 
@@ -104,9 +104,7 @@ impl<'a> FileData<'a> {
         json.write(&mut output)
             .map_err(|err| GResourceBuilderError::Io(err, Some(path.to_path_buf())))?;
 
-        if BYTE_COMPATIBILITY {
-            output.push(b'\n');
-        }
+        output.push(b'\n');
 
         Ok(Cow::Owned(output))
     }
