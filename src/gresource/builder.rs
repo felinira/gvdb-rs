@@ -18,6 +18,7 @@ const FLAG_COMPRESSED: u32 = 1 << 0;
 static SKIPPED_FILE_NAMES_DEFAULT: &[&str] = &["meson.build", "gresource.xml"];
 static COMPRESS_EXTENSIONS_DEFAULT: &[&str] = &[".ui", ".css"];
 
+#[derive(Debug)]
 struct FileData<'a> {
     key: String,
     data: Cow<'a, [u8]>,
@@ -190,7 +191,7 @@ impl<'a> FileData<'a> {
 ///     let root = GvdbFile::from_bytes(Cow::Owned(data)).unwrap();
 /// }
 /// ```
-
+#[derive(Debug)]
 pub struct GResourceBuilder<'a> {
     files: Vec<FileData<'a>>,
 }
@@ -304,7 +305,22 @@ impl<'a> GResourceBuilder<'a> {
 
         let mut files = Vec::new();
 
-        'outer: for entry in WalkDir::new(directory).into_iter().flatten() {
+        'outer: for res in WalkDir::new(directory).into_iter() {
+            let entry = match res {
+                Ok(entry) => entry,
+                Err(err) => {
+                    let path = PathBuf::from(err.path().unwrap_or(Path::new("")));
+                    return if err.io_error().is_some() {
+                        Err(GResourceBuilderError::Io(
+                            err.into_io_error().unwrap(),
+                            Some(path),
+                        ))
+                    } else {
+                        Err(GResourceBuilderError::Generic(err.to_string()))
+                    };
+                }
+            };
+
             if entry.path().is_file() {
                 let filename = entry.file_name().to_str().ok_or_else(|| {
                     GResourceBuilderError::Generic(format!(
@@ -385,6 +401,7 @@ mod test {
     use crate::gresource::xml::GResourceXMLDocument;
     use crate::read::test::{assert_is_file_3, byte_compare_file_3};
     use crate::read::GvdbFile;
+    use matches::assert_matches;
 
     const GRESOURCE_XML: &str = "test/data/gresource/test3.gresource.xml";
     const GRESOURCE_DIR: &str = "test/data/gresource";
@@ -433,6 +450,20 @@ mod test {
                 panic!("Unknown file with key: {}", file.key())
             }
         }
+    }
+
+    #[test]
+    fn from_dir_invalid() {
+        let res = GResourceBuilder::from_directory(
+            "/gvdb/rs/test",
+            &PathBuf::from("INVALID_DIR"),
+            true,
+            true,
+        );
+
+        assert!(res.is_err());
+        let err = res.unwrap_err();
+        assert_matches!(err, GResourceBuilderError::Io(..));
     }
 
     #[test]
