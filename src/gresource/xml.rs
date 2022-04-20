@@ -69,6 +69,32 @@ pub struct PreprocessOptions {
     pub json_stripblanks: bool,
 }
 
+impl PreprocessOptions {
+    pub fn empty() -> Self {
+        Self {
+            xml_stripblanks: false,
+            to_pixdata: false,
+            json_stripblanks: false,
+        }
+    }
+
+    pub fn xml_stripblanks() -> Self {
+        Self {
+            xml_stripblanks: true,
+            to_pixdata: false,
+            json_stripblanks: false,
+        }
+    }
+
+    pub fn json_stripblanks() -> Self {
+        Self {
+            xml_stripblanks: false,
+            to_pixdata: false,
+            json_stripblanks: true,
+        }
+    }
+}
+
 fn parse_bool_value<'de, D>(d: D) -> Result<bool, D::Error>
 where
     D: serde::Deserializer<'de>,

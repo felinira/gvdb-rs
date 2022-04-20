@@ -76,6 +76,9 @@ pub enum GResourceBuilderError {
 
     /// This feature is not implemented in gvdb-rs
     Unimplemented(String),
+
+    /// A generic error with a text description
+    Generic(String),
 }
 
 impl From<GvdbWriterError> for GResourceBuilderError {
@@ -172,6 +175,9 @@ impl Display for GResourceBuilderError {
             }
             GResourceBuilderError::Gvdb(err) => {
                 write!(f, "Error while creating GVDB file: {:?}", err)
+            }
+            GResourceBuilderError::Generic(err) => {
+                write!(f, "Error while creating GResource file: {}", err)
             }
         }
     }
