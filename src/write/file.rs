@@ -34,6 +34,7 @@ use glib::{ToVariant, Variant, VariantTy};
 #[derive(Debug)]
 pub struct GvdbHashTableBuilder {
     items: HashMap<String, GvdbBuilderItemValue>,
+    insertion_order: Vec<String>,
     path_separator: Option<String>,
 }
 
@@ -57,6 +58,7 @@ impl GvdbHashTableBuilder {
     pub fn with_path_separator(sep: Option<&str>) -> Self {
         Self {
             items: Default::default(),
+            insertion_order: Vec::new(),
             path_separator: sep.map(|s| s.to_string()),
         }
     }
@@ -92,12 +94,14 @@ impl GvdbHashTableBuilder {
                         }
                     } else {
                         let parent_item = GvdbBuilderItemValue::Container(vec![this_key.clone()]);
+                        self.insertion_order.push(last_key.to_string());
                         self.items.insert(last_key.to_string(), parent_item);
                     }
                 }
 
                 if key == this_key {
                     // The item we actually want to insert
+                    self.insertion_order.push(key.to_string());
                     self.items.insert(key.to_string(), item);
                     break;
                 }
@@ -105,6 +109,7 @@ impl GvdbHashTableBuilder {
                 last_key = Some(this_key.clone());
             }
         } else {
+            self.insertion_order.push(key.to_string());
             self.items.insert(key, item);
         }
 
@@ -191,10 +196,11 @@ impl GvdbHashTableBuilder {
         self.items.is_empty()
     }
 
-    pub(crate) fn build(self) -> GvdbBuilderResult<SimpleHashTable> {
+    pub(crate) fn build(mut self) -> GvdbBuilderResult<SimpleHashTable> {
         let mut hash_table = SimpleHashTable::with_n_buckets(self.items.len());
 
-        for (key, value) in self.items.into_iter() {
+        for key in self.insertion_order {
+            let value = self.items.remove(&key).unwrap();
             hash_table.insert(&key, value);
         }
 
@@ -532,6 +538,7 @@ mod test {
     use matches::assert_matches;
     use std::borrow::Cow;
 
+    use crate::test::assert_bytes_eq;
     #[allow(unused_imports)]
     use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
 
@@ -658,5 +665,26 @@ mod test {
         let root = GvdbFile::from_bytes(Cow::Owned(bytes)).unwrap();
         assert_is_file_2(&root);
         byte_compare_file_2(&root);
+    }
+
+    #[test]
+    pub fn reproducible_build() {
+        let mut last_data: Option<Vec<u8>> = None;
+
+        for _ in 0..100 {
+            let file_builder = GvdbFileWriter::new();
+            let mut table_builder = GvdbHashTableBuilder::new();
+            for num in 0..200 {
+                let str = format!("{}", num);
+                table_builder.insert_string(str.clone(), &str).unwrap();
+            }
+
+            let data = file_builder.write_to_vec_with_table(table_builder).unwrap();
+            if last_data.is_some() {
+                assert_bytes_eq(&last_data.unwrap(), &data, "Reproducible builds");
+            }
+
+            last_data = Some(data);
+        }
     }
 }
