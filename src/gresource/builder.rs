@@ -14,8 +14,9 @@ use glib::{ToVariant, Variant};
 use walkdir::WalkDir;
 
 const FLAG_COMPRESSED: u32 = 1 << 0;
-const SKIPPED_FILE_NAMES: &[&str] = &["meson.build", "gresource.xml"];
-const COMPRESS_EXTENSIONS: &[&str] = &[".ui", ".css"];
+
+static SKIPPED_FILE_NAMES_DEFAULT: &[&str] = &["meson.build", "gresource.xml"];
+static COMPRESS_EXTENSIONS_DEFAULT: &[&str] = &[".ui", ".css"];
 
 struct FileData<'a> {
     key: String,
@@ -265,6 +266,37 @@ impl<'a> GResourceBuilder<'a> {
         strip_blanks: bool,
         compress: bool,
     ) -> GResourceBuilderResult<Self> {
+        let compress_extensions = if compress {
+            COMPRESS_EXTENSIONS_DEFAULT
+        } else {
+            &[]
+        };
+
+        Self::from_directory_with_extensions(
+            prefix,
+            directory,
+            strip_blanks,
+            compress_extensions,
+            SKIPPED_FILE_NAMES_DEFAULT,
+        )
+    }
+
+    /// Like `from_directory` but allows you to specify the extensions directories yourself
+    ///
+    /// ## `compress_extensions`
+    ///
+    /// All files that end with these strings will get compressed
+    ///
+    /// ## `skipped_file_names`
+    ///
+    /// Skip all files that end with this string
+    pub fn from_directory_with_extensions(
+        prefix: &str,
+        directory: &Path,
+        strip_blanks: bool,
+        compress_extensions: &[&str],
+        skipped_file_names: &[&str],
+    ) -> GResourceBuilderResult<Self> {
         let mut prefix = prefix.to_string();
         if !prefix.ends_with('/') {
             prefix.push('/');
@@ -281,7 +313,7 @@ impl<'a> GResourceBuilder<'a> {
                     ))
                 })?;
 
-                for name in SKIPPED_FILE_NAMES {
+                for name in skipped_file_names {
                     if filename.ends_with(name) {
                         continue 'outer;
                     }
@@ -289,12 +321,10 @@ impl<'a> GResourceBuilder<'a> {
 
                 let mut compress_this = false;
 
-                if compress {
-                    for name in COMPRESS_EXTENSIONS {
-                        if filename.ends_with(name) {
-                            compress_this = true;
-                            break;
-                        }
+                for name in compress_extensions {
+                    if filename.ends_with(name) {
+                        compress_this = true;
+                        break;
                     }
                 }
 
