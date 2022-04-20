@@ -9,10 +9,9 @@ license = "LGPL-3.0-or-later"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-glib = "0.15.10"
-glib-sys = "0.15.10"
-once_cell = "1.10.0"
 safe-transmute = "0.11.2"
+
+glib = { version = "0.15.10", optional = true }
 xml-rs = { version = "0.8.4", optional = true }
 serde-xml-rs = { version = "0.5.1", optional = true }
 serde = { version = "1.0.136", features = [ "derive" ], optional = true }
@@ -23,10 +22,12 @@ flate2 = { version = "1.0.23", optional = true }
 pretty_assertions = "1.2.1"
 matches = "0.1.9"
 json = "0.12.4"
+glib = "0.15.10"
 
 # Use zlib for binary compatibility in tests
 flate2 = { version = "1.0.23", features = [ "zlib" ] }
 
 [features]
 gresource = [ "dep:xml-rs", "dep:serde-xml-rs", "dep:serde", "dep:json", "dep:flate2" ]
-default = [ "gresource" ]
+glib = [ "dep:glib" ]
+default = [ "gresource", "glib" ]

@@ -4,8 +4,13 @@ use crate::read::pointer::GvdbPointer;
 use safe_transmute::TriviallyTransmutable;
 use std::fmt::{Display, Formatter};
 
+#[cfg(not(feature = "glib"))]
+use crate::no_glib::Variant;
+#[cfg(feature = "glib")]
+use glib::Variant;
+
 pub enum GvdbValue<'a> {
-    Variant(glib::Variant),
+    Variant(Variant),
     HashTable(GvdbHashTable<'a>),
 }
 

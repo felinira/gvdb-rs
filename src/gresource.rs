@@ -1,8 +1,9 @@
-/// Create GResource binary files
-pub mod builder;
+mod builder;
+mod error;
+mod xml;
 
-/// Errors for GResource file creation
-pub mod error;
-
-/// Parse GResource XML files
-pub mod xml;
+pub use self::xml::GResourceXMLDocument;
+pub use builder::GResourceBuilder;
+pub use error::{
+    GResourceBuilderError, GResourceBuilderResult, GResourceXMLError, GResourceXMLResult,
+};

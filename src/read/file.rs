@@ -10,6 +10,11 @@ use std::io::Read;
 use std::mem::size_of;
 use std::path::Path;
 
+#[cfg(not(feature = "glib"))]
+use crate::no_glib::{Variant, VariantTy};
+#[cfg(feature = "glib")]
+use glib::{Variant, VariantTy};
+
 /// The root of a GVDB file
 ///
 /// # Examples
@@ -18,30 +23,32 @@ use std::path::Path;
 ///
 /// ```
 /// use std::path::PathBuf;
-/// use gvdb::read::file::GvdbFile;
+/// use gvdb::read::GvdbFile;
 ///
-/// pub fn main() {
-///     let path = PathBuf::from("test/data/test3.gresource");
-///     let file = GvdbFile::from_file(&path).unwrap();
-///     let table = file.hash_table().unwrap();
+/// let path = PathBuf::from("test/data/test3.gresource");
+/// let file = GvdbFile::from_file(&path).unwrap();
+/// let table = file.hash_table().unwrap();
 ///
-///     let svg1 = table
-///         .get_value("/gvdb/rs/test/online-symbolic.svg")
-///         .unwrap()
-///         .child_value(0);
-///     let svg1_size = svg1.child_value(0).get::<u32>().unwrap();
-///     let svg1_flags = svg1.child_value(1).get::<u32>().unwrap();
-///     let svg1_content = svg1.child_value(2).data_as_bytes();
-///     let svg1_str = std::str::from_utf8(&svg1_content[0..svg1_content.len() - 1]).unwrap();
+/// let svg1 = table
+///     .get_value("/gvdb/rs/test/online-symbolic.svg")
+///     .unwrap()
+///     .child_value(0);
+/// let svg1_size = svg1.child_value(0).get::<u32>().unwrap();
+/// let svg1_flags = svg1.child_value(1).get::<u32>().unwrap();
+/// let svg1_content = svg1.child_value(2).data_as_bytes();
+/// let svg1_str = std::str::from_utf8(&svg1_content[0..svg1_content.len() - 1]).unwrap();
 ///
-///     println!("{}", svg1_str);
-/// }
+/// println!("{}", svg1_str);
 /// ```
 ///
 /// Query the root hash table
 ///
 /// ```
-/// use gvdb::read::file::GvdbFile;
+/// #[cfg(feature = "glib")]
+/// # use glib::VariantTy;
+/// # #[cfg(not(feature = "glib"))]
+/// # use gvdb::no_glib::VariantTy;
+/// use gvdb::read::GvdbFile;
 ///
 /// fn query_hash_table(file: GvdbFile) {
 ///     let table = file.hash_table().unwrap();
@@ -51,7 +58,7 @@ use std::path::Path;
 ///     assert_eq!(names[1], "table");
 ///
 ///     let str_value = table.get_value("string").unwrap().child_value(0);
-///     assert!(str_value.is_type(glib::VariantTy::STRING));
+///     assert!(str_value.is_type(VariantTy::STRING));
 ///     assert_eq!(str_value.get::<String>().unwrap(), "test string");
 ///
 ///     let sub_table = table.get_hash_table("table").unwrap();
@@ -133,7 +140,7 @@ impl<'a> GvdbFile<'a> {
     /// Open a file and interpret the data as GVDB
     /// ```
     /// let path = std::path::PathBuf::from("test/data/test3.gresource");
-    /// let file = gvdb::read::file::GvdbFile::from_file(&path).unwrap();
+    /// let file = gvdb::read::GvdbFile::from_file(&path).unwrap();
     /// ```
     pub fn from_file(filename: &Path) -> GvdbReaderResult<Self> {
         let mut file = File::open(filename)
@@ -154,17 +161,11 @@ impl<'a> GvdbFile<'a> {
         Ok(String::from_utf8(data.to_vec())?)
     }
 
-    pub(crate) fn get_value_for_item(
-        &self,
-        item: &GvdbHashItem,
-    ) -> GvdbReaderResult<glib::Variant> {
+    pub(crate) fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<Variant> {
         let typ = item.typ()?;
         if typ == GvdbHashItemType::Value {
             let data: &[u8] = self.dereference(item.value_ptr(), 8)?;
-            Ok(glib::Variant::from_data_with_type(
-                data,
-                glib::VariantTy::VARIANT,
-            ))
+            Ok(Variant::from_data_with_type(data, VariantTy::VARIANT))
         } else {
             Err(GvdbReaderError::DataError(format!(
                 "Unable to parse item for key '{}' as GVariant: Expected type 'v', got type {}",
@@ -192,12 +193,17 @@ impl<'a> GvdbFile<'a> {
 }
 
 #[cfg(test)]
-pub mod test {
+pub(crate) mod test {
     use crate::read::file::GvdbFile;
     use crate::read::hash::test::byte_compare_gvdb_hash_table;
     use std::io::Read;
     use std::path::PathBuf;
     use std::str::FromStr;
+
+    #[cfg(not(feature = "glib"))]
+    use crate::no_glib::VariantTy;
+    #[cfg(feature = "glib")]
+    use glib::VariantTy;
 
     use crate::test::assert_bytes_eq;
     #[allow(unused_imports)]
@@ -208,6 +214,7 @@ pub mod test {
     const TEST_FILE_2: &str = "test2.gvdb";
     const TEST_FILE_3: &str = "test3.gresource";
 
+    #[allow(dead_code)]
     pub fn byte_compare_gvdb_file(a: &GvdbFile, b: &GvdbFile) {
         assert_eq!(a.data.len(), b.data.len());
         assert_eq!(a.get_header().unwrap(), b.get_header().unwrap());
@@ -266,7 +273,7 @@ pub mod test {
         assert_eq!(names[1], "table");
 
         let str_value = table.get_value("string").unwrap().child_value(0);
-        assert!(str_value.is_type(glib::VariantTy::STRING));
+        assert!(str_value.is_type(VariantTy::STRING));
         assert_eq!(str_value.get::<String>().unwrap(), "test string");
 
         let sub_table = table.get_hash_table("table").unwrap();
@@ -278,6 +285,7 @@ pub mod test {
         assert_eq!(int_value.get::<u32>().unwrap(), 42);
     }
 
+    #[allow(dead_code)]
     pub fn byte_compare_file_3(file: &GvdbFile) {
         let reference_filename = TEST_FILE_DIR.to_string() + TEST_FILE_3;
         let ref_root = GvdbFile::from_file(&PathBuf::from(reference_filename)).unwrap();

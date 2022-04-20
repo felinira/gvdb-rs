@@ -1,12 +1,16 @@
 use crate::gresource::error::{GResourceBuilderError, GResourceBuilderResult};
 use crate::gresource::xml::PreprocessOptions;
-use crate::write::file::{GvdbFileWriter, GvdbHashTableBuilder};
+use crate::write::{GvdbFileWriter, GvdbHashTableBuilder};
 use flate2::write::ZlibEncoder;
-use glib::ToVariant;
 use std::borrow::Cow;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use xml::{EmitterConfig, EventReader, EventWriter, ParserConfig};
+
+#[cfg(not(feature = "glib"))]
+use crate::no_glib::{ToVariant, Variant};
+#[cfg(feature = "glib")]
+use glib::{ToVariant, Variant};
 
 #[cfg(test)]
 const BYTE_COMPATIBILITY: bool = true;
@@ -160,13 +164,35 @@ impl<'a> FileData<'a> {
 }
 
 /// Create a GResource binary file
+///
+/// # Example
+///
+/// Create a GResource XML file with [`GResourceXMLDocument`][crate::gresource::GResourceXMLDocument] and
+/// [`GResourceBuilder`](crate::gresource::GResourceBuilder)
+/// ```
+/// use std::borrow::Cow;
+/// use std::path::PathBuf;
+/// use gvdb::gresource::GResourceBuilder;
+/// use gvdb::gresource::GResourceXMLDocument;
+/// use gvdb::read::GvdbFile;
+///
+/// const GRESOURCE_XML: &str = "test/data/gresource/test3.gresource.xml";
+///
+/// fn create_gresource() {
+///     let doc = GResourceXMLDocument::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
+///     let builder = GResourceBuilder::from_xml(doc).unwrap();
+///     let data = builder.build().unwrap();
+///     let root = GvdbFile::from_bytes(Cow::Owned(data)).unwrap();
+/// }
+/// ```
+
 pub struct GResourceBuilder<'a> {
     files: Vec<FileData<'a>>,
 }
 
 impl<'a> GResourceBuilder<'a> {
     /// Create this builder from a GResource XML file
-    pub fn from_xml(xml: super::xml::GResourceXMLDoc) -> GResourceBuilderResult<Self> {
+    pub fn from_xml(xml: super::xml::GResourceXMLDocument) -> GResourceBuilderResult<Self> {
         let mut files = Vec::new();
 
         for gresource in &xml.gresources {
@@ -214,9 +240,9 @@ impl<'a> GResourceBuilder<'a> {
             let tuple = vec![
                 file_data.size().to_variant(),
                 file_data.flags().to_variant(),
-                glib::Bytes::from(file_data.data()).to_variant(),
+                file_data.data().to_variant(),
             ];
-            let variant = glib::Variant::tuple_from_iter(tuple);
+            let variant = Variant::tuple_from_iter(tuple);
 
             table_builder.insert_variant(file_data.key(), variant)?;
         }
@@ -228,15 +254,15 @@ impl<'a> GResourceBuilder<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::gresource::xml::GResourceXMLDoc;
-    use crate::read::file::test::{assert_is_file_3, byte_compare_file_3};
-    use crate::read::file::GvdbFile;
+    use crate::gresource::xml::GResourceXMLDocument;
+    use crate::read::test::{assert_is_file_3, byte_compare_file_3};
+    use crate::read::GvdbFile;
 
     const GRESOURCE_XML: &str = "test/data/gresource/test3.gresource.xml";
 
     #[test]
     fn file_data() {
-        let doc = GResourceXMLDoc::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
+        let doc = GResourceXMLDocument::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
         let builder = GResourceBuilder::from_xml(doc).unwrap();
 
         for file in builder.files {
@@ -256,7 +282,7 @@ mod test {
 
     #[test]
     fn test_file_3() {
-        let doc = GResourceXMLDoc::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
+        let doc = GResourceXMLDocument::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
         let builder = GResourceBuilder::from_xml(doc).unwrap();
         let data = builder.build().unwrap();
         let root = GvdbFile::from_bytes(Cow::Owned(data)).unwrap();

@@ -1,12 +1,16 @@
-use crate::read::hash_item::GvdbHashItemType;
+use crate::read::GvdbHashItemType;
 use crate::write::file::GvdbHashTableBuilder;
-use glib::Variant;
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::rc::Rc;
 
+#[cfg(not(feature = "glib"))]
+use crate::no_glib::Variant;
+#[cfg(feature = "glib")]
+use glib::Variant;
+
 #[derive(Debug)]
 pub enum GvdbBuilderItemValue {
-    Value(glib::Variant),
+    Value(Variant),
     TableBuilder(GvdbHashTableBuilder),
 
     // A child container with no additional value
@@ -28,7 +32,7 @@ impl GvdbBuilderItemValue {
         }
     }
 
-    pub fn variant(&self) -> Option<&glib::Variant> {
+    pub fn variant(&self) -> Option<&Variant> {
         match self {
             GvdbBuilderItemValue::Value(variant) => Some(variant),
             _ => None,
@@ -50,7 +54,7 @@ impl GvdbBuilderItemValue {
     }
 }
 
-impl From<glib::Variant> for GvdbBuilderItemValue {
+impl From<Variant> for GvdbBuilderItemValue {
     fn from(var: Variant) -> Self {
         GvdbBuilderItemValue::Value(var)
     }

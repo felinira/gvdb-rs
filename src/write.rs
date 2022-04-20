@@ -1,8 +1,7 @@
-/// Error handling related to writing a GVDB file
-pub mod error;
-
-/// GVDB file creation
-pub mod file;
-
+mod error;
+mod file;
 mod hash;
 mod item;
+
+pub use error::{GvdbBuilderResult, GvdbWriterError};
+pub use file::{GvdbFileWriter, GvdbHashTableBuilder};

@@ -5,11 +5,11 @@
 //!
 //! ## Examples
 //!
-//! Load a GResource file from disk with [`GvdbFile`](crate::read::file::GvdbFile)
+//! Load a GResource file from disk with [`GvdbFile`](crate::read::GvdbFile)
 //!
 //! ```
 //! use std::path::PathBuf;
-//! use gvdb::read::file::GvdbFile;
+//! use gvdb::read::GvdbFile;
 //!
 //! pub fn read_gresource_file() {
 //!     let path = PathBuf::from("test/data/test3.gresource");
@@ -29,11 +29,14 @@
 //! }
 //! ```
 //!
-//! Create a simple GVDB file with [`GvdbFileWriter`](crate::write::file::GvdbFileWriter)
+//! Create a simple GVDB file with [`GvdbFileWriter`](crate::write::GvdbFileWriter)
 //!
 //! ```
-//! use glib::ToVariant;
-//! use gvdb::write::file::{GvdbFileWriter, GvdbHashTableBuilder};
+//! #[cfg(feature = "glib")]
+//! # use glib::ToVariant;
+//! # #[cfg(not(feature = "glib"))]
+//! # use gvdb::no_glib::ToVariant;
+//! use gvdb::write::{GvdbFileWriter, GvdbHashTableBuilder};
 //!
 //! fn create_gvdb_file() {
 //!     let mut file_writer = GvdbFileWriter::new();
@@ -54,30 +57,29 @@
 //! }
 //! ```
 //!
-//! Create a GResource XML file with [`GResourceXMLDoc`](crate::gresource::xml::GResourceXMLDoc) and
-//! [`GResourceBuilder`](crate::gresource::builder::GResourceBuilder)
-//! ```
-//! use std::borrow::Cow;
-//! use std::path::PathBuf;
-//! use gvdb::gresource::builder::GResourceBuilder;
-//! use gvdb::gresource::xml::GResourceXMLDoc;
-//! use gvdb::read::file::GvdbFile;
-//!
-//! const GRESOURCE_XML: &str = "test/data/gresource/test3.gresource.xml";
-//!
-//! fn create_gresource() {
-//!     let doc = GResourceXMLDoc::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
-//!     let builder = GResourceBuilder::from_xml(doc).unwrap();
-//!     let data = builder.build().unwrap();
-//!     let root = GvdbFile::from_bytes(Cow::Owned(data)).unwrap();
-//! }
-//! ```
-//!
 //! ## Features
 //!
+//! ### Default
+//!
+//! By default, the `glib` and `gresource` feature are both enabled. You can opt out of these
+//! features by specifying `default-features = false in the gvdb dependency declaration
+//!
+//! ### `glib`
+//!
+//! By default this crate uses the [glib](https://crates.io/crates/glib) crate to allow reading and
+//! writing `GVariant` data to the gvdb files. By disabling this feature an internal `GVariant`
+//! implementation is used.
+//!
+//! The internal implementation implements the most common serialisation and deserialization
+//! features. For compatibility with glib types it is recommended to enable this feature. Disabling
+//! this feature reduces the number of dependencies and compile time.
+//!
+//! You can find the custom `GVariant` implementation in the [`no_glib`] module.
+//!
+//! ### `gresource`
+//!
 //! To use the GResource XML module, the `gresource` feature must be enabled. This is done by
-//! default. You can opt out of the GResource functionality by specifying `default-features = false`
-//! in the gvdb dependency declaration
+//! default.
 //!
 //! ## Macros
 //!
@@ -86,21 +88,30 @@
 
 #![warn(missing_docs)]
 
+extern crate core;
+
 /// Read GResource XML files and compile a GResource file
 ///
-/// Use [`GResourceXMLDoc`](crate::gresource::xml::GResourceXMLDoc) for XML file reading and
-/// [`GResourceBuilder`](crate::gresource::builder::GResourceBuilder) to create the GResource binary
+/// Use [`GResourceXMLDoc`](crate::gresource::GResourceXMLDoc) for XML file reading and
+/// [`GResourceBuilder`](crate::gresource::GResourceBuilder) to create the GResource binary
 /// file
 #[cfg(feature = "gresource")]
 pub mod gresource;
 
 /// Read GVDB files from a file or from a byte slice
 ///
-/// See the documentation of [`GvdbFile`](crate::read::file::GvdbFile) to get started
+/// See the documentation of [`GvdbFile`](crate::read::GvdbFile) to get started
 pub mod read;
 
 /// Create GVDB files
+///
+/// See the documentation of [`GvdbFileWriter`](crate::write::GvdbFileWriter) to get started
 pub mod write;
+
+/// `GVariant` implementation that does not depend on glib. This is only available when the `glib`
+/// feature is disabled or the test suite is running.
+#[cfg(any(not(feature = "glib"), test, doc))]
+pub mod no_glib;
 
 #[cfg(test)]
 pub(crate) mod test;

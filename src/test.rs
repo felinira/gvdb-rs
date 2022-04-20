@@ -109,8 +109,18 @@ pub fn assert_bytes_eq(a: &[u8], b: &[u8], context: &str) {
         }
     }
 
-    if a.len() > b.len() {
+    if a.len() != b.len() {
         eprintln!("{}", context);
-        panic!("b is too big, expected {} bytes, got {}", a.len(), b.len());
+        if b.len() > a.len() {
+            println!("b extra bytes: ");
+            println!("{:?}", &b[a.len()..]);
+            panic!("b is too big, expected {} bytes, got {}", a.len(), b.len());
+        } else {
+            panic!(
+                "b is too small, expected {} bytes, got {}",
+                a.len(),
+                b.len()
+            );
+        }
     }
 }

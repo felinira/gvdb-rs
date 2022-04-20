@@ -1,4 +1,4 @@
-use crate::write::error::GvdbWriterError;
+use crate::write::GvdbWriterError;
 use serde_xml_rs::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::string::FromUtf8Error;

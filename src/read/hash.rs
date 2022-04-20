@@ -10,6 +10,11 @@ use std::cmp::min;
 use std::fmt::{Debug, Formatter};
 use std::mem::size_of;
 
+#[cfg(not(feature = "glib"))]
+use crate::no_glib::Variant;
+#[cfg(feature = "glib")]
+use glib::Variant;
+
 /// The header of a GVDB hash table
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq)]
@@ -329,7 +334,7 @@ impl<'a> GvdbHashTable<'a> {
     }
 
     /// Get the item at key `key` and try to interpret it as a [`struct@glib::Variant`]
-    pub fn get_value(&self, key: &str) -> GvdbReaderResult<glib::Variant> {
+    pub fn get_value(&self, key: &str) -> GvdbReaderResult<Variant> {
         self.get_value_for_item(&self.get_hash_item(key)?)
     }
 
@@ -355,7 +360,7 @@ impl<'a> GvdbHashTable<'a> {
         self.root.get_key(item)
     }
 
-    fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<glib::Variant> {
+    fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<Variant> {
         self.root.get_value_for_item(item)
     }
 

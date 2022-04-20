@@ -1,12 +1,18 @@
-/// Errors that can occur while reading a GVDB file
-pub mod error;
+mod error;
+mod file;
+mod hash;
+mod hash_item;
+mod header;
+mod pointer;
 
-/// The root module for reading GVDB files
-pub mod file;
+pub use error::{GvdbReaderError, GvdbReaderResult};
+pub use file::GvdbFile;
+pub use hash::GvdbHashTable;
 
-/// GVDB hash table implementation
-pub mod hash;
+#[cfg(test)]
+pub(crate) use file::test;
 
-pub(crate) mod hash_item;
-pub(crate) mod header;
-pub(crate) mod pointer;
+pub(crate) use hash::GvdbHashHeader;
+pub(crate) use hash_item::{GvdbHashItem, GvdbHashItemType};
+pub(crate) use header::GvdbHeader;
+pub(crate) use pointer::GvdbPointer;
