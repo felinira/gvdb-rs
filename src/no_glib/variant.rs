@@ -3,7 +3,7 @@ use std::ffi::{CStr, CString};
 use std::fmt::{Debug, Display, Formatter};
 
 /// A reimplementation of [`struct@glib::Variant`]
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Variant {
     typ: VariantType,
     data: Vec<u8>,
@@ -236,8 +236,47 @@ impl Variant {
     }
 
     /// Swaps the endianness of this `Variant`
+    /// Will panic if this `Variant` has invalid data
     pub fn byteswap(&self) -> Self {
-        todo!()
+        // TODO: This is a bit of a hack and could be done with way less allocations
+        if self.is_container() {
+            let mut byteswapped = self.clone();
+
+            for child_index in 0..byteswapped.n_children() {
+                let (child_start, child_end, child_type) = byteswapped
+                    .try_child_data_offsets_and_type(child_index)
+                    .unwrap();
+
+                let child = Self::from_data_with_type(
+                    &byteswapped.data[child_start..child_end],
+                    child_type,
+                );
+                let byteswapped_child = child.byteswap();
+
+                // Insert the data back into this Variant
+                byteswapped.data[child_start..child_end].copy_from_slice(byteswapped_child.data());
+            }
+
+            byteswapped
+        } else if self.is_basic() {
+            match self.typ.0[0] {
+                VariantTy::CLASS_BOOLEAN | VariantTy::CLASS_BYTE | VariantTy::CLASS_STRING => {
+                    self.clone()
+                }
+                VariantTy::CLASS_INT16 => self.get::<i16>().unwrap().swap_bytes().to_variant(),
+                VariantTy::CLASS_UINT16 => self.get::<u16>().unwrap().swap_bytes().to_variant(),
+                VariantTy::CLASS_INT32 => self.get::<i32>().unwrap().swap_bytes().to_variant(),
+                VariantTy::CLASS_UINT32 => self.get::<u32>().unwrap().swap_bytes().to_variant(),
+                VariantTy::CLASS_INT64 => self.get::<i64>().unwrap().swap_bytes().to_variant(),
+                VariantTy::CLASS_UINT64 => self.get::<u64>().unwrap().swap_bytes().to_variant(),
+                VariantTy::CLASS_DOUBLE => {
+                    f64::from_bits(self.get::<f64>().unwrap().to_bits().swap_bytes()).to_variant()
+                }
+                _ => panic!("Can't byteswap type {:?}", self.typ),
+            }
+        } else {
+            panic!("Can't byteswap type {:?}", self.typ);
+        }
     }
 
     /// Provided only for compatibility. This implementation always uses normal form for all data.
@@ -293,8 +332,7 @@ impl Variant {
         }
     }
 
-    /// Return the child value at `index`
-    pub fn try_child_value(&self, index: usize) -> Option<Self> {
+    fn try_child_data_offsets_and_type(&self, index: usize) -> Option<(usize, usize, &VariantTy)> {
         let n_children = self.n_children();
 
         if n_children <= index {
@@ -305,8 +343,7 @@ impl Variant {
             if elem_size != 0 {
                 // Simple case, we can just index into the array
                 let offset = index * elem_size;
-                let data = self.data.get(offset..offset + elem_size)?;
-                Some(Self::from_data_with_type(data, typ))
+                Some((offset, offset + elem_size, typ))
             } else {
                 let offset_item_size = self.varsize_container_offset_item_size();
                 let offsets_start = self.data.len() - self.variable_length_array_offsets_size();
@@ -328,14 +365,13 @@ impl Variant {
                     )
                 };
 
-                let child_data = self.data.get(child_offset_start..child_offset_end)?;
                 let child_type = self.typ.type_element();
-                Some(Self::from_data_with_type(child_data, child_type))
+                Some((child_offset_start, child_offset_end, child_type))
             }
         } else if self.is_maybe() {
             // Just return self as the value, we checked above if we have a value at all
             let typ = self.typ.type_element();
-            Some(Self::from_data_with_type(&self.data, typ))
+            Some((0, self.data.len(), typ))
         } else if self.is_tuple() {
             let tuple_type_info = self.type_info.tuple_type_info.as_ref()?;
             let offset_item_size = self.varsize_container_offset_item_size();
@@ -384,13 +420,11 @@ impl Variant {
                 offset += member_size;
             }
 
-            let data = if offset_end != 0 {
-                self.data.get(offset..offset_end)
-            } else {
-                self.data.get(offset..)
-            }?;
+            if offset_end == 0 {
+                offset_end = self.data.len();
+            }
 
-            Some(Self::from_data_with_type(data, typ))
+            Some((offset, offset_end, typ))
         } else if self.is_variant() {
             // find 0 byte that separates type info from data
             let mut type_info_offset = 0;
@@ -402,16 +436,21 @@ impl Variant {
             }
 
             if type_info_offset != 0 {
-                let data = &self.data[..type_info_offset - 1];
                 let type_str_data = &self.data[type_info_offset..];
                 let typ = VariantTy::new(std::str::from_utf8(type_str_data).ok()?).ok()?;
-                Some(Self::from_data_with_type(data, typ))
+                Some((0, type_info_offset - 1, typ))
             } else {
                 None
             }
         } else {
             None
         }
+    }
+
+    /// Return the child value at `index`
+    pub fn try_child_value(&self, index: usize) -> Option<Self> {
+        let (start, end, typ) = self.try_child_data_offsets_and_type(index)?;
+        Some(Self::from_data_with_type(&self.data.get(start..end)?, typ))
     }
 
     /// Return the child value at `index`.
@@ -842,5 +881,38 @@ mod test_with_glib {
         let my_data = my_variant.data();
 
         assert_bytes_eq(ref_data, &my_data, "test");
+    }
+
+    #[test]
+    fn byteswap() {
+        let var_i16 = super::ToVariant::to_variant(&9999i16);
+        let var_i16_bs = var_i16.byteswap();
+        assert_eq!(var_i16, var_i16_bs.byteswap());
+        assert_eq!(9999i16.swap_bytes(), var_i16_bs.get::<i16>().unwrap());
+
+        let arr_i32: [i32; 7] = [
+            9999999, 8888888, 7777777, 6666666, 5555555, 4444444, 3333333,
+        ];
+        let arr_i32_var = arr_i32.map(|v| super::ToVariant::to_variant(&v));
+        let var_arr = super::Variant::array_from_iter_with_type(VariantTy::INT32, arr_i32_var);
+        let var_arr_bs = var_arr.byteswap();
+        assert_eq!(var_arr.n_children(), var_arr_bs.n_children());
+        assert_ne!(var_arr.data(), var_arr_bs.data());
+
+        for index in 0..6 {
+            let child = var_arr.child_value(index);
+            let child_bs = var_arr_bs.child_value(index);
+            assert_ne!(child.data(), child_bs.data());
+            assert_eq!(arr_i32[index], child.get::<i32>().unwrap());
+            assert_eq!(arr_i32[index], child_bs.get::<i32>().unwrap().swap_bytes());
+            assert_eq!(arr_i32[index], child_bs.byteswap().get::<i32>().unwrap());
+            assert_ne!(arr_i32[index], child_bs.get::<i32>().unwrap());
+            assert_ne!(arr_i32[index], child.byteswap().get::<i32>().unwrap());
+        }
+
+        let tuple = super::Variant::tuple_from_iter(&[var_i16, var_arr]);
+        let tuple_bs = tuple.byteswap();
+        assert_eq!(tuple_bs.child_value(0), var_i16_bs);
+        assert_eq!(tuple_bs.child_value(1), var_arr_bs);
     }
 }

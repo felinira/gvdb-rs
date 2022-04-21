@@ -585,7 +585,7 @@ mod test {
     }
 
     #[test]
-    pub fn gvdb_hash_table_builder() {
+    fn gvdb_hash_table_builder() {
         let mut builder = GvdbHashTableBuilder::new();
         builder.insert_string("string", "Test").unwrap();
         builder.insert_variant("123", 123u32.to_variant()).unwrap();
@@ -624,7 +624,7 @@ mod test {
     }
 
     #[test]
-    pub fn file_builder_file_1() {
+    fn file_builder_file_1() {
         let mut file_builder = GvdbFileWriter::new();
         let mut table_builder = GvdbHashTableBuilder::new();
 
@@ -642,7 +642,7 @@ mod test {
     }
 
     #[test]
-    pub fn file_builder_file_2() {
+    fn file_builder_file_2() {
         let mut file_builder = GvdbFileWriter::new();
         let mut table_builder = GvdbHashTableBuilder::new();
 
@@ -666,7 +666,7 @@ mod test {
     }
 
     #[test]
-    pub fn reproducible_build() {
+    fn reproducible_build() {
         let mut last_data: Option<Vec<u8>> = None;
 
         for _ in 0..100 {
@@ -684,5 +684,26 @@ mod test {
 
             last_data = Some(data);
         }
+    }
+
+    #[test]
+    fn big_endian() {
+        let mut file_builder = GvdbFileWriter::for_big_endian();
+        let mut table_builder = GvdbHashTableBuilder::new();
+
+        let value1 = 1234u32.to_variant();
+        let value2 = 98765u32.to_variant();
+        let value3 = "TEST_STRING_VALUE".to_variant();
+        let tuple_data = vec![value1, value2, value3];
+        let variant = Variant::tuple_from_iter(&tuple_data);
+        table_builder.insert_variant("root_key", variant).unwrap();
+        let root_index = file_builder.add_hash_table(table_builder).unwrap().0;
+        let bytes = file_builder.serialize_to_vec(root_index).unwrap();
+
+        // "GVariant" byteswapped at 32 bit boundaries is the header for big-endian GVariant files
+        assert_eq!("raVGtnai", std::str::from_utf8(&bytes[0..8]).unwrap());
+
+        let root = GvdbFile::from_bytes(Cow::Owned(bytes)).unwrap();
+        assert_is_file_1(&root);
     }
 }

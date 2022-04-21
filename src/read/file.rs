@@ -165,7 +165,13 @@ impl<'a> GvdbFile<'a> {
         let typ = item.typ()?;
         if typ == GvdbHashItemType::Value {
             let data: &[u8] = self.dereference(item.value_ptr(), 8)?;
-            Ok(Variant::from_data_with_type(data, VariantTy::VARIANT))
+            let variant = Variant::from_data_with_type(data, VariantTy::VARIANT);
+
+            if self.byteswapped {
+                Ok(variant.byteswap())
+            } else {
+                Ok(variant)
+            }
         } else {
             Err(GvdbReaderError::DataError(format!(
                 "Unable to parse item for key '{}' as GVariant: Expected type 'v', got type {}",

@@ -9,7 +9,7 @@ pub struct BoolError {
     pub message: Cow<'static, str>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct TypeInfo {
     pub alignment: u8,
     pub fixed_size: usize,
@@ -85,7 +85,7 @@ impl TypeInfo {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct TupleTypeInfo {
     pub member_types: Vec<VariantType>,
     pub member_type_info: Vec<TypeInfo>,
@@ -832,6 +832,12 @@ impl VariantType {
     /// Returns `Ok` if the string is a valid type string, `Err` otherwise.
     pub fn from_string(type_string: impl Into<String>) -> Result<VariantType, BoolError> {
         Self::new(&type_string.into())
+    }
+}
+
+impl Clone for VariantType {
+    fn clone(&self) -> Self {
+        Self::new(self.inner.as_str()).unwrap()
     }
 }
 
