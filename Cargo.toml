@@ -7,6 +7,7 @@ repository = "https://github.com/felinira/gvdb-rs"
 license = "LGPL-3.0-or-later"
 keywords = [ "gvdb", "glib", "gresource", "glib-compile-resources" ]
 categories = [ "gui", "data-structures", "encoding" ]
+exclude = [ ".idea" ]
 
 [dependencies]
 safe-transmute = "0.11.2"
