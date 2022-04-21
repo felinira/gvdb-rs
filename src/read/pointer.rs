@@ -15,13 +15,6 @@ impl GvdbPointer {
         }
     }
 
-    pub fn swap_bytes(&self) -> Self {
-        Self {
-            start: self.start.swap_bytes(),
-            end: self.end.swap_bytes(),
-        }
-    }
-
     pub fn start(&self) -> u32 {
         u32::from_le(self.start)
     }
