@@ -61,8 +61,8 @@
 //!
 //! ### Default
 //!
-//! By default, the `glib` and `gresource` feature are both enabled. You can opt out of these
-//! features by specifying `default-features = false in the gvdb dependency declaration
+//! By default, the `glib` is enabled. You can opt out of this feature by specifying
+//! `default-features = false in the gvdb dependency declaration.
 //!
 //! ### `glib`
 //!
@@ -78,8 +78,7 @@
 //!
 //! ### `gresource`
 //!
-//! To use the GResource XML module, the `gresource` feature must be enabled. This is done by
-//! default.
+//! To use the GResource compilation module, the `gresource` feature must be enabled.
 //!
 //! ## Macros
 //!

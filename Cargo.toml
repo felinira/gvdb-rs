@@ -33,4 +33,4 @@ flate2 = { version = "1.0.23", features = [ "zlib" ] }
 [features]
 gresource = [ "dep:xml-rs", "dep:serde-xml-rs", "dep:serde", "dep:json", "dep:flate2" ]
 glib = [ "dep:glib" ]
-default = [ "gresource", "glib" ]
+default = [ "glib" ]
