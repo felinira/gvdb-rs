@@ -12,6 +12,7 @@ exclude = [ ".idea" ]
 [dependencies]
 safe-transmute = "0.11.2"
 walkdir = "2.3.2"
+memmap2 = "0.5.3"
 
 glib = { version = "0.15.10", optional = true }
 xml-rs = { version = "0.8.4", optional = true }

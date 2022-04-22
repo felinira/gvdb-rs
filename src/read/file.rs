@@ -3,6 +3,7 @@ use crate::read::hash::GvdbHashTable;
 use crate::read::hash_item::{GvdbHashItem, GvdbHashItemType};
 use crate::read::header::GvdbHeader;
 use crate::read::pointer::GvdbPointer;
+use memmap2::Mmap;
 use safe_transmute::transmute_one_pedantic;
 use std::borrow::Cow;
 use std::fs::File;
@@ -14,6 +15,21 @@ use std::path::Path;
 use crate::no_glib::{Variant, VariantTy};
 #[cfg(feature = "glib")]
 use glib::{Variant, VariantTy};
+
+#[derive(Debug)]
+enum GvdbData<'a> {
+    Cow(Cow<'a, [u8]>),
+    Mmap(Mmap),
+}
+
+impl<'a> AsRef<[u8]> for GvdbData<'a> {
+    fn as_ref(&self) -> &[u8] {
+        match self {
+            GvdbData::Cow(cow) => cow.as_ref(),
+            GvdbData::Mmap(mmap) => mmap.as_ref(),
+        }
+    }
+}
 
 /// The root of a GVDB file
 ///
@@ -72,7 +88,7 @@ use glib::{Variant, VariantTy};
 /// ```
 #[derive(Debug)]
 pub struct GvdbFile<'a> {
-    data: Cow<'a, [u8]>,
+    data: GvdbData<'a>,
     byteswapped: bool,
 }
 
@@ -81,6 +97,7 @@ impl<'a> GvdbFile<'a> {
     fn get_header(&self) -> GvdbReaderResult<GvdbHeader> {
         let header_data = self
             .data
+            .as_ref()
             .get(0..size_of::<GvdbHeader>())
             .ok_or(GvdbReaderError::DataOffset)?;
         Ok(transmute_one_pedantic(header_data)?)
@@ -108,25 +125,22 @@ impl<'a> GvdbFile<'a> {
         } else if start & (alignment - 1) != 0 {
             Err(GvdbReaderError::DataAlignment)
         } else {
-            self.data.get(start..end).ok_or(GvdbReaderError::DataOffset)
+            self.data
+                .as_ref()
+                .get(start..end)
+                .ok_or(GvdbReaderError::DataOffset)
         }
     }
 
-    /// Interpret a slice of bytes as a GVDB file
-    pub fn from_bytes(bytes: Cow<'a, [u8]>) -> GvdbReaderResult<GvdbFile<'a>> {
-        let mut this = Self {
-            data: bytes,
-            byteswapped: false,
-        };
-
-        let header = this.get_header()?;
+    fn read_header(&mut self) -> GvdbReaderResult<()> {
+        let header = self.get_header()?;
         if !header.header_valid() {
             return Err(GvdbReaderError::DataError(
                 "Invalid GVDB header. Is this a GVDB file?".to_string(),
             ));
         }
 
-        this.byteswapped = header.is_byteswap()?;
+        self.byteswapped = header.is_byteswap()?;
 
         if header.version() != 0 {
             return Err(GvdbReaderError::DataError(format!(
@@ -134,6 +148,19 @@ impl<'a> GvdbFile<'a> {
                 header.version()
             )));
         }
+
+        Ok(())
+    }
+
+    /// Interpret a slice of bytes as a GVDB file
+    pub fn from_bytes(bytes: Cow<'a, [u8]>) -> GvdbReaderResult<GvdbFile<'a>> {
+        let mut this = Self {
+            data: GvdbData::Cow(bytes),
+            byteswapped: false,
+        };
+
+        this.read_header()?;
+
         Ok(this)
     }
 
@@ -153,6 +180,29 @@ impl<'a> GvdbFile<'a> {
         file.read_to_end(&mut data)
             .map_err(|err| GvdbReaderError::Io(err, Some(filename.to_path_buf())))?;
         Self::from_bytes(Cow::Owned(data))
+    }
+
+    /// Open a file and `mmap` it into memory.
+    ///
+    /// # Safety
+    ///
+    /// This is marked unsafe as the file could be modified on-disk while the mmap is active.
+    /// This will cause undefined behavior. You must make sure to employ your own locking and to
+    /// reload the file yourself when any modification occurs.
+    pub unsafe fn from_file_mmap(filename: &Path) -> GvdbReaderResult<Self> {
+        let file = File::open(filename)
+            .map_err(|err| GvdbReaderError::Io(err, Some(filename.to_path_buf())))?;
+        let mmap = Mmap::map(&file)
+            .map_err(|err| GvdbReaderError::Io(err, Some(filename.to_path_buf())))?;
+
+        let mut this = Self {
+            data: GvdbData::Mmap(mmap),
+            byteswapped: false,
+        };
+
+        this.read_header()?;
+
+        Ok(this)
     }
 
     /// gvdb_table_item_get_key
@@ -222,7 +272,7 @@ pub(crate) mod test {
 
     #[allow(dead_code)]
     pub fn byte_compare_gvdb_file(a: &GvdbFile, b: &GvdbFile) {
-        assert_eq!(a.data.len(), b.data.len());
+        assert_eq!(a.data.as_ref().len(), b.data.as_ref().len());
         assert_eq!(a.get_header().unwrap(), b.get_header().unwrap());
 
         let a_hash = a.hash_table().unwrap();
@@ -238,7 +288,7 @@ pub(crate) mod test {
 
         assert_bytes_eq(
             &reference_data,
-            &file.data,
+            file.data.as_ref(),
             &format!("Byte comparing with file '{}'", reference_filename),
         );
     }
@@ -390,6 +440,14 @@ pub(crate) mod test {
         let filename = TEST_FILE_DIR.to_string() + TEST_FILE_1;
         let path = PathBuf::from_str(&filename).unwrap();
         let file = GvdbFile::from_file(&path).unwrap();
+        assert_is_file_1(&file);
+    }
+
+    #[test]
+    fn test_file_1_mmap() {
+        let filename = TEST_FILE_DIR.to_string() + TEST_FILE_1;
+        let path = PathBuf::from_str(&filename).unwrap();
+        let file = unsafe { GvdbFile::from_file_mmap(&path).unwrap() };
         assert_is_file_1(&file);
     }
 
