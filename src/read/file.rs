@@ -17,12 +17,12 @@ use crate::no_glib::{Variant, VariantTy};
 use glib::{Variant, VariantTy};
 
 #[derive(Debug)]
-enum GvdbData<'a> {
-    Cow(Cow<'a, [u8]>),
+enum GvdbData {
+    Cow(Cow<'static, [u8]>),
     Mmap(Mmap),
 }
 
-impl<'a> AsRef<[u8]> for GvdbData<'a> {
+impl AsRef<[u8]> for GvdbData {
     fn as_ref(&self) -> &[u8] {
         match self {
             GvdbData::Cow(cow) => cow.as_ref(),
@@ -87,12 +87,12 @@ impl<'a> AsRef<[u8]> for GvdbData<'a> {
 /// }
 /// ```
 #[derive(Debug)]
-pub struct GvdbFile<'a> {
-    data: GvdbData<'a>,
+pub struct GvdbFile {
+    data: GvdbData,
     byteswapped: bool,
 }
 
-impl<'a> GvdbFile<'a> {
+impl GvdbFile {
     /// Get the GVDB file header. Will err with GvdbError::DataOffset if the header doesn't fit
     fn get_header(&self) -> GvdbReaderResult<GvdbHeader> {
         let header_data = self
@@ -153,7 +153,7 @@ impl<'a> GvdbFile<'a> {
     }
 
     /// Interpret a slice of bytes as a GVDB file
-    pub fn from_bytes(bytes: Cow<'a, [u8]>) -> GvdbReaderResult<GvdbFile<'a>> {
+    pub fn from_bytes(bytes: Cow<'static, [u8]>) -> GvdbReaderResult<GvdbFile> {
         let mut this = Self {
             data: GvdbData::Cow(bytes),
             byteswapped: false,

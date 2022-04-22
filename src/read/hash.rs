@@ -76,7 +76,7 @@ impl Debug for GvdbHashHeader {
 #[repr(C)]
 #[derive(Clone)]
 pub struct GvdbHashTable<'a> {
-    root: &'a GvdbFile<'a>,
+    root: &'a GvdbFile,
     data: Cow<'a, [u8]>,
     header: GvdbHashHeader,
 }
