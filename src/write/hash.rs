@@ -115,6 +115,52 @@ impl SimpleHashTable {
             last_item: None,
         }
     }
+
+    pub fn iter_bucket(&self, bucket: usize) -> SimpleHashTableBucketIter<'_> {
+        SimpleHashTableBucketIter {
+            hash_table: self,
+            bucket,
+            last_item: None,
+        }
+    }
+}
+
+pub struct SimpleHashTableBucketIter<'a> {
+    hash_table: &'a SimpleHashTable,
+    bucket: usize,
+    last_item: Option<Rc<GvdbBuilderItem>>,
+}
+
+impl<'a> Iterator for SimpleHashTableBucketIter<'a> {
+    type Item = Rc<GvdbBuilderItem>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(last_item) = self.last_item.clone() {
+            // First check if there are more items in this bucket
+            if let Some(next_item) = &*last_item.next().borrow() {
+                // Next item in the same bucket
+                self.last_item = Some(next_item.clone());
+                Some(next_item.clone())
+            } else {
+                // Last item in the bucket, return
+                None
+            }
+        } else {
+            if let Some(bucket_item) = self.hash_table.buckets.get(self.bucket).cloned() {
+                // This bucket might be empty
+                if let Some(item) = bucket_item {
+                    // We found something
+                    self.last_item = Some(item.clone());
+                    Some(item.clone())
+                } else {
+                    // Empty bucket, return None
+                    None
+                }
+            } else {
+                None
+            }
+        }
+    }
 }
 
 pub struct SimpleHashTableIter<'a> {

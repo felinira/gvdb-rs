@@ -381,74 +381,78 @@ impl GvdbFileWriter {
         let header = transmute_one_to_bytes(&header);
         hash_table_chunk.data_mut()[0..header.len()].copy_from_slice(header);
 
-        let mut current_bucket = usize::MAX;
-        for (n_item, (n_bucket, current_item)) in table.iter().enumerate() {
-            while current_bucket != n_bucket {
-                current_bucket = current_bucket.wrapping_add(1);
-                let hash_bucket_start = hash_buckets_offset + current_bucket * size_of::<u32>();
-                let hash_bucket_end = hash_bucket_start + size_of::<u32>();
+        let mut n_item = 0;
+        for bucket in 0..table.n_buckets() {
+            let hash_bucket_start = hash_buckets_offset + bucket * size_of::<u32>();
+            let hash_bucket_end = hash_bucket_start + size_of::<u32>();
 
-                self.chunks[hash_table_chunk_index].data[hash_bucket_start..hash_bucket_end]
-                    .copy_from_slice(u32::to_le_bytes(n_item as u32).as_slice());
-            }
+            self.chunks[hash_table_chunk_index].data[hash_bucket_start..hash_bucket_end]
+                .copy_from_slice(u32::to_le_bytes(n_item as u32).as_slice());
 
-            let parent = if let Some(parent) = &*current_item.parent_ref() {
-                parent.assigned_index()
-            } else {
-                u32::MAX
-            };
+            for current_item in table.iter_bucket(bucket) {
+                let parent = if let Some(parent) = &*current_item.parent_ref() {
+                    parent.assigned_index()
+                } else {
+                    u32::MAX
+                };
 
-            let key = if let Some(parent) = &*current_item.parent_ref() {
-                current_item.key().strip_prefix(&parent.key()).unwrap_or("")
-            } else {
-                current_item.key()
-            };
-
-            if key.is_empty() {
-                return Err(GvdbWriterError::Consistency(format!(
-                    "Item '{}' already exists in hash map",
+                let key = if let Some(parent) = &*current_item.parent_ref() {
+                    current_item.key().strip_prefix(&parent.key()).unwrap_or("")
+                } else {
                     current_item.key()
-                )));
-            }
+                };
 
-            let key_ptr = self.add_string(key).1.pointer();
-            let typ = current_item.value_ref().typ();
-
-            let value_ptr = match current_item.value().take() {
-                GvdbBuilderItemValue::Value(value) => self.add_variant(&value).1.pointer(),
-                GvdbBuilderItemValue::TableBuilder(tb) => self.add_hash_table(tb)?.1.pointer(),
-                GvdbBuilderItemValue::Container(children) => {
-                    let size = children.len() * size_of::<u32>();
-                    let chunk = self.allocate_empty_chunk(size, 4).1;
-
-                    let mut offset = 0;
-                    for child in children {
-                        let child_item = table.get(&child);
-                        if let Some(child_item) = child_item {
-                            child_item.parent().replace(Some(current_item.clone()));
-
-                            chunk.data_mut()[offset..offset + size_of::<u32>()]
-                                .copy_from_slice(&u32::to_le_bytes(child_item.assigned_index()));
-                            offset += size_of::<u32>();
-                        } else {
-                            return Err(GvdbWriterError::Consistency(format!(
-                                "Child item '{}' not found for parent: '{}'",
-                                child, key
-                            )));
-                        }
-                    }
-
-                    chunk.pointer()
+                if key.is_empty() {
+                    return Err(GvdbWriterError::Consistency(format!(
+                        "Item '{}' already exists in hash map",
+                        current_item.key()
+                    )));
                 }
-            };
 
-            let hash_item = GvdbHashItem::new(current_item.hash(), parent, key_ptr, typ, value_ptr);
+                let key_ptr = self.add_string(key).1.pointer();
+                let typ = current_item.value_ref().typ();
+                
+                let value_ptr = match current_item.value().take() {
+                    GvdbBuilderItemValue::Value(value) => self.add_variant(&value).1.pointer(),
+                    GvdbBuilderItemValue::TableBuilder(tb) => self.add_hash_table(tb)?.1.pointer(),
+                    GvdbBuilderItemValue::Container(children) => {
+                        let size = children.len() * size_of::<u32>();
+                        let chunk = self.allocate_empty_chunk(size, 4).1;
 
-            let hash_item_start = hash_items_offset + n_item * size_of::<GvdbHashItem>();
-            let hash_item_end = hash_item_start + size_of::<GvdbHashItem>();
+                        let mut offset = 0;
+                        for child in children {
+                            let child_item = table.get(&child);
+                            if let Some(child_item) = child_item {
+                                child_item.parent().replace(Some(current_item.clone()));
 
-            self.chunks[hash_table_chunk_index].data[hash_item_start..hash_item_end]
-                .copy_from_slice(transmute_one_to_bytes(&hash_item));
+                                chunk.data_mut()[offset..offset + size_of::<u32>()]
+                                    .copy_from_slice(&u32::to_le_bytes(
+                                        child_item.assigned_index(),
+                                    ));
+                                offset += size_of::<u32>();
+                            } else {
+                                return Err(GvdbWriterError::Consistency(format!(
+                                    "Child item '{}' not found for parent: '{}'",
+                                    child, key
+                                )));
+                            }
+                        }
+
+                        chunk.pointer()
+                    }
+                };
+
+                let hash_item =
+                    GvdbHashItem::new(current_item.hash(), parent, key_ptr, typ, value_ptr);
+
+                let hash_item_start = hash_items_offset + n_item * size_of::<GvdbHashItem>();
+                let hash_item_end = hash_item_start + size_of::<GvdbHashItem>();
+
+                self.chunks[hash_table_chunk_index].data[hash_item_start..hash_item_end]
+                    .copy_from_slice(transmute_one_to_bytes(&hash_item));
+
+                n_item += 1;
+            }
         }
 
         Ok((
