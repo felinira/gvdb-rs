@@ -411,7 +411,7 @@ impl GvdbFileWriter {
 
                 let key_ptr = self.add_string(key).1.pointer();
                 let typ = current_item.value_ref().typ();
-                
+
                 let value_ptr = match current_item.value().take() {
                     GvdbBuilderItemValue::Value(value) => self.add_variant(&value).1.pointer(),
                     GvdbBuilderItemValue::TableBuilder(tb) => self.add_hash_table(tb)?.1.pointer(),
