@@ -8,11 +8,20 @@ pub enum GvdbWriterError {
 
     /// An internal inconsistency was found
     Consistency(String),
+
+    /// An error occured when serializing variant data with zvariant
+    ZVariant(zvariant::Error),
 }
 
 impl From<std::io::Error> for GvdbWriterError {
     fn from(err: std::io::Error) -> Self {
         Self::Io(err, None)
+    }
+}
+
+impl From<zvariant::Error> for GvdbWriterError {
+    fn from(err: zvariant::Error) -> Self {
+        Self::ZVariant(err)
     }
 }
 
@@ -28,6 +37,9 @@ impl Display for GvdbWriterError {
             }
             GvdbWriterError::Consistency(context) => {
                 write!(f, "Internal inconsistency: {}", context)
+            }
+            GvdbWriterError::ZVariant(err) => {
+                write!(f, "Error writing ZVariant data: {}", err)
             }
         }
     }

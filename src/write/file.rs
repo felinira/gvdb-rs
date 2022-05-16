@@ -11,11 +11,6 @@ use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::mem::size_of;
 
-#[cfg(not(feature = "glib"))]
-use crate::no_glib::{ToVariant, Variant, VariantTy};
-#[cfg(feature = "glib")]
-use glib::{ToVariant, Variant, VariantTy};
-
 /// Create hash tables for use in GVDB files
 ///
 /// # Example
@@ -61,12 +56,12 @@ impl GvdbHashTableBuilder {
         }
     }
 
-    fn insert<S: Into<String>>(
+    fn insert(
         &mut self,
-        key: S,
+        key: &(impl ToString + ?Sized),
         item: GvdbBuilderItemValue,
     ) -> GvdbBuilderResult<()> {
-        let key = key.into();
+        let key = key.to_string();
 
         if let Some(sep) = &self.path_separator {
             let mut this_key = "".to_string();
@@ -111,6 +106,23 @@ impl GvdbHashTableBuilder {
         Ok(())
     }
 
+    /// Insert Value `item` for `key`
+    ///
+    /// ```
+    /// use zvariant::Value;
+    /// let mut table_builder = gvdb::write::GvdbHashTableBuilder::new();
+    /// let variant = Value::new(123u32);
+    /// table_builder.insert_value("variant_123", variant);
+    /// ```
+    pub fn insert_value(
+        &mut self,
+        key: &(impl ToString + ?Sized),
+        value: zvariant::Value<'static>,
+    ) -> GvdbBuilderResult<()> {
+        let item = GvdbBuilderItemValue::Value(value);
+        self.insert(key, item)
+    }
+
     /// Insert GVariant `item` for `key`
     ///
     /// ```
@@ -121,14 +133,15 @@ impl GvdbHashTableBuilder {
     /// #
     /// let mut table_builder = gvdb::write::GvdbHashTableBuilder::new();
     /// let variant = 123u32.to_variant();
-    /// table_builder.insert_variant("variant_123", variant);
+    /// table_builder.insert_gvariant("variant_123", variant);
     /// ```
-    pub fn insert_variant<S: Into<String>>(
+    #[cfg(feature = "glib")]
+    pub fn insert_gvariant(
         &mut self,
-        key: S,
-        variant: Variant,
+        key: &(impl ToString + ?Sized),
+        variant: glib::Variant,
     ) -> GvdbBuilderResult<()> {
-        let item = GvdbBuilderItemValue::Value(variant);
+        let item = GvdbBuilderItemValue::GVariant(variant);
         self.insert(key, item)
     }
 
@@ -138,9 +151,13 @@ impl GvdbHashTableBuilder {
     /// # let mut table_builder = gvdb::write::GvdbHashTableBuilder::new();
     /// table_builder.insert_string("string_key", "string_data");
     /// ```
-    pub fn insert_string<S: Into<String>>(&mut self, key: S, value: &str) -> GvdbBuilderResult<()> {
-        let variant = value.to_variant();
-        self.insert_variant(key, variant)
+    pub fn insert_string(
+        &mut self,
+        key: &(impl ToString + ?Sized),
+        string: &(impl ToString + ?Sized),
+    ) -> GvdbBuilderResult<()> {
+        let variant = zvariant::Value::new(string.to_string());
+        self.insert_value(key, variant)
     }
 
     /// Convenience method to create a byte type GVariant for `value` and insert it at `key`
@@ -149,32 +166,33 @@ impl GvdbHashTableBuilder {
     /// # let mut table_builder = gvdb::write::GvdbHashTableBuilder::new();
     /// table_builder.insert_bytes("bytes", &[1, 2, 3, 4, 5]);
     /// ```
-    pub fn insert_bytes<S: Into<String>>(&mut self, key: S, bytes: &[u8]) -> GvdbBuilderResult<()> {
-        let variant = Variant::from_data_with_type(&bytes, VariantTy::BYTE_STRING);
-        self.insert_variant(key, variant)
+    pub fn insert_bytes(
+        &mut self,
+        key: &(impl ToString + ?Sized),
+        bytes: &'static [u8],
+    ) -> GvdbBuilderResult<()> {
+        let value = zvariant::Value::new(bytes);
+        self.insert_value(key, value)
     }
 
     /// Insert an entire hash table at `key`.
     ///
     /// ```
-    /// #[cfg(feature = "glib")]
-    /// # use glib::ToVariant;
-    /// # #[cfg(not(feature = "glib"))]
-    /// # use gvdb::no_glib::ToVariant;
+    /// # use zvariant::Value;
     /// # use gvdb::write::GvdbHashTableBuilder;
     /// let mut table_builder = GvdbHashTableBuilder::new();
     /// let mut table_builder_2 = GvdbHashTableBuilder::new();
     /// table_builder_2
-    ///     .insert_variant("int", 42u32.to_variant())
+    ///     .insert_value("int", Value::new(42u32))
     ///     .unwrap();
     ///
     /// table_builder
     ///     .insert_table("table", table_builder_2)
     ///     .unwrap();
     /// ```
-    pub fn insert_table<S: Into<String>>(
+    pub fn insert_table(
         &mut self,
-        key: S,
+        key: &(impl ToString + ?Sized),
         table_builder: GvdbHashTableBuilder,
     ) -> GvdbBuilderResult<()> {
         let item = GvdbBuilderItemValue::TableBuilder(table_builder);
@@ -340,11 +358,29 @@ impl GvdbFileWriter {
         self.allocate_chunk_with_data(data, alignment)
     }
 
-    fn add_variant(&mut self, variant: &Variant) -> (usize, &mut GvdbChunk) {
-        let value = if self.byteswap {
-            Variant::from_variant(&variant.byteswap())
+    fn add_value(&mut self, value: &zvariant::Value) -> GvdbBuilderResult<(usize, &mut GvdbChunk)> {
+        #[cfg(target_endian = "little")]
+        let le = true;
+        #[cfg(target_endian = "big")]
+        let le = false;
+
+        let data = if le && !self.byteswap || !le && self.byteswap {
+            let context = zvariant::EncodingContext::<byteorder::LE>::new_gvariant(0);
+            zvariant::to_bytes(context, value)?.into_boxed_slice()
         } else {
-            Variant::from_variant(variant)
+            let context = zvariant::EncodingContext::<byteorder::BE>::new_gvariant(0);
+            zvariant::to_bytes(context, value)?.into_boxed_slice()
+        };
+
+        Ok(self.allocate_chunk_with_data(data, 8))
+    }
+
+    #[cfg(feature = "glib")]
+    fn add_gvariant(&mut self, variant: &glib::Variant) -> (usize, &mut GvdbChunk) {
+        let value = if self.byteswap {
+            glib::Variant::from_variant(&variant.byteswap())
+        } else {
+            glib::Variant::from_variant(variant)
         };
 
         let normal = value.normal_form();
@@ -413,7 +449,11 @@ impl GvdbFileWriter {
                 let typ = current_item.value_ref().typ();
 
                 let value_ptr = match current_item.value().take() {
-                    GvdbBuilderItemValue::Value(value) => self.add_variant(&value).1.pointer(),
+                    GvdbBuilderItemValue::Value(value) => self.add_value(&value)?.1.pointer(),
+                    #[cfg(feature = "glib")]
+                    GvdbBuilderItemValue::GVariant(variant) => {
+                        self.add_gvariant(&variant).1.pointer()
+                    }
                     GvdbBuilderItemValue::TableBuilder(tb) => self.add_hash_table(tb)?.1.pointer(),
                     GvdbBuilderItemValue::Container(children) => {
                         let size = children.len() * size_of::<u32>();
@@ -533,10 +573,12 @@ impl Default for GvdbFileWriter {
 }
 
 #[cfg(test)]
-mod test {
+#[cfg(feature = "glib")]
+mod test_glib {
     use super::*;
     use crate::read::test::*;
     use crate::read::GvdbFile;
+    use glib::ToVariant;
     use matches::assert_matches;
     use std::borrow::Cow;
 
@@ -547,12 +589,12 @@ mod test {
     #[test]
     fn simple_hash_table() {
         let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
-        let item = GvdbBuilderItemValue::Value("test".to_variant());
+        let item = GvdbBuilderItemValue::Value(zvariant::Value::new("test"));
         table.insert("test", item);
         assert_eq!(table.n_items(), 1);
         assert_eq!(
-            table.get("test").unwrap().value_ref().variant().unwrap(),
-            &"test".to_variant()
+            table.get("test").unwrap().value_ref().value().unwrap(),
+            &"test".into()
         );
     }
 
@@ -560,19 +602,19 @@ mod test {
     fn simple_hash_table_2() {
         let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
         for index in 0..20 {
-            table.insert(&format!("{}", index), index.to_variant().into());
+            table.insert(&format!("{}", index), zvariant::Value::new(index).into());
         }
 
         assert_eq!(table.n_items(), 20);
 
         for index in 0..20 {
             assert_eq!(
-                index.to_variant(),
+                zvariant::Value::new(index),
                 *table
                     .get(&format!("{}", index))
                     .unwrap()
                     .value_ref()
-                    .variant()
+                    .value()
                     .unwrap()
             );
         }
@@ -592,7 +634,9 @@ mod test {
     fn gvdb_hash_table_builder() {
         let mut builder = GvdbHashTableBuilder::new();
         builder.insert_string("string", "Test").unwrap();
-        builder.insert_variant("123", 123u32.to_variant()).unwrap();
+        builder
+            .insert_value("123", zvariant::Value::new(123u32))
+            .unwrap();
 
         let mut builder2 = GvdbHashTableBuilder::new();
         builder2.insert_bytes("bytes", &[1, 2, 3, 4]).unwrap();
@@ -601,13 +645,13 @@ mod test {
         let table = builder.build().unwrap();
 
         assert_eq!(
-            table.get("string").unwrap().value_ref().variant().unwrap(),
-            &"Test".to_variant()
+            table.get("string").unwrap().value_ref().value().unwrap(),
+            &zvariant::Value::new("Test")
         );
 
         assert_eq!(
-            table.get("123").unwrap().value_ref().variant().unwrap(),
-            &123u32.to_variant()
+            table.get("123").unwrap().value_ref().value().unwrap(),
+            &zvariant::Value::new(123u32)
         );
 
         let item = table.get("table").unwrap();
@@ -621,9 +665,10 @@ mod test {
         };
 
         let table2 = tb.build().unwrap();
+        let data: &[u8] = &[1, 2, 3, 4];
         assert_eq!(
-            table2.get("bytes").unwrap().value_ref().variant().unwrap(),
-            &Variant::from_data_with_type(&[1, 2, 3, 4], VariantTy::BYTE_STRING)
+            table2.get("bytes").unwrap().value_ref().value().unwrap(),
+            &zvariant::Value::new(data)
         );
     }
 
@@ -636,8 +681,8 @@ mod test {
         let value2 = 98765u32.to_variant();
         let value3 = "TEST_STRING_VALUE".to_variant();
         let tuple_data = vec![value1, value2, value3];
-        let variant = Variant::tuple_from_iter(&tuple_data);
-        table_builder.insert_variant("root_key", variant).unwrap();
+        let variant = glib::Variant::tuple_from_iter(&tuple_data);
+        table_builder.insert_gvariant("root_key", variant).unwrap();
         let root_index = file_builder.add_hash_table(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
         let root = GvdbFile::from_bytes(Cow::Owned(bytes)).unwrap();
@@ -656,7 +701,7 @@ mod test {
 
         let mut table_builder_2 = GvdbHashTableBuilder::new();
         table_builder_2
-            .insert_variant("int", 42u32.to_variant())
+            .insert_gvariant("int", 42u32.to_variant())
             .unwrap();
 
         table_builder
@@ -678,7 +723,7 @@ mod test {
             let mut table_builder = GvdbHashTableBuilder::new();
             for num in 0..200 {
                 let str = format!("{}", num);
-                table_builder.insert_string(str.clone(), &str).unwrap();
+                table_builder.insert_string(&str, &str).unwrap();
             }
 
             let data = file_builder.write_to_vec_with_table(table_builder).unwrap();
@@ -699,8 +744,8 @@ mod test {
         let value2 = 98765u32.to_variant();
         let value3 = "TEST_STRING_VALUE".to_variant();
         let tuple_data = vec![value1, value2, value3];
-        let variant = Variant::tuple_from_iter(&tuple_data);
-        table_builder.insert_variant("root_key", variant).unwrap();
+        let variant = glib::Variant::tuple_from_iter(&tuple_data);
+        table_builder.insert_gvariant("root_key", variant).unwrap();
         let root_index = file_builder.add_hash_table(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
 

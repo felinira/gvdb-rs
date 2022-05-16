@@ -7,10 +7,6 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use xml::{EmitterConfig, EventReader, EventWriter, ParserConfig};
 
-#[cfg(not(feature = "glib"))]
-use crate::no_glib::{ToVariant, Variant};
-#[cfg(feature = "glib")]
-use glib::{ToVariant, Variant};
 use walkdir::WalkDir;
 
 const FLAG_COMPRESSED: u32 = 1 << 0;
@@ -381,14 +377,13 @@ impl<'a> GResourceBuilder<'a> {
         let mut table_builder = GvdbHashTableBuilder::new();
 
         for file_data in self.files {
-            let tuple = vec![
-                file_data.size().to_variant(),
-                file_data.flags().to_variant(),
-                file_data.data().to_variant(),
-            ];
-            let variant = Variant::tuple_from_iter(tuple);
+            let data: zvariant::Value = zvariant::Value::from((
+                file_data.size(),
+                file_data.flags(),
+                file_data.data().to_vec(),
+            ));
 
-            table_builder.insert_variant(file_data.key(), variant)?;
+            table_builder.insert_value(file_data.key(), data)?;
         }
 
         Ok(builder.write_to_vec_with_table(table_builder)?)
@@ -510,10 +505,12 @@ mod test {
         let svg2 = table
             .get_value("/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg")
             .unwrap()
-            .child_value(0);
-        let svg2_size = svg2.child_value(0).get::<u32>().unwrap();
-        let svg2_flags = svg2.child_value(1).get::<u32>().unwrap();
-        let svg2_data: &[u8] = &svg2.child_value(2).data_as_bytes();
+            .downcast::<zvariant::Structure>()
+            .unwrap()
+            .into_fields();
+        let svg2_size = *svg2[0].downcast_ref::<u32>().unwrap();
+        let svg2_flags = *svg2[1].downcast_ref::<u32>().unwrap();
+        let svg2_data: &[u8] = &svg2[2].clone().downcast::<Vec<u8>>().unwrap();
 
         assert_eq!(svg2_size, 339);
         assert_eq!(svg2_flags, 0);

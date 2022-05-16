@@ -13,6 +13,9 @@ pub enum GvdbReaderError {
     /// Generic I/O error. Path contains an optional filename if applicable
     Io(std::io::Error, Option<PathBuf>),
 
+    /// An error occured when deserializing variant data with zvariant
+    ZVariant(zvariant::Error),
+
     /// Tried to access an invalid data offset
     DataOffset,
 
@@ -38,6 +41,12 @@ impl From<FromUtf8Error> for GvdbReaderError {
 impl From<std::io::Error> for GvdbReaderError {
     fn from(err: std::io::Error) -> Self {
         Self::Io(err, None)
+    }
+}
+
+impl From<zvariant::Error> for GvdbReaderError {
+    fn from(err: zvariant::Error) -> Self {
+        Self::ZVariant(err)
     }
 }
 
@@ -81,6 +90,7 @@ impl Display for GvdbReaderError {
                     write!(f, "I/O error: {}", err)
                 }
             }
+            GvdbReaderError::ZVariant(err) => write!(f, "Error parsing ZVariant data: {}", err),
             GvdbReaderError::DataOffset => {
                 write!(f, "Tried to access an invalid data offset. Most likely reason is a corrupted GVDB file")
             }

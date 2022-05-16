@@ -17,7 +17,7 @@
 //!     let table = file.hash_table().unwrap();
 //!
 //!     let svg1 = table
-//!         .get_value("/gvdb/rs/test/online-symbolic.svg")
+//!         .get_gvariant("/gvdb/rs/test/online-symbolic.svg")
 //!         .unwrap()
 //!         .child_value(0);
 //!     let svg1_size = svg1.child_value(0).get::<u32>().unwrap();
@@ -47,7 +47,7 @@
 //!
 //!     let mut table_builder_2 = GvdbHashTableBuilder::new();
 //!     table_builder_2
-//!         .insert_variant("int", 42u32.to_variant())
+//!         .insert_gvariant("int", 42u32.to_variant())
 //!         .unwrap();
 //!
 //!     table_builder
@@ -59,22 +59,13 @@
 //!
 //! ## Features
 //!
-//! ### Default
-//!
-//! By default, the `glib` is enabled. You can opt out of this feature by specifying
-//! `default-features = false in the gvdb dependency declaration.
+//! By default, no features are enabled.
 //!
 //! ### `glib`
 //!
-//! By default this crate uses the [glib](https://crates.io/crates/glib) crate to allow reading and
-//! writing `GVariant` data to the gvdb files. By disabling this feature an internal `GVariant`
-//! implementation is used.
-//!
-//! The internal implementation implements the most common serialisation and deserialization
-//! features. For compatibility with glib types it is recommended to enable this feature. Disabling
-//! this feature reduces the number of dependencies and compile time.
-//!
-//! You can find the custom `GVariant` implementation in the [`no_glib`] module.
+//! By default this crate uses the [glib](https://crates.io/crates/zvariant) crate to allow reading
+//! and writing `GVariant` data to the gvdb files. By enabling this feature you can pass GVariants
+//! directly from the glib crate as well.
 //!
 //! ### `gresource`
 //!
@@ -106,11 +97,6 @@ pub mod read;
 ///
 /// See the documentation of [`GvdbFileWriter`](crate::write::GvdbFileWriter) to get started
 pub mod write;
-
-/// `GVariant` implementation that does not depend on glib. This is only available when the `glib`
-/// feature is disabled or the test suite is running.
-#[cfg(any(not(feature = "glib"), test, doc))]
-pub mod no_glib;
 
 #[cfg(test)]
 pub(crate) mod test;

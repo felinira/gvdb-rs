@@ -1,16 +1,22 @@
 use crate::read::GvdbHashItemType;
 use crate::write::file::GvdbHashTableBuilder;
+use serde::Serialize;
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::rc::Rc;
+use zvariant::{DynamicType, Value};
 
-#[cfg(not(feature = "glib"))]
-use crate::no_glib::Variant;
-#[cfg(feature = "glib")]
-use glib::Variant;
+pub trait ZVariantConvertible {}
+impl<T: ?Sized> ZVariantConvertible for T where T: Serialize + DynamicType {}
 
 #[derive(Debug)]
 pub enum GvdbBuilderItemValue {
-    Value(Variant),
+    // A zvariant::Value
+    Value(zvariant::Value<'static>),
+
+    // A glib::Variant
+    #[cfg(feature = "glib")]
+    GVariant(glib::Variant),
+
     TableBuilder(GvdbHashTableBuilder),
 
     // A child container with no additional value
@@ -27,14 +33,24 @@ impl GvdbBuilderItemValue {
     pub fn typ(&self) -> GvdbHashItemType {
         match self {
             GvdbBuilderItemValue::Value(_) => GvdbHashItemType::Value,
+            #[cfg(feature = "glib")]
+            GvdbBuilderItemValue::GVariant(_) => GvdbHashItemType::Value,
             GvdbBuilderItemValue::TableBuilder(_) => GvdbHashItemType::HashTable,
             GvdbBuilderItemValue::Container(_) => GvdbHashItemType::Container,
         }
     }
 
-    pub fn variant(&self) -> Option<&Variant> {
+    pub fn value(&self) -> Option<&Value> {
         match self {
-            GvdbBuilderItemValue::Value(variant) => Some(variant),
+            GvdbBuilderItemValue::Value(value) => Some(&value),
+            _ => None,
+        }
+    }
+
+    #[cfg(feature = "glib")]
+    pub fn gvariant(&self) -> Option<&glib::Variant> {
+        match self {
+            GvdbBuilderItemValue::GVariant(variant) => Some(&variant),
             _ => None,
         }
     }
@@ -54,9 +70,16 @@ impl GvdbBuilderItemValue {
     }
 }
 
-impl From<Variant> for GvdbBuilderItemValue {
-    fn from(var: Variant) -> Self {
+impl From<Value<'static>> for GvdbBuilderItemValue {
+    fn from(var: Value<'static>) -> Self {
         GvdbBuilderItemValue::Value(var)
+    }
+}
+
+#[cfg(feature = "glib")]
+impl From<glib::Variant> for GvdbBuilderItemValue {
+    fn from(var: glib::Variant) -> Self {
+        GvdbBuilderItemValue::GVariant(var)
     }
 }
 

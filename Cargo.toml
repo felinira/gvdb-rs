@@ -17,9 +17,11 @@ memmap2 = "0.5.3"
 glib = { version = "0.15.10", optional = true }
 xml-rs = { version = "0.8.4", optional = true }
 serde-xml-rs = { version = "0.5.1", optional = true }
-serde = { version = "1.0.136", features = [ "derive" ], optional = true }
+serde = { version = "1.0.136", features = [ "derive" ] }
 json = { version  = "0.12.4", optional = true }
 flate2 = { version = "1.0.23", optional = true }
+zvariant = { version = "3.2.1", default-features = false, features = ["gvariant"] }
+byteorder = "1.4.3"
 
 [dev-dependencies]
 pretty_assertions = "1.2.1"
@@ -31,6 +33,7 @@ glib = "0.15.10"
 flate2 = { version = "1.0.23", features = [ "zlib" ] }
 
 [features]
-gresource = [ "dep:xml-rs", "dep:serde-xml-rs", "dep:serde", "dep:json", "dep:flate2" ]
+gresource = [ "dep:xml-rs", "dep:serde-xml-rs", "dep:json", "dep:flate2" ]
 glib = [ "dep:glib" ]
-default = [ "glib" ]
+default = []
+

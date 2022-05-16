@@ -11,10 +11,9 @@ use std::io::Read;
 use std::mem::size_of;
 use std::path::Path;
 
-#[cfg(not(feature = "glib"))]
-use crate::no_glib::{Variant, VariantTy};
 #[cfg(feature = "glib")]
 use glib::{Variant, VariantTy};
+use zvariant::EncodingContext;
 
 #[derive(Debug)]
 enum GvdbData {
@@ -39,19 +38,27 @@ impl AsRef<[u8]> for GvdbData {
 ///
 /// ```
 /// use std::path::PathBuf;
+/// use serde::Deserialize;
 /// use gvdb::read::GvdbFile;
 ///
 /// let path = PathBuf::from("test/data/test3.gresource");
 /// let file = GvdbFile::from_file(&path).unwrap();
 /// let table = file.hash_table().unwrap();
 ///
-/// let svg1 = table
+/// #[derive(serde::Deserialize, zvariant::Type)]
+/// struct SvgData {
+///     size: u32,
+///     flags: u32,
+///     content: Vec<u8>
+/// }
+///
+/// let value = table
 ///     .get_value("/gvdb/rs/test/online-symbolic.svg")
-///     .unwrap()
-///     .child_value(0);
-/// let svg1_size = svg1.child_value(0).get::<u32>().unwrap();
-/// let svg1_flags = svg1.child_value(1).get::<u32>().unwrap();
-/// let svg1_content = svg1.child_value(2).data_as_bytes();
+///     .unwrap();
+/// let svg = value.downcast_ref::<zvariant::Structure>().unwrap().fields();
+/// let svg1_size = svg[0].downcast_ref::<u32>().unwrap();
+/// let svg1_flags = svg[1].downcast_ref::<u32>().unwrap();
+/// let svg1_content = svg[2].clone().downcast::<Vec<u8>>().unwrap();
 /// let svg1_str = std::str::from_utf8(&svg1_content[0..svg1_content.len() - 1]).unwrap();
 ///
 /// println!("{}", svg1_str);
@@ -73,7 +80,7 @@ impl AsRef<[u8]> for GvdbData {
 ///     assert_eq!(names[0], "string");
 ///     assert_eq!(names[1], "table");
 ///
-///     let str_value = table.get_value("string").unwrap().child_value(0);
+///     let str_value = table.get_gvariant("string").unwrap().child_value(0);
 ///     assert!(str_value.is_type(VariantTy::STRING));
 ///     assert_eq!(str_value.get::<String>().unwrap(), "test string");
 ///
@@ -82,7 +89,7 @@ impl AsRef<[u8]> for GvdbData {
 ///     assert_eq!(sub_table_names.len(), 1);
 ///     assert_eq!(sub_table_names[0], "int");
 ///
-///     let int_value = sub_table.get_value("int").unwrap().child_value(0);
+///     let int_value = sub_table.get_gvariant("int").unwrap().child_value(0);
 ///     assert_eq!(int_value.get::<u32>().unwrap(), 42);
 /// }
 /// ```
@@ -211,23 +218,47 @@ impl GvdbFile {
         Ok(String::from_utf8(data.to_vec())?)
     }
 
-    pub(crate) fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<Variant> {
+    fn get_bytes_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<&[u8]> {
         let typ = item.typ()?;
         if typ == GvdbHashItemType::Value {
-            let data: &[u8] = self.dereference(item.value_ptr(), 8)?;
-            let variant = Variant::from_data_with_type(data, VariantTy::VARIANT);
-
-            if self.byteswapped {
-                Ok(variant.byteswap())
-            } else {
-                Ok(variant)
-            }
+            Ok(self.dereference(item.value_ptr(), 8)?)
         } else {
             Err(GvdbReaderError::DataError(format!(
                 "Unable to parse item for key '{}' as GVariant: Expected type 'v', got type {}",
                 self.get_key(item)?,
                 typ
             )))
+        }
+    }
+
+    #[cfg(feature = "glib")]
+    pub(crate) fn get_gvariant_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<Variant> {
+        let data = self.get_bytes_for_item(item).unwrap();
+        let variant = Variant::from_data_with_type(data, VariantTy::VARIANT);
+
+        if self.byteswapped {
+            Ok(variant.byteswap())
+        } else {
+            Ok(variant)
+        }
+    }
+
+    pub(crate) fn get_value_for_item(
+        &self,
+        item: &GvdbHashItem,
+    ) -> GvdbReaderResult<zvariant::Value> {
+        let data = self.get_bytes_for_item(item)?;
+        #[cfg(target_endian = "little")]
+        let le = true;
+        #[cfg(target_endian = "big")]
+        let le = false;
+
+        if le && !self.byteswapped || !le && self.byteswapped {
+            let context = EncodingContext::<byteorder::LE>::new_gvariant(0);
+            Ok(zvariant::from_slice(data, context)?)
+        } else {
+            let context = EncodingContext::<byteorder::BE>::new_gvariant(0);
+            Ok(zvariant::from_slice(data, context)?)
         }
     }
 
@@ -256,12 +287,8 @@ pub(crate) mod test {
     use std::path::PathBuf;
     use std::str::FromStr;
 
-    #[cfg(not(feature = "glib"))]
-    use crate::no_glib::VariantTy;
-    #[cfg(feature = "glib")]
-    use glib::VariantTy;
-
     use crate::test::assert_bytes_eq;
+    use matches::assert_matches;
     #[allow(unused_imports)]
     use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
 
@@ -304,14 +331,17 @@ pub(crate) mod test {
         assert_eq!(names.len(), 1);
         assert_eq!(names[0], "root_key");
 
-        let value = table.get_value("root_key").unwrap().child_value(0);
-        assert!(value.is_container());
-        assert_eq!(value.type_().to_string(), "(uus)");
+        let value = table.get_value("root_key").unwrap();
+        assert_matches!(value, zvariant::Value::Structure(_));
+        assert_eq!(value.value_signature(), "(uus)");
 
-        assert_eq!(value.child_value(0).get::<u32>().unwrap(), 1234);
-        assert_eq!(value.child_value(1).get::<u32>().unwrap(), 98765);
+        let tuple = value.downcast::<zvariant::Structure>().unwrap();
+        let fields = tuple.into_fields();
+
+        assert_eq!(*fields[0].downcast_ref::<u32>().unwrap(), 1234);
+        assert_eq!(*fields[1].downcast_ref::<u32>().unwrap(), 98765);
         assert_eq!(
-            value.child_value(2).get::<String>().unwrap(),
+            fields[2].downcast_ref::<str>().unwrap(),
             "TEST_STRING_VALUE"
         );
     }
@@ -328,17 +358,17 @@ pub(crate) mod test {
         assert_eq!(names[0], "string");
         assert_eq!(names[1], "table");
 
-        let str_value = table.get_value("string").unwrap().child_value(0);
-        assert!(str_value.is_type(VariantTy::STRING));
-        assert_eq!(str_value.get::<String>().unwrap(), "test string");
+        let str_value = table.get_value("string").unwrap();
+        assert_matches!(str_value, zvariant::Value::Str(_));
+        assert_eq!(str_value.downcast::<String>().unwrap(), "test string");
 
         let sub_table = table.get_hash_table("table").unwrap();
         let sub_table_names = sub_table.get_names().unwrap();
         assert_eq!(sub_table_names.len(), 1);
         assert_eq!(sub_table_names[0], "int");
 
-        let int_value = sub_table.get_value("int").unwrap().child_value(0);
-        assert_eq!(int_value.get::<u32>().unwrap(), 42);
+        let int_value = sub_table.get_value("int").unwrap();
+        assert_eq!(int_value.downcast::<u32>().unwrap(), 42);
     }
 
     #[allow(dead_code)]
@@ -369,15 +399,20 @@ pub(crate) mod test {
 
         let svg1 = table
             .get_value("/gvdb/rs/test/online-symbolic.svg")
+            .unwrap();
+        assert_matches!(svg1, zvariant::Value::Structure(_));
+        let svg1_fields = svg1
+            .downcast::<zvariant::Structure>()
             .unwrap()
-            .child_value(0);
-        let svg1_size = svg1.child_value(0).get::<u32>().unwrap();
-        let svg1_flags = svg1.child_value(1).get::<u32>().unwrap();
-        let svg1_content = svg1.child_value(2).data_as_bytes();
+            .into_fields();
 
-        assert_eq!(svg1_size, 1390);
-        assert_eq!(svg1_flags, 0);
-        assert_eq!(svg1_size as usize, svg1_content.len() - 1);
+        let svg1_size = svg1_fields[0].downcast_ref::<u32>().unwrap();
+        let svg1_flags = svg1_fields[1].downcast_ref::<u32>().unwrap();
+        let svg1_content = svg1_fields[2].clone().downcast::<Vec<u8>>().unwrap();
+
+        assert_eq!(*svg1_size, 1390);
+        assert_eq!(*svg1_flags, 0);
+        assert_eq!(*svg1_size as usize, svg1_content.len() - 1);
 
         // Ensure the last byte is zero because of zero-padding defined in the format
         assert_eq!(svg1_content[svg1_content.len() - 1], 0);
@@ -390,15 +425,21 @@ pub(crate) mod test {
 
         let svg2 = table
             .get_value("/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg")
+            .unwrap();
+        assert_matches!(svg2, zvariant::Value::Structure(_));
+        let svg2_fields = svg2
+            .clone()
+            .downcast::<zvariant::Structure>()
             .unwrap()
-            .child_value(0);
-        let svg2_size = svg2.child_value(0).get::<u32>().unwrap();
-        let svg2_flags = svg2.child_value(1).get::<u32>().unwrap();
-        let svg2_content: &[u8] = &svg2.child_value(2).data_as_bytes();
+            .into_fields();
+
+        let svg2_size = *svg2_fields[0].downcast_ref::<u32>().unwrap();
+        let svg2_flags = *svg2_fields[1].downcast_ref::<u32>().unwrap();
+        let svg2_content: Vec<u8> = svg2_fields[2].clone().downcast::<Vec<u8>>().unwrap();
 
         assert_eq!(svg2_size, 345);
         assert_eq!(svg2_flags, 1);
-        let mut decoder = flate2::read::ZlibDecoder::new(svg2_content);
+        let mut decoder = flate2::read::ZlibDecoder::new(&*svg2_content);
         let mut svg2_data = Vec::new();
         decoder.read_to_end(&mut svg2_data).unwrap();
 
@@ -418,10 +459,12 @@ pub(crate) mod test {
         let json = table
             .get_value("/gvdb/rs/test/json/test.json")
             .unwrap()
-            .child_value(0);
-        let json_size = json.child_value(0).get::<u32>().unwrap();
-        let json_flags = json.child_value(1).get::<u32>().unwrap();
-        let json_content = json.child_value(2).data_as_bytes().to_vec();
+            .downcast::<zvariant::Structure>()
+            .unwrap()
+            .into_fields();
+        let json_size = *json[0].downcast_ref::<u32>().unwrap();
+        let json_flags = *json[1].downcast_ref::<u32>().unwrap();
+        let json_content = json[2].clone().downcast::<Vec<u8>>().unwrap();
 
         // Ensure the last byte is zero because of zero-padding defined in the format
         assert_eq!(json_content[json_content.len() - 1], 0);

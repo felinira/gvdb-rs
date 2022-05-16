@@ -1,18 +1,7 @@
 use crate::read::error::{GvdbReaderError, GvdbReaderResult};
-use crate::read::hash::GvdbHashTable;
 use crate::read::pointer::GvdbPointer;
 use safe_transmute::TriviallyTransmutable;
 use std::fmt::{Display, Formatter};
-
-#[cfg(not(feature = "glib"))]
-use crate::no_glib::Variant;
-#[cfg(feature = "glib")]
-use glib::Variant;
-
-pub enum GvdbValue<'a> {
-    Variant(Variant),
-    HashTable(GvdbHashTable<'a>),
-}
 
 #[derive(PartialEq, Debug)]
 pub enum GvdbHashItemType {
