@@ -275,6 +275,7 @@ impl GvdbFile {
 }
 
 #[cfg(test)]
+#[allow(dead_code)]
 pub(crate) mod test {
     use crate::read::file::GvdbFile;
     use crate::read::hash::test::byte_compare_gvdb_hash_table;

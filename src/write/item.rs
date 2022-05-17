@@ -1,7 +1,7 @@
 use crate::read::GvdbHashItemType;
 use crate::write::file::GvdbHashTableBuilder;
 use serde::Serialize;
-use std::cell::{Cell, Ref, RefCell, RefMut};
+use std::cell::{Cell, Ref, RefCell};
 use std::rc::Rc;
 use zvariant::{DynamicType, Value};
 
@@ -29,6 +29,7 @@ impl<'a> Default for GvdbBuilderItemValue<'a> {
     }
 }
 
+#[allow(dead_code)]
 impl<'a> GvdbBuilderItemValue<'a> {
     pub fn typ(&self) -> GvdbHashItemType {
         match self {
@@ -55,6 +56,7 @@ impl<'a> GvdbBuilderItemValue<'a> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn table_builder(&self) -> Option<&GvdbHashTableBuilder> {
         match self {
             GvdbBuilderItemValue::TableBuilder(tb) => Some(tb),
@@ -144,20 +146,12 @@ impl<'a> GvdbBuilderItem<'a> {
         self.value.borrow()
     }
 
-    pub fn value_mut(&self) -> RefMut<GvdbBuilderItemValue<'a>> {
-        self.value.borrow_mut()
-    }
-
     pub fn parent(&self) -> &RefCell<Option<Rc<GvdbBuilderItem<'a>>>> {
         &self.parent
     }
 
     pub fn parent_ref(&self) -> Ref<Option<Rc<GvdbBuilderItem<'a>>>> {
         self.parent.borrow()
-    }
-
-    pub fn parent_mut(&self) -> RefMut<Option<Rc<GvdbBuilderItem<'a>>>> {
-        self.parent.borrow_mut()
     }
 
     pub fn assigned_index(&self) -> u32 {

@@ -239,7 +239,7 @@ impl<'a> GvdbHashTableBuilder<'a> {
         }
 
         for (key, item) in hash_table.iter() {
-            if let Some(container) = item.value_ref().container() {
+            if let GvdbBuilderItemValue::Container(container) = &*item.value_ref() {
                 for child in container {
                     let child_item = hash_table.get(child);
                     if let Some(child_item) = child_item {
@@ -591,12 +591,10 @@ impl Default for GvdbFileWriter {
 }
 
 #[cfg(test)]
-#[cfg(feature = "glib")]
-mod test_glib {
+mod test {
     use super::*;
     use crate::read::test::*;
     use crate::read::GvdbFile;
-    use glib::ToVariant;
     use matches::assert_matches;
     use std::borrow::Cow;
 
@@ -695,12 +693,12 @@ mod test_glib {
         let mut file_builder = GvdbFileWriter::new();
         let mut table_builder = GvdbHashTableBuilder::new();
 
-        let value1 = 1234u32.to_variant();
-        let value2 = 98765u32.to_variant();
-        let value3 = "TEST_STRING_VALUE".to_variant();
-        let tuple_data = vec![value1, value2, value3];
-        let variant = glib::Variant::tuple_from_iter(&tuple_data);
-        table_builder.insert_gvariant("root_key", variant).unwrap();
+        let value1 = 1234u32;
+        let value2 = 98765u32;
+        let value3 = "TEST_STRING_VALUE";
+        let tuple_data = (value1, value2, value3);
+        let variant = zvariant::Value::new(tuple_data);
+        table_builder.insert_value("root_key", variant).unwrap();
         let root_index = file_builder.add_hash_table(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
         let root = GvdbFile::from_bytes(Cow::Owned(bytes)).unwrap();
@@ -718,9 +716,7 @@ mod test_glib {
             .unwrap();
 
         let mut table_builder_2 = GvdbHashTableBuilder::new();
-        table_builder_2
-            .insert_gvariant("int", 42u32.to_variant())
-            .unwrap();
+        table_builder_2.insert("int", 42u32).unwrap();
 
         table_builder
             .insert_table("table", table_builder_2)
@@ -758,12 +754,12 @@ mod test_glib {
         let mut file_builder = GvdbFileWriter::for_big_endian();
         let mut table_builder = GvdbHashTableBuilder::new();
 
-        let value1 = 1234u32.to_variant();
-        let value2 = 98765u32.to_variant();
-        let value3 = "TEST_STRING_VALUE".to_variant();
-        let tuple_data = vec![value1, value2, value3];
-        let variant = glib::Variant::tuple_from_iter(&tuple_data);
-        table_builder.insert_gvariant("root_key", variant).unwrap();
+        let value1 = 1234u32;
+        let value2 = 98765u32;
+        let value3 = "TEST_STRING_VALUE";
+        let tuple_data = (value1, value2, value3);
+        let variant = zvariant::Value::new(tuple_data);
+        table_builder.insert_value("root_key", variant).unwrap();
         let root_index = file_builder.add_hash_table(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
 

@@ -16,13 +16,20 @@
 //!     let file = GvdbFile::from_file(&path).unwrap();
 //!     let table = file.hash_table().unwrap();
 //!
-//!     let svg1 = table
-//!         .get_gvariant("/gvdb/rs/test/online-symbolic.svg")
-//!         .unwrap()
-//!         .child_value(0);
-//!     let svg1_size = svg1.child_value(0).get::<u32>().unwrap();
-//!     let svg1_flags = svg1.child_value(1).get::<u32>().unwrap();
-//!     let svg1_content = svg1.child_value(2).data_as_bytes();
+//!     #[derive(serde::Deserialize, zvariant::Type)]
+//!     struct SvgData {
+//!         size: u32,
+//!         flags: u32,
+//!         content: Vec<u8>
+//!     }
+//!    
+//!     let value = table
+//!         .get_value("/gvdb/rs/test/online-symbolic.svg")
+//!         .unwrap();
+//!     let svg = value.downcast_ref::<zvariant::Structure>().unwrap().fields();
+//!     let svg1_size = svg[0].downcast_ref::<u32>().unwrap();
+//!     let svg1_flags = svg[1].downcast_ref::<u32>().unwrap();
+//!     let svg1_content = svg[2].clone().downcast::<Vec<u8>>().unwrap();
 //!     let svg1_str = std::str::from_utf8(&svg1_content[0..svg1_content.len() - 1]).unwrap();
 //!
 //!     println!("{}", svg1_str);
