@@ -128,8 +128,6 @@ impl GvdbHashTableBuilder {
     /// ```
     /// # #[cfg(feature = "glib")]
     /// # use glib::ToVariant;
-    /// # #[cfg(not(feature = "glib"))]
-    /// # use gvdb::no_glib::ToVariant;
     /// #
     /// let mut table_builder = gvdb::write::GvdbHashTableBuilder::new();
     /// let variant = 123u32.to_variant();

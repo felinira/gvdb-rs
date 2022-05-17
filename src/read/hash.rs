@@ -12,6 +12,7 @@ use std::mem::size_of;
 
 #[cfg(feature = "glib")]
 use glib::Variant;
+use zvariant::OwnedValue;
 
 /// The header of a GVDB hash table
 #[repr(C)]
@@ -331,9 +332,22 @@ impl<'a> GvdbHashTable<'a> {
         Err(GvdbReaderError::KeyError(key.to_string()))
     }
 
-    /// Get the item at key `key` and try to interpret it as a [`struct@glib::Variant`]
-    pub fn get_value(&self, key: &str) -> GvdbReaderResult<zvariant::Value<'a>> {
+    /// Get the item at key `key` and try to interpret it as a [`struct@zvariant::Value`]
+    pub fn get_value(&self, key: &str) -> GvdbReaderResult<zvariant::Value> {
         self.get_value_for_item(&self.get_hash_item(key)?)
+    }
+
+    /// Get the item at key `key` and try to convert it from [`struct@zvariant::Value`] to T
+    pub fn get<T: ?Sized>(&self, key: &str) -> GvdbReaderResult<T>
+    where
+        T: TryFrom<zvariant::OwnedValue>,
+    {
+        T::try_from(OwnedValue::from(
+            self.get_value_for_item(&self.get_hash_item(key)?)?,
+        ))
+        .map_err(|_| {
+            GvdbReaderError::DataError("Can't convert Value to specified type".to_string())
+        })
     }
 
     #[cfg(feature = "glib")]
@@ -351,7 +365,7 @@ impl<'a> GvdbHashTable<'a> {
         self.root.get_key(item)
     }
 
-    fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<zvariant::Value<'a>> {
+    fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<zvariant::Value> {
         self.root.get_value_for_item(item)
     }
 

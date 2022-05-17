@@ -67,10 +67,6 @@ impl AsRef<[u8]> for GvdbData {
 /// Query the root hash table
 ///
 /// ```
-/// #[cfg(feature = "glib")]
-/// # use glib::VariantTy;
-/// # #[cfg(not(feature = "glib"))]
-/// # use gvdb::no_glib::VariantTy;
 /// use gvdb::read::GvdbFile;
 ///
 /// fn query_hash_table(file: GvdbFile) {
@@ -80,17 +76,16 @@ impl AsRef<[u8]> for GvdbData {
 ///     assert_eq!(names[0], "string");
 ///     assert_eq!(names[1], "table");
 ///
-///     let str_value = table.get_gvariant("string").unwrap().child_value(0);
-///     assert!(str_value.is_type(VariantTy::STRING));
-///     assert_eq!(str_value.get::<String>().unwrap(), "test string");
+///     let str_value: String = table.get("string").unwrap();
+///     assert_eq!(str_value, "test string");
 ///
 ///     let sub_table = table.get_hash_table("table").unwrap();
 ///     let sub_table_names = sub_table.get_names().unwrap();
 ///     assert_eq!(sub_table_names.len(), 1);
 ///     assert_eq!(sub_table_names[0], "int");
 ///
-///     let int_value = sub_table.get_gvariant("int").unwrap().child_value(0);
-///     assert_eq!(int_value.get::<u32>().unwrap(), 42);
+///     let int_value: u32 = sub_table.get("int").unwrap();
+///     assert_eq!(int_value, 42);
 /// }
 /// ```
 #[derive(Debug)]
@@ -397,26 +392,22 @@ pub(crate) mod test {
         ];
         assert_eq!(names, reference_names);
 
-        let svg1 = table
-            .get_value("/gvdb/rs/test/online-symbolic.svg")
-            .unwrap();
-        assert_matches!(svg1, zvariant::Value::Structure(_));
-        let svg1_fields = svg1
-            .downcast::<zvariant::Structure>()
-            .unwrap()
-            .into_fields();
+        #[derive(serde::Deserialize, zvariant::Type, zvariant_derive::OwnedValue)]
+        struct SvgData {
+            size: u32,
+            flags: u32,
+            content: Vec<u8>,
+        }
 
-        let svg1_size = svg1_fields[0].downcast_ref::<u32>().unwrap();
-        let svg1_flags = svg1_fields[1].downcast_ref::<u32>().unwrap();
-        let svg1_content = svg1_fields[2].clone().downcast::<Vec<u8>>().unwrap();
+        let svg1: SvgData = table.get("/gvdb/rs/test/online-symbolic.svg").unwrap();
 
-        assert_eq!(*svg1_size, 1390);
-        assert_eq!(*svg1_flags, 0);
-        assert_eq!(*svg1_size as usize, svg1_content.len() - 1);
+        assert_eq!(svg1.size, 1390);
+        assert_eq!(svg1.flags, 0);
+        assert_eq!(svg1.size as usize, svg1.content.len() - 1);
 
         // Ensure the last byte is zero because of zero-padding defined in the format
-        assert_eq!(svg1_content[svg1_content.len() - 1], 0);
-        let svg1_str = std::str::from_utf8(&svg1_content[0..svg1_content.len() - 1]).unwrap();
+        assert_eq!(svg1.content[svg1.content.len() - 1], 0);
+        let svg1_str = std::str::from_utf8(&svg1.content[0..svg1.content.len() - 1]).unwrap();
         assert!(svg1_str.starts_with(
             &(r#"<?xml version="1.0" encoding="UTF-8"?>"#.to_string()
                 + "\n\n"

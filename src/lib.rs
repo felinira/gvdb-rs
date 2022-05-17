@@ -34,8 +34,6 @@
 //! ```
 //! #[cfg(feature = "glib")]
 //! # use glib::ToVariant;
-//! # #[cfg(not(feature = "glib"))]
-//! # use gvdb::no_glib::ToVariant;
 //! use gvdb::write::{GvdbFileWriter, GvdbHashTableBuilder};
 //!
 //! fn create_gvdb_file() {
