@@ -3,10 +3,6 @@ use crate::write::file::GvdbHashTableBuilder;
 use serde::Serialize;
 use std::cell::{Cell, Ref, RefCell};
 use std::rc::Rc;
-use zvariant::{DynamicType, Value};
-
-pub trait ZVariantConvertible {}
-impl<T: ?Sized> ZVariantConvertible for T where T: Serialize + DynamicType {}
 
 #[derive(Debug)]
 pub enum GvdbBuilderItemValue<'a> {
@@ -41,7 +37,7 @@ impl<'a> GvdbBuilderItemValue<'a> {
         }
     }
 
-    pub fn value(&self) -> Option<&Value> {
+    pub fn value(&self) -> Option<&zvariant::Value> {
         match self {
             GvdbBuilderItemValue::Value(value) => Some(&value),
             _ => None,
@@ -72,8 +68,8 @@ impl<'a> GvdbBuilderItemValue<'a> {
     }
 }
 
-impl<'a> From<Value<'a>> for GvdbBuilderItemValue<'a> {
-    fn from(var: Value<'a>) -> Self {
+impl<'a> From<zvariant::Value<'a>> for GvdbBuilderItemValue<'a> {
+    fn from(var: zvariant::Value<'a>) -> Self {
         GvdbBuilderItemValue::Value(var)
     }
 }

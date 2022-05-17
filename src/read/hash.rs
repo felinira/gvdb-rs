@@ -10,10 +10,6 @@ use std::cmp::min;
 use std::fmt::{Debug, Formatter};
 use std::mem::size_of;
 
-#[cfg(feature = "glib")]
-use glib::Variant;
-use zvariant::OwnedValue;
-
 /// The header of a GVDB hash table
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq)]
@@ -342,7 +338,7 @@ impl<'a> GvdbHashTable<'a> {
     where
         T: TryFrom<zvariant::OwnedValue>,
     {
-        T::try_from(OwnedValue::from(
+        T::try_from(zvariant::OwnedValue::from(
             self.get_value_for_item(&self.get_hash_item(key)?)?,
         ))
         .map_err(|_| {
@@ -370,7 +366,7 @@ impl<'a> GvdbHashTable<'a> {
     }
 
     #[cfg(feature = "glib")]
-    fn get_gvariant_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<Variant> {
+    fn get_gvariant_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<glib::Variant> {
         self.root.get_gvariant_for_item(item)
     }
 

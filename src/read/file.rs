@@ -11,10 +11,6 @@ use std::io::Read;
 use std::mem::size_of;
 use std::path::Path;
 
-#[cfg(feature = "glib")]
-use glib::{Variant, VariantTy};
-use zvariant::EncodingContext;
-
 #[derive(Debug)]
 enum GvdbData {
     Cow(Cow<'static, [u8]>),
@@ -227,9 +223,12 @@ impl GvdbFile {
     }
 
     #[cfg(feature = "glib")]
-    pub(crate) fn get_gvariant_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<Variant> {
+    pub(crate) fn get_gvariant_for_item(
+        &self,
+        item: &GvdbHashItem,
+    ) -> GvdbReaderResult<glib::Variant> {
         let data = self.get_bytes_for_item(item).unwrap();
-        let variant = Variant::from_data_with_type(data, VariantTy::VARIANT);
+        let variant = glib::Variant::from_data_with_type(data, glib::VariantTy::VARIANT);
 
         if self.byteswapped {
             Ok(variant.byteswap())
@@ -249,10 +248,10 @@ impl GvdbFile {
         let le = false;
 
         if le && !self.byteswapped || !le && self.byteswapped {
-            let context = EncodingContext::<byteorder::LE>::new_gvariant(0);
+            let context = zvariant::EncodingContext::<byteorder::LE>::new_gvariant(0);
             Ok(zvariant::from_slice(data, context)?)
         } else {
-            let context = EncodingContext::<byteorder::BE>::new_gvariant(0);
+            let context = zvariant::EncodingContext::<byteorder::BE>::new_gvariant(0);
             Ok(zvariant::from_slice(data, context)?)
         }
     }
