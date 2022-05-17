@@ -392,14 +392,14 @@ pub(crate) mod test {
         ];
         assert_eq!(names, reference_names);
 
-        #[derive(serde::Deserialize, zvariant::Type, zvariant::OwnedValue)]
-        struct SvgData {
+        #[derive(zvariant::OwnedValue)]
+        struct GResourceData {
             size: u32,
             flags: u32,
             content: Vec<u8>,
         }
 
-        let svg1: SvgData = table.get("/gvdb/rs/test/online-symbolic.svg").unwrap();
+        let svg1: GResourceData = table.get("/gvdb/rs/test/online-symbolic.svg").unwrap();
 
         assert_eq!(svg1.size, 1390);
         assert_eq!(svg1.flags, 0);

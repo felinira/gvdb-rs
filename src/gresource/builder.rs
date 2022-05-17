@@ -19,6 +19,9 @@ struct FileData<'a> {
     key: String,
     data: Cow<'a, [u8]>,
     flags: u32,
+
+    /// uncompressed data is zero-terminated
+    /// compressed data is not
     size: u32,
 }
 
@@ -149,24 +152,16 @@ impl<'a> FileData<'a> {
     pub fn key(&self) -> &str {
         &self.key
     }
-
-    pub fn data(&self) -> &Cow<'_, [u8]> {
-        &self.data
-    }
-
-    /// uncompressed data is zero-terminated
-    /// compressed data is not
-    pub fn size(&self) -> u32 {
-        self.size
-    }
-
-    pub fn flags(&self) -> u32 {
-        self.flags
-    }
 }
 
-#[derive(zvariant::Value, zvariant::OwnedValue)]
-struct GResourceValue {
+/// GResource data value
+///
+/// This is the format in which all GResource files are stored in the GVDB file.
+///
+/// The size is the *uncompressed* size and can be used for verification purposes.
+/// The flags only indicate whether a file is compressed or not. (Compressed = 1)
+#[derive(zvariant::Type, zvariant::Value, zvariant::OwnedValue)]
+pub struct GResourceData {
     size: u32,
     flags: u32,
     data: Vec<u8>,
@@ -383,11 +378,11 @@ impl<'a> GResourceBuilder<'a> {
         let builder = GvdbFileWriter::new();
         let mut table_builder = GvdbHashTableBuilder::new();
 
-        for file_data in self.files {
-            let data = GResourceValue {
-                size: file_data.size(),
-                flags: file_data.flags(),
-                data: file_data.data().to_vec(),
+        for file_data in self.files.into_iter() {
+            let data = GResourceData {
+                size: file_data.size,
+                flags: file_data.flags,
+                data: file_data.data.to_vec(),
             };
 
             table_builder.insert_value(file_data.key(), zvariant::Value::from(data))?;

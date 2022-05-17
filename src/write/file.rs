@@ -27,12 +27,12 @@ use std::mem::size_of;
 /// let gvdb_data = file_writer.write_to_vec_with_table(table_builder).unwrap();
 /// ```
 #[derive(Debug)]
-pub struct GvdbHashTableBuilder {
-    items: HashMap<String, GvdbBuilderItemValue>,
+pub struct GvdbHashTableBuilder<'a> {
+    items: HashMap<String, GvdbBuilderItemValue<'a>>,
     path_separator: Option<String>,
 }
 
-impl GvdbHashTableBuilder {
+impl<'a> GvdbHashTableBuilder<'a> {
     /// Create a new empty GvdbHashTableBuilder with the default path separator `/`
     ///
     /// ```
@@ -59,7 +59,7 @@ impl GvdbHashTableBuilder {
     fn insert_item_value(
         &mut self,
         key: &(impl ToString + ?Sized),
-        item: GvdbBuilderItemValue,
+        item: GvdbBuilderItemValue<'a>,
     ) -> GvdbBuilderResult<()> {
         let key = key.to_string();
 
@@ -117,7 +117,7 @@ impl GvdbHashTableBuilder {
     pub fn insert_value(
         &mut self,
         key: &(impl ToString + ?Sized),
-        value: zvariant::Value<'static>,
+        value: zvariant::Value<'a>,
     ) -> GvdbBuilderResult<()> {
         let item = GvdbBuilderItemValue::Value(value);
         self.insert_item_value(key, item)
@@ -137,7 +137,7 @@ impl GvdbHashTableBuilder {
         value: T,
     ) -> GvdbBuilderResult<()>
     where
-        T: Into<zvariant::Value<'static>>,
+        T: Into<zvariant::Value<'a>>,
     {
         let item = GvdbBuilderItemValue::Value(value.into());
         self.insert_item_value(key, item)
@@ -187,7 +187,7 @@ impl GvdbHashTableBuilder {
     pub fn insert_bytes(
         &mut self,
         key: &(impl ToString + ?Sized),
-        bytes: &'static [u8],
+        bytes: &'a [u8],
     ) -> GvdbBuilderResult<()> {
         let value = zvariant::Value::new(bytes);
         self.insert_value(key, value)
@@ -211,7 +211,7 @@ impl GvdbHashTableBuilder {
     pub fn insert_table(
         &mut self,
         key: &(impl ToString + ?Sized),
-        table_builder: GvdbHashTableBuilder,
+        table_builder: GvdbHashTableBuilder<'a>,
     ) -> GvdbBuilderResult<()> {
         let item = GvdbBuilderItemValue::TableBuilder(table_builder);
         self.insert_item_value(key, item)
@@ -227,7 +227,7 @@ impl GvdbHashTableBuilder {
         self.items.is_empty()
     }
 
-    pub(crate) fn build(mut self) -> GvdbBuilderResult<SimpleHashTable> {
+    pub(crate) fn build(mut self) -> GvdbBuilderResult<SimpleHashTable<'a>> {
         let mut hash_table = SimpleHashTable::with_n_buckets(self.items.len());
 
         let mut keys: Vec<String> = self.items.keys().cloned().collect();
@@ -238,7 +238,7 @@ impl GvdbHashTableBuilder {
             hash_table.insert(&key, value);
         }
 
-        for (key, item) in &hash_table {
+        for (key, item) in hash_table.iter() {
             if let Some(container) = item.value_ref().container() {
                 for child in container {
                     let child_item = hash_table.get(child);
@@ -255,7 +255,7 @@ impl GvdbHashTableBuilder {
     }
 }
 
-impl Default for GvdbHashTableBuilder {
+impl<'a> Default for GvdbHashTableBuilder<'a> {
     fn default() -> Self {
         Self::new()
     }

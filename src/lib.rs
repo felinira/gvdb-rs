@@ -32,8 +32,6 @@
 //! Create a simple GVDB file with [`GvdbFileWriter`](crate::write::GvdbFileWriter)
 //!
 //! ```
-//! #[cfg(feature = "glib")]
-//! # use glib::ToVariant;
 //! use gvdb::write::{GvdbFileWriter, GvdbHashTableBuilder};
 //!
 //! fn create_gvdb_file() {
@@ -45,7 +43,7 @@
 //!
 //!     let mut table_builder_2 = GvdbHashTableBuilder::new();
 //!     table_builder_2
-//!         .insert_gvariant("int", 42u32.to_variant())
+//!         .insert("int", 42u32)
 //!         .unwrap();
 //!
 //!     table_builder

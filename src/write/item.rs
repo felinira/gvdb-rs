@@ -9,27 +9,27 @@ pub trait ZVariantConvertible {}
 impl<T: ?Sized> ZVariantConvertible for T where T: Serialize + DynamicType {}
 
 #[derive(Debug)]
-pub enum GvdbBuilderItemValue {
+pub enum GvdbBuilderItemValue<'a> {
     // A zvariant::Value
-    Value(zvariant::Value<'static>),
+    Value(zvariant::Value<'a>),
 
     // A glib::Variant
     #[cfg(feature = "glib")]
     GVariant(glib::Variant),
 
-    TableBuilder(GvdbHashTableBuilder),
+    TableBuilder(GvdbHashTableBuilder<'a>),
 
     // A child container with no additional value
     Container(Vec<String>),
 }
 
-impl Default for GvdbBuilderItemValue {
+impl<'a> Default for GvdbBuilderItemValue<'a> {
     fn default() -> Self {
         Self::Container(Vec::new())
     }
 }
 
-impl GvdbBuilderItemValue {
+impl<'a> GvdbBuilderItemValue<'a> {
     pub fn typ(&self) -> GvdbHashItemType {
         match self {
             GvdbBuilderItemValue::Value(_) => GvdbHashItemType::Value,
@@ -70,27 +70,27 @@ impl GvdbBuilderItemValue {
     }
 }
 
-impl From<Value<'static>> for GvdbBuilderItemValue {
-    fn from(var: Value<'static>) -> Self {
+impl<'a> From<Value<'a>> for GvdbBuilderItemValue<'a> {
+    fn from(var: Value<'a>) -> Self {
         GvdbBuilderItemValue::Value(var)
     }
 }
 
 #[cfg(feature = "glib")]
-impl From<glib::Variant> for GvdbBuilderItemValue {
+impl<'a> From<glib::Variant> for GvdbBuilderItemValue<'a> {
     fn from(var: glib::Variant) -> Self {
         GvdbBuilderItemValue::GVariant(var)
     }
 }
 
-impl From<GvdbHashTableBuilder> for GvdbBuilderItemValue {
-    fn from(tb: GvdbHashTableBuilder) -> Self {
+impl<'a> From<GvdbHashTableBuilder<'a>> for GvdbBuilderItemValue<'a> {
+    fn from(tb: GvdbHashTableBuilder<'a>) -> Self {
         GvdbBuilderItemValue::TableBuilder(tb)
     }
 }
 
 #[derive(Debug)]
-pub struct GvdbBuilderItem {
+pub struct GvdbBuilderItem<'a> {
     // The key string of the item
     key: String,
 
@@ -98,20 +98,20 @@ pub struct GvdbBuilderItem {
     hash: u32,
 
     // An arbitrary data container
-    value: RefCell<GvdbBuilderItemValue>,
+    value: RefCell<GvdbBuilderItemValue<'a>>,
 
     // The assigned index for the gvdb file
     assigned_index: Cell<u32>,
 
     // The parent item of this builder item
-    parent: RefCell<Option<Rc<GvdbBuilderItem>>>,
+    parent: RefCell<Option<Rc<GvdbBuilderItem<'a>>>>,
 
     // The next item in the hash bucket
-    next: RefCell<Option<Rc<GvdbBuilderItem>>>,
+    next: RefCell<Option<Rc<GvdbBuilderItem<'a>>>>,
 }
 
-impl GvdbBuilderItem {
-    pub fn new(key: &str, hash: u32, value: GvdbBuilderItemValue) -> Self {
+impl<'a> GvdbBuilderItem<'a> {
+    pub fn new(key: &str, hash: u32, value: GvdbBuilderItemValue<'a>) -> Self {
         let key = key.to_string();
 
         Self {
@@ -132,31 +132,31 @@ impl GvdbBuilderItem {
         self.hash
     }
 
-    pub fn next(&self) -> &RefCell<Option<Rc<GvdbBuilderItem>>> {
+    pub fn next(&self) -> &RefCell<Option<Rc<GvdbBuilderItem<'a>>>> {
         &self.next
     }
 
-    pub fn value(&self) -> &RefCell<GvdbBuilderItemValue> {
+    pub fn value(&self) -> &RefCell<GvdbBuilderItemValue<'a>> {
         &self.value
     }
 
-    pub fn value_ref(&self) -> Ref<GvdbBuilderItemValue> {
+    pub fn value_ref(&self) -> Ref<GvdbBuilderItemValue<'a>> {
         self.value.borrow()
     }
 
-    pub fn value_mut(&self) -> RefMut<GvdbBuilderItemValue> {
+    pub fn value_mut(&self) -> RefMut<GvdbBuilderItemValue<'a>> {
         self.value.borrow_mut()
     }
 
-    pub fn parent(&self) -> &RefCell<Option<Rc<GvdbBuilderItem>>> {
+    pub fn parent(&self) -> &RefCell<Option<Rc<GvdbBuilderItem<'a>>>> {
         &self.parent
     }
 
-    pub fn parent_ref(&self) -> Ref<Option<Rc<GvdbBuilderItem>>> {
+    pub fn parent_ref(&self) -> Ref<Option<Rc<GvdbBuilderItem<'a>>>> {
         self.parent.borrow()
     }
 
-    pub fn parent_mut(&self) -> RefMut<Option<Rc<GvdbBuilderItem>>> {
+    pub fn parent_mut(&self) -> RefMut<Option<Rc<GvdbBuilderItem<'a>>>> {
         self.parent.borrow_mut()
     }
 

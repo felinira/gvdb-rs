@@ -2,12 +2,12 @@ use crate::util::djb_hash;
 use crate::write::item::{GvdbBuilderItem, GvdbBuilderItemValue};
 use std::rc::Rc;
 
-pub struct SimpleHashTable {
-    buckets: Vec<Option<Rc<GvdbBuilderItem>>>,
+pub struct SimpleHashTable<'a> {
+    buckets: Vec<Option<Rc<GvdbBuilderItem<'a>>>>,
     n_items: usize,
 }
 
-impl SimpleHashTable {
+impl<'a> SimpleHashTable<'a> {
     pub fn with_n_buckets(n_buckets: usize) -> Self {
         let mut buckets = Vec::with_capacity(n_buckets);
         buckets.resize_with(n_buckets, || None);
@@ -30,7 +30,7 @@ impl SimpleHashTable {
         (hash_value % self.buckets.len() as u32) as usize
     }
 
-    pub fn insert(&mut self, key: &str, item: GvdbBuilderItemValue) -> Rc<GvdbBuilderItem> {
+    pub fn insert(&mut self, key: &str, item: GvdbBuilderItemValue<'a>) -> Rc<GvdbBuilderItem<'a>> {
         let hash_value = djb_hash(key);
         let bucket = self.hash_bucket(hash_value);
 
@@ -61,6 +61,7 @@ impl SimpleHashTable {
         item
     }
 
+    #[allow(dead_code)]
     /// Remove the item with the specified key
     pub fn remove(&mut self, key: &str) {
         let hash_value = djb_hash(key);
@@ -82,7 +83,7 @@ impl SimpleHashTable {
         &self,
         key: &str,
         bucket: usize,
-    ) -> Option<(Option<Rc<GvdbBuilderItem>>, Rc<GvdbBuilderItem>)> {
+    ) -> Option<(Option<Rc<GvdbBuilderItem<'a>>>, Rc<GvdbBuilderItem<'a>>)> {
         let mut item = self.buckets.get(bucket)?.clone();
         let mut previous = None;
 
@@ -98,17 +99,18 @@ impl SimpleHashTable {
         None
     }
 
-    pub fn get(&self, key: &str) -> Option<Rc<GvdbBuilderItem>> {
+    pub fn get(&self, key: &str) -> Option<Rc<GvdbBuilderItem<'a>>> {
         let hash_value = djb_hash(key);
         let bucket = self.hash_bucket(hash_value);
         self.get_from_bucket(key, bucket).map(|r| r.1)
     }
 
-    pub fn into_buckets(self) -> Vec<Option<Rc<GvdbBuilderItem>>> {
+    #[allow(dead_code)]
+    pub fn into_buckets(self) -> Vec<Option<Rc<GvdbBuilderItem<'a>>>> {
         self.buckets
     }
 
-    pub fn iter(&self) -> SimpleHashTableIter<'_> {
+    pub fn iter(&self) -> SimpleHashTableIter<'_, 'a> {
         SimpleHashTableIter {
             hash_table: self,
             bucket: 0,
@@ -116,7 +118,7 @@ impl SimpleHashTable {
         }
     }
 
-    pub fn iter_bucket(&self, bucket: usize) -> SimpleHashTableBucketIter<'_> {
+    pub fn iter_bucket(&self, bucket: usize) -> SimpleHashTableBucketIter<'_, 'a> {
         SimpleHashTableBucketIter {
             hash_table: self,
             bucket,
@@ -125,14 +127,14 @@ impl SimpleHashTable {
     }
 }
 
-pub struct SimpleHashTableBucketIter<'a> {
-    hash_table: &'a SimpleHashTable,
+pub struct SimpleHashTableBucketIter<'it, 'h> {
+    hash_table: &'it SimpleHashTable<'h>,
     bucket: usize,
-    last_item: Option<Rc<GvdbBuilderItem>>,
+    last_item: Option<Rc<GvdbBuilderItem<'h>>>,
 }
 
-impl<'a> Iterator for SimpleHashTableBucketIter<'a> {
-    type Item = Rc<GvdbBuilderItem>;
+impl<'it, 'h> Iterator for SimpleHashTableBucketIter<'it, 'h> {
+    type Item = Rc<GvdbBuilderItem<'h>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(last_item) = self.last_item.clone() {
@@ -163,14 +165,14 @@ impl<'a> Iterator for SimpleHashTableBucketIter<'a> {
     }
 }
 
-pub struct SimpleHashTableIter<'a> {
-    hash_table: &'a SimpleHashTable,
+pub struct SimpleHashTableIter<'it, 'h> {
+    hash_table: &'it SimpleHashTable<'h>,
     bucket: usize,
-    last_item: Option<Rc<GvdbBuilderItem>>,
+    last_item: Option<Rc<GvdbBuilderItem<'h>>>,
 }
 
-impl<'a> Iterator for SimpleHashTableIter<'a> {
-    type Item = (usize, Rc<GvdbBuilderItem>);
+impl<'it, 'h> Iterator for SimpleHashTableIter<'it, 'h> {
+    type Item = (usize, Rc<GvdbBuilderItem<'h>>);
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(last_item) = self.last_item.clone() {
@@ -203,12 +205,13 @@ impl<'a> Iterator for SimpleHashTableIter<'a> {
         None
     }
 }
-
-impl<'a> IntoIterator for &'a SimpleHashTable {
-    type Item = (usize, Rc<GvdbBuilderItem>);
-    type IntoIter = SimpleHashTableIter<'a>;
+/*
+impl<'a, 'b> IntoIterator for &'a SimpleHashTable<'b> {
+    type Item = (usize, Rc<GvdbBuilderItem<'a>>);
+    type IntoIter = SimpleHashTableIter<'a, 'b>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
 }
+*/
