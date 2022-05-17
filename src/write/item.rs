@@ -1,6 +1,5 @@
 use crate::read::GvdbHashItemType;
 use crate::write::file::GvdbHashTableBuilder;
-use serde::Serialize;
 use std::cell::{Cell, Ref, RefCell};
 use std::rc::Rc;
 
@@ -39,7 +38,7 @@ impl<'a> GvdbBuilderItemValue<'a> {
 
     pub fn value(&self) -> Option<&zvariant::Value> {
         match self {
-            GvdbBuilderItemValue::Value(value) => Some(&value),
+            GvdbBuilderItemValue::Value(value) => Some(value),
             _ => None,
         }
     }
@@ -47,7 +46,7 @@ impl<'a> GvdbBuilderItemValue<'a> {
     #[cfg(feature = "glib")]
     pub fn gvariant(&self) -> Option<&glib::Variant> {
         match self {
-            GvdbBuilderItemValue::GVariant(variant) => Some(&variant),
+            GvdbBuilderItemValue::GVariant(variant) => Some(variant),
             _ => None,
         }
     }

@@ -147,20 +147,12 @@ impl<'it, 'h> Iterator for SimpleHashTableBucketIter<'it, 'h> {
                 // Last item in the bucket, return
                 None
             }
+        } else if let Some(Some(item)) = self.hash_table.buckets.get(self.bucket).cloned() {
+            // We found something: Bucket exists and is not empty
+            self.last_item = Some(item.clone());
+            Some(item.clone())
         } else {
-            if let Some(bucket_item) = self.hash_table.buckets.get(self.bucket).cloned() {
-                // This bucket might be empty
-                if let Some(item) = bucket_item {
-                    // We found something
-                    self.last_item = Some(item.clone());
-                    Some(item.clone())
-                } else {
-                    // Empty bucket, return None
-                    None
-                }
-            } else {
-                None
-            }
+            None
         }
     }
 }
