@@ -392,7 +392,7 @@ pub(crate) mod test {
         ];
         assert_eq!(names, reference_names);
 
-        #[derive(serde::Deserialize, zvariant::Type, zvariant_derive::OwnedValue)]
+        #[derive(serde::Deserialize, zvariant::Type, zvariant::OwnedValue)]
         struct SvgData {
             size: u32,
             flags: u32,

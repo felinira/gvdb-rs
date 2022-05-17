@@ -165,6 +165,13 @@ impl<'a> FileData<'a> {
     }
 }
 
+#[derive(zvariant::Value, zvariant::OwnedValue)]
+struct GResourceValue {
+    size: u32,
+    flags: u32,
+    data: Vec<u8>,
+}
+
 /// Create a GResource binary file
 ///
 /// # Example
@@ -377,13 +384,13 @@ impl<'a> GResourceBuilder<'a> {
         let mut table_builder = GvdbHashTableBuilder::new();
 
         for file_data in self.files {
-            let data: zvariant::Value = zvariant::Value::from((
-                file_data.size(),
-                file_data.flags(),
-                file_data.data().to_vec(),
-            ));
+            let data = GResourceValue {
+                size: file_data.size(),
+                flags: file_data.flags(),
+                data: file_data.data().to_vec(),
+            };
 
-            table_builder.insert_value(file_data.key(), data)?;
+            table_builder.insert_value(file_data.key(), zvariant::Value::from(data))?;
         }
 
         Ok(builder.write_to_vec_with_table(table_builder)?)

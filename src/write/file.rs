@@ -56,7 +56,7 @@ impl GvdbHashTableBuilder {
         }
     }
 
-    fn insert(
+    fn insert_item_value(
         &mut self,
         key: &(impl ToString + ?Sized),
         item: GvdbBuilderItemValue,
@@ -120,7 +120,27 @@ impl GvdbHashTableBuilder {
         value: zvariant::Value<'static>,
     ) -> GvdbBuilderResult<()> {
         let item = GvdbBuilderItemValue::Value(value);
-        self.insert(key, item)
+        self.insert_item_value(key, item)
+    }
+
+    /// Insert `item` for `key` where item needs to be [Into<zvariant::Value]
+    ///
+    /// ```
+    /// use zvariant::Value;
+    /// let mut table_builder = gvdb::write::GvdbHashTableBuilder::new();
+    /// let value = 123u32;
+    /// table_builder.insert("variant_123", value);
+    /// ```
+    pub fn insert<T: ?Sized>(
+        &mut self,
+        key: &(impl ToString + ?Sized),
+        value: T,
+    ) -> GvdbBuilderResult<()>
+    where
+        T: Into<zvariant::Value<'static>>,
+    {
+        let item = GvdbBuilderItemValue::Value(value.into());
+        self.insert_item_value(key, item)
     }
 
     /// Insert GVariant `item` for `key`
@@ -140,7 +160,7 @@ impl GvdbHashTableBuilder {
         variant: glib::Variant,
     ) -> GvdbBuilderResult<()> {
         let item = GvdbBuilderItemValue::GVariant(variant);
-        self.insert(key, item)
+        self.insert_item_value(key, item)
     }
 
     /// Convenience method to create a string type GVariant for `value` and insert it at `key`
@@ -194,7 +214,7 @@ impl GvdbHashTableBuilder {
         table_builder: GvdbHashTableBuilder,
     ) -> GvdbBuilderResult<()> {
         let item = GvdbBuilderItemValue::TableBuilder(table_builder);
-        self.insert(key, item)
+        self.insert_item_value(key, item)
     }
 
     /// The number of items contained in the hash table builder

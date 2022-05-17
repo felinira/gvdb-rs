@@ -21,7 +21,6 @@ serde = { version = "1.0.136", features = [ "derive" ] }
 json = { version  = "0.12.4", optional = true }
 flate2 = { version = "1.0.23", optional = true }
 zvariant = { version = "3.2.1", default-features = false, features = ["gvariant"] }
-zvariant_derive = "3.2.1"
 byteorder = "1.4.3"
 
 [dev-dependencies]
