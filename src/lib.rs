@@ -86,7 +86,7 @@ extern crate core;
 
 /// Read GResource XML files and compile a GResource file
 ///
-/// Use [`GResourceXMLDoc`](crate::gresource::GResourceXMLDoc) for XML file reading and
+/// Use [`GResourceXMLDoc`](crate::gresource::GResourceXMLDocument) for XML file reading and
 /// [`GResourceBuilder`](crate::gresource::GResourceBuilder) to create the GResource binary
 /// file
 #[cfg(feature = "gresource")]

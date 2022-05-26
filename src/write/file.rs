@@ -123,7 +123,7 @@ impl<'a> GvdbHashTableBuilder<'a> {
         self.insert_item_value(key, item)
     }
 
-    /// Insert `item` for `key` where item needs to be [Into<zvariant::Value]
+    /// Insert `item` for `key` where item needs to be `Into<zvariant::Value>`
     ///
     /// ```
     /// use zvariant::Value;

@@ -328,12 +328,12 @@ impl<'a> GvdbHashTable<'a> {
         Err(GvdbReaderError::KeyError(key.to_string()))
     }
 
-    /// Get the item at key `key` and try to interpret it as a [`struct@zvariant::Value`]
+    /// Get the item at key `key` and try to interpret it as a [`enum@zvariant::Value`]
     pub fn get_value(&self, key: &str) -> GvdbReaderResult<zvariant::Value> {
         self.get_value_for_item(&self.get_hash_item(key)?)
     }
 
-    /// Get the item at key `key` and try to convert it from [`struct@zvariant::Value`] to T
+    /// Get the item at key `key` and try to convert it from [`enum@zvariant::Value`] to T
     pub fn get<T: ?Sized>(&self, key: &str) -> GvdbReaderResult<T>
     where
         T: TryFrom<zvariant::OwnedValue>,
