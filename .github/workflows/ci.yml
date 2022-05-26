@@ -1,0 +1,22 @@
+name: Cargo Build & Test
+
+on:
+  push:
+    branches: [ $default-branch ]
+  pull_request:
+    branches: [ $default-branch ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build
+        run: cargo build --verbose --all-features
+      - name: Run tests
+        run: cargo test --verbose --all-features
+      - name: Compile documentation
+        run: cargo doc --verbose --all-features
