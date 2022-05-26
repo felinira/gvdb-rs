@@ -7,7 +7,7 @@ repository = "https://github.com/felinira/gvdb-rs"
 license = "MIT"
 keywords = [ "gvdb", "glib", "gresource", "compile-resources" ]
 categories = [ "gui", "data-structures", "encoding" ]
-exclude = [ ".idea" ]
+exclude = [ ".github", ".idea" ]
 
 [package.metadata.docs.rs]
 all-features = true
