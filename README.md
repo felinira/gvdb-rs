@@ -2,6 +2,8 @@
 
 This is a re-implementation of the glib GVariant database file format in Rust. It includes a GResource XML parser.
 
+[![CI](https://github.com/felinira/gvdb-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/felinira/gvdb-rs/actions/workflows/ci.yml)
+
 ## Example
 
 ### Create a GResource file
