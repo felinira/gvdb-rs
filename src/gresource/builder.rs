@@ -14,8 +14,23 @@ const FLAG_COMPRESSED: u32 = 1 << 0;
 static SKIPPED_FILE_NAMES_DEFAULT: &[&str] = &["meson.build", "gresource.xml"];
 static COMPRESS_EXTENSIONS_DEFAULT: &[&str] = &[".ui", ".css"];
 
+/// A container for a GResource data object
+///
+/// Allows to read a file from the filesystem. The file is then preprocessed and compressed.
+///
+/// ```
+/// # use std::path::PathBuf;
+/// use gvdb::gresource::{PreprocessOptions, GResourceFileData};
+///
+/// let mut key = "/my/app/id/icons/scalable/actions/send-symbolic.svg".to_string();
+/// let mut filename = PathBuf::from("test/data/gresource/icons/scalable/actions/send-symbolic.svg");
+///
+/// let preprocess_options = PreprocessOptions::empty();
+/// let file_data =
+///     GResourceFileData::from_file(key, &filename, true, &preprocess_options).unwrap();
+/// ```
 #[derive(Debug)]
-struct FileData<'a> {
+pub struct GResourceFileData<'a> {
     key: String,
     data: Cow<'a, [u8]>,
     flags: u32,
@@ -25,20 +40,41 @@ struct FileData<'a> {
     size: u32,
 }
 
-impl<'a> FileData<'a> {
+impl<'a> GResourceFileData<'a> {
+    /// Create a new `GResourceFileData` from raw bytes
+    ///
+    /// The `path` parameter is used for error output, and should be set to a valid filesystem path
+    /// if possible or `None` if not applicable.
+    ///
+    /// Preprocessing will be applied based on the `preprocess` parameter.
+    /// Will compress the data if `compressed` is set.
+    ///
+    /// ```
+    /// # use std::borrow::Cow;
+    /// use std::path::PathBuf;
+    /// use gvdb::gresource::{GResourceFileData, PreprocessOptions};
+    ///
+    /// let mut key = "/my/app/id/style.css".to_string();
+    /// let mut filename = PathBuf::from("path/to/style.css");
+    ///
+    /// let preprocess_options = PreprocessOptions::empty();
+    /// let data: Vec<u8> = vec![1, 2, 3, 4];
+    /// let file_data =
+    ///     GResourceFileData::new(key, Cow::Owned(data), None, true, &preprocess_options).unwrap();
+    /// ```
     pub fn new(
         key: String,
         data: Cow<'a, [u8]>,
-        path: &Path,
+        path: Option<PathBuf>,
         compressed: bool,
         preprocess: &PreprocessOptions,
     ) -> GResourceBuilderResult<Self> {
         let mut flags = 0;
-        let mut data = Self::preprocess(data, preprocess, path)?;
+        let mut data = Self::preprocess(data, preprocess, path.clone())?;
         let size = data.len() as u32;
 
         if compressed {
-            data = Self::compress(data, path)?;
+            data = Self::compress(data, path.clone())?;
             flags |= FLAG_COMPRESSED;
         } else {
             data.to_mut().push(0);
@@ -52,6 +88,22 @@ impl<'a> FileData<'a> {
         })
     }
 
+    /// Read the data from a file
+    ///
+    /// Preprocessing will be applied based on the `preprocess` parameter.
+    /// Will compress the data if `compressed` is set.
+    ///
+    /// ```
+    /// # use std::path::PathBuf;
+    /// use gvdb::gresource::{GResourceFileData, PreprocessOptions};
+    ///
+    /// let mut key = "/my/app/id/icons/scalable/actions/send-symbolic.svg".to_string();
+    /// let mut filename = PathBuf::from("test/data/gresource/icons/scalable/actions/send-symbolic.svg");
+    ///
+    /// let preprocess_options = PreprocessOptions::empty();
+    /// let file_data =
+    ///     GResourceFileData::from_file(key, &filename, true, &preprocess_options).unwrap();
+    /// ```
     pub fn from_file(
         key: String,
         file_path: &Path,
@@ -64,12 +116,18 @@ impl<'a> FileData<'a> {
         open_file
             .read_to_end(&mut data)
             .map_err(|err| GResourceBuilderError::Io(err, Some(file_path.to_path_buf())))?;
-        FileData::new(key, Cow::Owned(data), file_path, compressed, preprocess)
+        GResourceFileData::new(
+            key,
+            Cow::Owned(data),
+            Some(file_path.to_path_buf()),
+            compressed,
+            preprocess,
+        )
     }
 
-    pub fn xml_stripblanks(
+    fn xml_stripblanks(
         data: Cow<'a, [u8]>,
-        path: &Path,
+        path: Option<PathBuf>,
     ) -> GResourceBuilderResult<Cow<'a, [u8]>> {
         let mut output = Vec::new();
 
@@ -85,48 +143,48 @@ impl<'a> FileData<'a> {
 
         for event in event_reader {
             if let Some(writer_event) = event
-                .map_err(|err| GResourceBuilderError::XmlRead(err, Some(path.to_path_buf())))?
+                .map_err(|err| GResourceBuilderError::XmlRead(err, path.clone()))?
                 .as_writer_event()
             {
-                event_writer.write(writer_event).map_err(|err| {
-                    GResourceBuilderError::XmlWrite(err, Some(path.to_path_buf()))
-                })?;
+                event_writer
+                    .write(writer_event)
+                    .map_err(|err| GResourceBuilderError::XmlWrite(err, path.clone()))?;
             }
         }
 
         Ok(Cow::Owned(output))
     }
 
-    pub fn json_stripblanks(
+    fn json_stripblanks(
         data: Cow<'a, [u8]>,
-        path: &Path,
+        path: Option<PathBuf>,
     ) -> GResourceBuilderResult<Cow<'a, [u8]>> {
         let mut output = Vec::new();
 
         let json = json::parse(
             &String::from_utf8(data.to_vec())
-                .map_err(|err| GResourceBuilderError::Utf8(err, Some(path.to_path_buf())))?,
+                .map_err(|err| GResourceBuilderError::Utf8(err, path.clone()))?,
         )
-        .map_err(|err| GResourceBuilderError::Json(err, Some(path.to_path_buf())))?;
+        .map_err(|err| GResourceBuilderError::Json(err, path.clone()))?;
         json.write(&mut output)
-            .map_err(|err| GResourceBuilderError::Io(err, Some(path.to_path_buf())))?;
+            .map_err(|err| GResourceBuilderError::Io(err, path))?;
 
         output.push(b'\n');
 
         Ok(Cow::Owned(output))
     }
 
-    pub fn preprocess(
+    fn preprocess(
         mut data: Cow<'a, [u8]>,
         options: &PreprocessOptions,
-        path: &Path,
+        path: Option<PathBuf>,
     ) -> GResourceBuilderResult<Cow<'a, [u8]>> {
         if options.xml_stripblanks {
-            data = Self::xml_stripblanks(data, path)?;
+            data = Self::xml_stripblanks(data, path.clone())?;
         }
 
         if options.json_stripblanks {
-            data = Self::json_stripblanks(data, path)?;
+            data = Self::json_stripblanks(data, path.clone())?;
         }
 
         if options.to_pixdata {
@@ -139,16 +197,22 @@ impl<'a> FileData<'a> {
         Ok(data)
     }
 
-    pub fn compress(data: Cow<'a, [u8]>, path: &Path) -> GResourceBuilderResult<Cow<'a, [u8]>> {
+    fn compress(
+        data: Cow<'a, [u8]>,
+        path: Option<PathBuf>,
+    ) -> GResourceBuilderResult<Cow<'a, [u8]>> {
         let mut encoder = ZlibEncoder::new(Vec::new(), flate2::Compression::best());
         encoder
             .write_all(&data)
-            .map_err(|err| GResourceBuilderError::Io(err, Some(path.to_path_buf())))?;
-        Ok(Cow::Owned(encoder.finish().map_err(|err| {
-            GResourceBuilderError::Io(err, Some(path.to_path_buf()))
-        })?))
+            .map_err(|err| GResourceBuilderError::Io(err, path.clone()))?;
+        Ok(Cow::Owned(
+            encoder
+                .finish()
+                .map_err(|err| GResourceBuilderError::Io(err, path))?,
+        ))
     }
 
+    /// Return the `key` of this `FileData`
     pub fn key(&self) -> &str {
         &self.key
     }
@@ -191,7 +255,7 @@ pub struct GResourceData {
 /// ```
 #[derive(Debug)]
 pub struct GResourceBuilder<'a> {
-    files: Vec<FileData<'a>>,
+    files: Vec<GResourceFileData<'a>>,
 }
 
 impl<'a> GResourceBuilder<'a> {
@@ -215,8 +279,12 @@ impl<'a> GResourceBuilder<'a> {
                 let mut filename = xml.dir.clone();
                 filename.push(PathBuf::from(&file.filename));
 
-                let file_data =
-                    FileData::from_file(key, &filename, file.compressed, &file.preprocess)?;
+                let file_data = GResourceFileData::from_file(
+                    key,
+                    &filename,
+                    file.compressed,
+                    &file.preprocess,
+                )?;
                 files.push(file_data);
             }
         }
@@ -365,12 +433,20 @@ impl<'a> GResourceBuilder<'a> {
                 };
 
                 let key = format!("{}{}", prefix, file_path_str_relative);
-                let file_data = FileData::from_file(key, file_abs_path, compress_this, &options)?;
+                let file_data =
+                    GResourceFileData::from_file(key, file_abs_path, compress_this, &options)?;
                 files.push(file_data);
             }
         }
 
         Ok(Self { files })
+    }
+
+    /// Create a new Builder from a `Vec<FileData>`.
+    ///
+    /// This is the most flexible way to create a GResource file, but also the most hands-on.
+    pub fn from_file_data(files: Vec<GResourceFileData<'a>>) -> Self {
+        Self { files }
     }
 
     /// Build the binary GResource data

@@ -55,7 +55,7 @@ pub struct File {
     pub preprocess: PreprocessOptions,
 }
 
-/// Preprocessing options
+/// Preprocessing options for files that will be put in a GResource
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq)]
 #[non_exhaustive]
 pub struct PreprocessOptions {
@@ -70,6 +70,9 @@ pub struct PreprocessOptions {
 }
 
 impl PreprocessOptions {
+    /// An empty set of preprocessing options
+    ///
+    /// No preprocessing will be done
     pub fn empty() -> Self {
         Self {
             xml_stripblanks: false,
@@ -78,6 +81,7 @@ impl PreprocessOptions {
         }
     }
 
+    /// XML strip blanks preprocessing will be applied
     pub fn xml_stripblanks() -> Self {
         Self {
             xml_stripblanks: true,
@@ -86,6 +90,7 @@ impl PreprocessOptions {
         }
     }
 
+    /// JSON strip blanks preprocessing will be applied
     pub fn json_stripblanks() -> Self {
         Self {
             xml_stripblanks: false,
