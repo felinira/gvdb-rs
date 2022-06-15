@@ -12,6 +12,8 @@ jobs:
       - uses: actions/checkout@v2
       - name: Build
         run: cargo build --verbose --all-features
+      - name: Clippy
+        run: cargo clippy --verbose --all-features
       - name: Run tests
         run: cargo test --verbose --all-features
       - name: Compile documentation
