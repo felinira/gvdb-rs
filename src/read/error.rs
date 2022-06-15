@@ -1,4 +1,5 @@
-use safe_transmute::{Error, GuardError};
+use safe_transmute::GuardError;
+use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::num::TryFromIntError;
 use std::path::PathBuf;
@@ -32,6 +33,8 @@ pub enum GvdbReaderError {
     KeyError(String),
 }
 
+impl Error for GvdbReaderError {}
+
 impl From<FromUtf8Error> for GvdbReaderError {
     fn from(err: FromUtf8Error) -> Self {
         Self::Utf8(err)
@@ -57,9 +60,9 @@ impl From<TryFromIntError> for GvdbReaderError {
 }
 
 impl<S, T> From<safe_transmute::Error<'_, S, T>> for GvdbReaderError {
-    fn from(err: Error<S, T>) -> Self {
+    fn from(err: safe_transmute::Error<S, T>) -> Self {
         match err {
-            Error::Guard(GuardError {
+            safe_transmute::Error::Guard(GuardError {
                 required,
                 actual,
                 reason: _,
@@ -73,7 +76,9 @@ impl<S, T> From<safe_transmute::Error<'_, S, T>> for GvdbReaderError {
                     Self::DataError(format!("Missing {} bytes to read data", actual - required))
                 }
             }
-            Error::Unaligned(_) => Self::DataError("Unaligned data read".to_string()),
+            safe_transmute::Error::Unaligned(_) => {
+                Self::DataError("Unaligned data read".to_string())
+            }
             _ => Self::InvalidData,
         }
     }
@@ -121,4 +126,4 @@ impl Display for GvdbReaderError {
 }
 
 /// The Result type for [`GvdbReaderError`]
-pub type GvdbReaderResult<T> = std::result::Result<T, GvdbReaderError>;
+pub type GvdbReaderResult<T> = Result<T, GvdbReaderError>;

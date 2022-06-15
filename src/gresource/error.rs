@@ -1,5 +1,5 @@
 use crate::write::GvdbWriterError;
-use serde_xml_rs::Error;
+use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::string::FromUtf8Error;
 
@@ -12,8 +12,10 @@ pub enum GResourceXMLError {
     Io(std::io::Error, Option<std::path::PathBuf>),
 }
 
+impl Error for GResourceXMLError {}
+
 impl From<serde_xml_rs::Error> for GResourceXMLError {
-    fn from(err: Error) -> Self {
+    fn from(err: serde_xml_rs::Error) -> Self {
         Self::Serde(err, None)
     }
 }
@@ -80,6 +82,8 @@ pub enum GResourceBuilderError {
     /// A generic error with a text description
     Generic(String),
 }
+
+impl Error for GResourceBuilderError {}
 
 impl From<GvdbWriterError> for GResourceBuilderError {
     fn from(err: GvdbWriterError) -> Self {

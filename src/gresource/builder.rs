@@ -74,7 +74,7 @@ impl<'a> GResourceFileData<'a> {
         let size = data.len() as u32;
 
         if compressed {
-            data = Self::compress(data, path.clone())?;
+            data = Self::compress(data, path)?;
             flags |= FLAG_COMPRESSED;
         } else {
             data.to_mut().push(0);
@@ -184,7 +184,7 @@ impl<'a> GResourceFileData<'a> {
         }
 
         if options.json_stripblanks {
-            data = Self::json_stripblanks(data, path.clone())?;
+            data = Self::json_stripblanks(data, path)?;
         }
 
         if options.to_pixdata {

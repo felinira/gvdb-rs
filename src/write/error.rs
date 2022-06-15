@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::path::PathBuf;
 
@@ -12,6 +13,8 @@ pub enum GvdbWriterError {
     /// An error occured when serializing variant data with zvariant
     ZVariant(zvariant::Error),
 }
+
+impl Error for GvdbWriterError {}
 
 impl From<std::io::Error> for GvdbWriterError {
     fn from(err: std::io::Error) -> Self {
@@ -52,4 +55,4 @@ impl Debug for GvdbWriterError {
 }
 
 /// The Result type for [`GvdbWriterError`]
-pub type GvdbBuilderResult<T> = std::result::Result<T, GvdbWriterError>;
+pub type GvdbBuilderResult<T> = Result<T, GvdbWriterError>;
