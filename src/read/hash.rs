@@ -12,7 +12,7 @@ use std::mem::size_of;
 
 /// The header of a GVDB hash table
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct GvdbHashHeader {
     n_bloom_words: u32,
     n_buckets: u32,
@@ -229,7 +229,7 @@ impl<'a> GvdbHashTable<'a> {
                 let item = self.get_hash_item_for_index(index)?;
                 let parent: usize = item.parent().try_into()?;
 
-                if names[index] == None {
+                if names[index].is_none() {
                     // Only process items not already processed
                     if parent == 0xffffffff {
                         // root item

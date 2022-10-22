@@ -7,7 +7,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 /// A GResource XML document
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct GResourceXMLDocument {
@@ -21,7 +21,7 @@ pub struct GResourceXMLDocument {
 }
 
 /// A GResource section inside a GResource XML document
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct GResource {
@@ -35,7 +35,7 @@ pub struct GResource {
 }
 
 /// A file within a GResource section
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct File {
@@ -56,7 +56,7 @@ pub struct File {
 }
 
 /// Preprocessing options for files that will be put in a GResource
-#[derive(Debug, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct PreprocessOptions {
     /// Strip whitespace from XML file

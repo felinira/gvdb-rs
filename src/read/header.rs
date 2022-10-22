@@ -10,7 +10,7 @@ const GVDB_SIGNATURE0: u32 = 1918981703;
 const GVDB_SIGNATURE1: u32 = 1953390953;
 
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct GvdbHeader {
     signature: [u32; 2],
     version: u32,

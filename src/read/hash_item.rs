@@ -3,7 +3,7 @@ use crate::read::pointer::GvdbPointer;
 use safe_transmute::TriviallyTransmutable;
 use std::fmt::{Display, Formatter};
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum GvdbHashItemType {
     Value,
     HashTable,

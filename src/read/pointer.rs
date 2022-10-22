@@ -1,5 +1,5 @@
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct GvdbPointer {
     start: u32,
     end: u32,

@@ -110,7 +110,7 @@ impl<'a> GResourceFileData<'a> {
         compressed: bool,
         preprocess: &PreprocessOptions,
     ) -> GResourceBuilderResult<Self> {
-        let mut open_file = std::fs::File::open(&file_path)
+        let mut open_file = std::fs::File::open(file_path)
             .map_err(|err| GResourceBuilderError::Io(err, Some(file_path.to_path_buf())))?;
         let mut data = Vec::new();
         open_file

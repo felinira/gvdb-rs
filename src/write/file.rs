@@ -451,7 +451,7 @@ impl GvdbFileWriter {
                 };
 
                 let key = if let Some(parent) = &*current_item.parent_ref() {
-                    current_item.key().strip_prefix(&parent.key()).unwrap_or("")
+                    current_item.key().strip_prefix(parent.key()).unwrap_or("")
                 } else {
                     current_item.key()
                 };
