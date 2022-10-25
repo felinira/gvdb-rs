@@ -708,7 +708,7 @@ mod test {
 
     #[test]
     fn file_builder_file_2() {
-        let mut file_builder = GvdbFileWriter::new();
+        let mut file_builder = GvdbFileWriter::for_big_endian();
         let mut table_builder = GvdbHashTableBuilder::new();
 
         table_builder

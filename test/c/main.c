@@ -46,6 +46,8 @@ void dump_gvdb_table(GvdbTable *table, int indent) {
  * {
  *     "root_key": (1234, 98765, "TEST_STRING_VALUE"),
  * }
+ *
+ * Test file 1 is little endian
  */
 void create_test_file_1() {
     printf("Creating test file 1\n");
@@ -81,6 +83,8 @@ void read_test_file_1() {
  *         "int": 42,
  *     }
  * }
+ *
+ * Test file 2 is big endian
  */
 void create_test_file_2() {
     printf("Creating test file 2\n");
@@ -100,7 +104,7 @@ void create_test_file_2() {
 
     GError *error = NULL;
 
-    gvdb_table_write_contents(root, TEST_FILE_2, G_BYTE_ORDER != G_LITTLE_ENDIAN, &error);
+    gvdb_table_write_contents(root, TEST_FILE_2, G_BYTE_ORDER == G_LITTLE_ENDIAN, &error);
 }
 
 void read_test_file_2() {
