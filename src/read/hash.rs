@@ -69,7 +69,7 @@ impl Debug for GvdbHashHeader {
 ///
 ///
 #[repr(C)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GvdbHashTable<'a> {
     root: &'a GvdbFile,
     data: Cow<'a, [u8]>,
@@ -154,6 +154,10 @@ impl<'a> GvdbHashTable<'a> {
     }
 
     fn get_bloom_word(&self, index: usize) -> GvdbReaderResult<u32> {
+        if index >= self.header.n_bloom_words() as usize {
+            return Err(GvdbReaderError::DataOffset);
+        }
+
         let start = self.bloom_words_offset() + index * size_of::<u32>();
         self.get_u32(start)
     }
@@ -379,7 +383,33 @@ impl<'a> GvdbHashTable<'a> {
 pub(crate) mod test {
     use crate::read::hash::GvdbHashTable;
     use crate::read::hash_item::GvdbHashItemType;
+    use crate::read::{GvdbFile, GvdbHashHeader, GvdbPointer, GvdbReaderError};
     use crate::test::assert_bytes_eq;
+    use crate::write::{GvdbFileWriter, GvdbHashTableBuilder};
+    use matches::assert_matches;
+    use std::borrow::Cow;
+    use std::io::Cursor;
+
+    fn new_empty_file() -> GvdbFile {
+        let writer = GvdbFileWriter::new();
+        let table_builder = GvdbHashTableBuilder::new();
+        let data = Vec::new();
+        let mut cursor = Cursor::new(data);
+        writer.write_with_table(table_builder, &mut cursor).unwrap();
+
+        GvdbFile::from_bytes(Cow::Owned(cursor.into_inner())).unwrap()
+    }
+
+    pub(super) fn new_simple_file() -> GvdbFile {
+        let writer = GvdbFileWriter::new();
+        let mut table_builder = GvdbHashTableBuilder::new();
+        table_builder.insert("test", "test").unwrap();
+        let data = Vec::new();
+        let mut cursor = Cursor::new(data);
+        writer.write_with_table(table_builder, &mut cursor).unwrap();
+
+        GvdbFile::from_bytes(Cow::Owned(cursor.into_inner())).unwrap()
+    }
 
     pub fn byte_compare_gvdb_hash_table(a: &GvdbHashTable, b: &GvdbHashTable) {
         assert_eq!(a.header, b.header);
@@ -420,5 +450,98 @@ pub(crate) mod test {
                 );
             }
         }
+    }
+
+    #[test]
+    fn derives() {
+        let header = GvdbHashHeader::new(0, 0, 0);
+        let header2 = header.clone();
+        println!("{:?}", header2);
+
+        let file = new_empty_file();
+        let table = file.hash_table().unwrap();
+        let table2 = table.clone();
+        println!("{:?}", table2);
+    }
+
+    #[test]
+    fn get_header() {
+        let file = new_empty_file();
+        let table = file.hash_table().unwrap();
+        let header = table.get_header();
+        assert_eq!(header.n_buckets(), 0);
+
+        let file = new_simple_file();
+        let table = file.hash_table().unwrap();
+        let header = table.get_header();
+        assert_eq!(header.n_buckets(), 1);
+    }
+
+    #[test]
+    fn bloom_words() {
+        let file = new_empty_file();
+        let table = file.hash_table().unwrap();
+        let header = table.get_header();
+        assert_eq!(header.n_bloom_words(), 0);
+        assert_eq!(header.bloom_words_len(), 0);
+        assert_eq!(table.bloom_words(), None);
+    }
+
+    #[test]
+    fn get_item() {
+        let file = new_empty_file();
+        let table = file.hash_table().unwrap();
+        let res = table.get_hash_item("test");
+        assert_matches!(res, Err(GvdbReaderError::KeyError(_)));
+
+        let file = new_simple_file();
+        let table = file.hash_table().unwrap();
+        let item = table.get_hash_item("test").unwrap();
+        assert_ne!(item.value_ptr(), &GvdbPointer::NULL);
+        let value: String = table.get_value_for_item(&item).unwrap().try_into().unwrap();
+        assert_eq!(value, "test");
+
+        let res_item = table.get_hash_item("test_fail");
+        assert_matches!(res_item, Err(GvdbReaderError::KeyError(_)));
+    }
+
+    #[test]
+    fn get() {
+        let file = new_simple_file();
+        let table = file.hash_table().unwrap();
+        let res: String = table.get::<String>("test").unwrap().into();
+        assert_eq!(&res, "test");
+
+        let res = table.get::<i32>("test");
+        assert_matches!(res, Err(GvdbReaderError::DataError(_)));
+    }
+
+    #[test]
+    fn get_bloom_word() {
+        let file = new_simple_file();
+        let table = file.hash_table().unwrap();
+        let res = table.get_bloom_word(0);
+        assert_matches!(res, Err(GvdbReaderError::DataOffset));
+    }
+
+    #[test]
+    fn bloom_shift() {
+        let file = new_simple_file();
+        let table = file.hash_table().unwrap();
+        let res = table.bloom_shift();
+        assert_eq!(res, 0);
+    }
+}
+
+#[cfg(all(feature = "glib", test))]
+mod test_glib {
+    use glib::ToVariant;
+
+    #[test]
+    fn get_gvariant() {
+        let file = super::test::new_simple_file();
+        let table = file.hash_table().unwrap();
+        let res: glib::Variant = table.get_gvariant("test").unwrap().get().unwrap();
+        assert_eq!(&res, &"test".to_variant());
     }
 }

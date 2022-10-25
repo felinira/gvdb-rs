@@ -274,25 +274,26 @@ impl GvdbFile {
 }
 
 #[cfg(test)]
-#[allow(dead_code)]
 pub(crate) mod test {
     use crate::read::file::GvdbFile;
     use crate::read::hash::test::byte_compare_gvdb_hash_table;
+    use std::borrow::Cow;
     use std::io::Read;
     use std::path::PathBuf;
     use std::str::FromStr;
 
+    use crate::read::{GvdbHeader, GvdbPointer, GvdbReaderError};
     use crate::test::assert_bytes_eq;
     use matches::assert_matches;
     #[allow(unused_imports)]
     use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
+    use safe_transmute::transmute_one_to_bytes;
 
     const TEST_FILE_DIR: &str = "test/data/";
     const TEST_FILE_1: &str = "test1.gvdb";
     const TEST_FILE_2: &str = "test2.gvdb";
     const TEST_FILE_3: &str = "test3.gresource";
 
-    #[allow(dead_code)]
     pub fn byte_compare_gvdb_file(a: &GvdbFile, b: &GvdbFile) {
         assert_eq!(a.data.as_ref().len(), b.data.as_ref().len());
         assert_eq!(a.get_header().unwrap(), b.get_header().unwrap());
@@ -366,7 +367,6 @@ pub(crate) mod test {
         assert_eq!(int_value.downcast::<u32>().unwrap(), 42);
     }
 
-    #[allow(dead_code)]
     pub fn byte_compare_file_3(file: &GvdbFile) {
         let reference_filename = TEST_FILE_DIR.to_string() + TEST_FILE_3;
         let ref_root = GvdbFile::from_file(&PathBuf::from(reference_filename)).unwrap();
@@ -500,4 +500,118 @@ pub(crate) mod test {
         let file = GvdbFile::from_file(&path).unwrap();
         assert_is_file_3(&file);
     }
+
+    #[test]
+    fn invalid_header() {
+        let header = GvdbHeader::new(false, 0, GvdbPointer::new(0, 0));
+        let mut data = transmute_one_to_bytes(&header).to_vec();
+
+        data[0] = 0;
+        assert_matches!(
+            GvdbFile::from_bytes(Cow::Owned(data)),
+            Err(GvdbReaderError::DataError(_))
+        );
+    }
+
+    #[test]
+    fn invalid_version() {
+        let header = GvdbHeader::new(false, 1, GvdbPointer::new(0, 0));
+        let data = transmute_one_to_bytes(&header).to_vec();
+
+        assert_matches!(
+            GvdbFile::from_bytes(Cow::Owned(data)),
+            Err(GvdbReaderError::DataError(_))
+        );
+    }
+
+    #[test]
+    fn file_does_not_exist() {
+        let res = GvdbFile::from_file(&PathBuf::from("this_file_does_not_exist"));
+        assert_matches!(res, Err(GvdbReaderError::Io(_, _)));
+        println!("{}", res.unwrap_err());
+    }
+
+    #[test]
+    fn file_error_mmap() {
+        unsafe {
+            assert_matches!(
+                GvdbFile::from_file_mmap(&PathBuf::from("this_file_does_not_exist")),
+                Err(GvdbReaderError::Io(_, _))
+            );
+        }
+    }
+
+    fn create_minimal_file() -> GvdbFile {
+        let header = GvdbHeader::new(false, 0, GvdbPointer::new(0, 0));
+        let data = transmute_one_to_bytes(&header).to_vec();
+        assert_bytes_eq(
+            &data,
+            &[
+                71, 86, 97, 114, 105, 97, 110, 116, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+            "GVDB header",
+        );
+
+        GvdbFile::from_bytes(Cow::Owned(data)).unwrap()
+    }
+
+    #[test]
+    fn test_minimal_file() {
+        let _ = create_minimal_file();
+    }
+
+    #[test]
+    fn test_dereference_offset1() {
+        // Pointer start > EOF
+        let file = create_minimal_file();
+        let res = file.dereference(&GvdbPointer::new(40, 42), 2);
+
+        assert_matches!(res, Err(GvdbReaderError::DataOffset));
+        println!("{}", res.unwrap_err());
+    }
+
+    #[test]
+    fn test_dereference_offset2() {
+        // Pointer start > end
+        let file = create_minimal_file();
+        let res = file.dereference(&GvdbPointer::new(10, 0), 2);
+
+        assert_matches!(res, Err(GvdbReaderError::DataOffset));
+        println!("{}", res.unwrap_err());
+    }
+
+    #[test]
+    fn test_dereference_offset3() {
+        // Pointer end > EOF
+        let file = create_minimal_file();
+        let res = file.dereference(&GvdbPointer::new(10, 0), 2);
+
+        assert_matches!(res, Err(GvdbReaderError::DataOffset));
+        println!("{}", res.unwrap_err());
+    }
+
+    #[test]
+    fn test_dereference_alignment() {
+        // Pointer end > EOF
+        let file = create_minimal_file();
+        let res = file.dereference(&GvdbPointer::new(1, 2), 2);
+
+        assert_matches!(res, Err(GvdbReaderError::DataAlignment));
+        println!("{}", res.unwrap_err());
+    }
+
+    #[test]
+    fn test_nested_dict() {
+        // test file 2 has a nested dictionary
+        let file2_name = TEST_FILE_DIR.to_string() + TEST_FILE_2;
+        let file = GvdbFile::from_file(&PathBuf::from(file2_name)).unwrap();
+        let table = file.hash_table().unwrap();
+
+        // A table isn't a value
+        let table_res = table.get_value("table");
+        assert_matches!(table_res, Err(GvdbReaderError::DataError(_)));
+    }
+
+    #[test]
+    fn value_for_item() {}
 }

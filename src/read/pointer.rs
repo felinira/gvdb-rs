@@ -27,3 +27,15 @@ impl GvdbPointer {
         (self.end() - self.start()) as usize
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::read::GvdbPointer;
+
+    #[test]
+    fn derives() {
+        let pointer = GvdbPointer::new(0, 2);
+        let pointer2 = pointer.clone();
+        println!("{:?}", pointer2);
+    }
+}

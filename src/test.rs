@@ -29,7 +29,7 @@ fn write_byte_row(
     write!(f, "  ")?;
 
     for byte in bytes {
-        if byte.is_ascii_alphanumeric() {
+        if byte.is_ascii_alphanumeric() || byte.is_ascii_whitespace() {
             write!(f, "{}", *byte as char)?;
         } else {
             write!(f, ".")?;
@@ -76,10 +76,13 @@ pub fn assert_bytes_eq(a: &[u8], b: &[u8], context: &str) {
     const EXTRA_ROWS_TOP: usize = 8;
     const EXTRA_ROWS_BOTTOM: usize = 4;
 
-    for (index, a_byte) in a.iter().enumerate() {
+    let max_len = max(a.len(), b.len());
+
+    for index in 0..max_len {
+        let a_byte = a.get(index);
         let b_byte = b.get(index);
 
-        if b_byte.is_none() || a_byte != b_byte.unwrap() {
+        if a_byte.is_none() || b_byte.is_none() || a_byte.unwrap() != b_byte.unwrap() {
             let mut a_bytes_buf = Vec::new();
             write_byte_rows(
                 &mut a_bytes_buf,
@@ -108,19 +111,51 @@ pub fn assert_bytes_eq(a: &[u8], b: &[u8], context: &str) {
             assert_str_eq!(str_a, str_b);
         }
     }
+}
 
-    if a.len() != b.len() {
-        eprintln!("{}", context);
-        if b.len() > a.len() {
-            println!("b extra bytes: ");
-            println!("{:?}", &b[a.len()..]);
-            panic!("b is too big, expected {} bytes, got {}", a.len(), b.len());
-        } else {
-            panic!(
-                "b is too small, expected {} bytes, got {}",
-                a.len(),
-                b.len()
-            );
-        }
+#[cfg(test)]
+mod test {
+    #[test]
+    fn assert_bytes_eq1() {
+        super::assert_bytes_eq(&[1, 2, 3], &[1, 2, 3], "test");
+    }
+
+    #[test]
+    fn assert_bytes_eq2() {
+        // b is exactly 16 bytes long to test "b is too small" panic
+        super::assert_bytes_eq(
+            b"help i am stuck in a test case",
+            b"help i am stuck in a test case",
+            "test",
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn assert_bytes_eq_fail1() {
+        super::assert_bytes_eq(&[1, 2, 4], &[1, 2, 3], "test");
+    }
+
+    #[test]
+    #[should_panic]
+    fn assert_bytes_eq_fail2() {
+        super::assert_bytes_eq(&[1, 2, 3, 4], &[1, 2, 3], "test");
+    }
+
+    #[test]
+    #[should_panic]
+    fn assert_bytes_eq_fail3() {
+        super::assert_bytes_eq(&[1, 2, 3], &[1, 2, 3, 4], "test");
+    }
+
+    #[test]
+    #[should_panic]
+    fn assert_bytes_eq_fail4() {
+        // b is exactly 16 bytes long to test "b is too small" panic
+        super::assert_bytes_eq(
+            b"help i am stuck in a test case",
+            b"help i am stuck in a test cas",
+            "test",
+        );
     }
 }

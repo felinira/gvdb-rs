@@ -50,7 +50,7 @@ impl Display for GvdbHashItemType {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct GvdbHashItem {
     hash_value: u32,
     parent: u32,
@@ -120,5 +120,72 @@ impl GvdbHashItem {
 
     pub fn value_ptr(&self) -> &GvdbPointer {
         &self.value
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::read::{GvdbHashItem, GvdbHashItemType, GvdbPointer, GvdbReaderError};
+    use matches::assert_matches;
+
+    #[test]
+    fn derives() {
+        let typ = GvdbHashItemType::Value;
+        println!("{}, {:?}", typ, typ);
+        let typ = GvdbHashItemType::HashTable;
+        println!("{}, {:?}", typ, typ);
+        let typ = GvdbHashItemType::Container;
+        println!("{}, {:?}", typ, typ);
+
+        let item = GvdbHashItem::new(
+            0,
+            0,
+            GvdbPointer::NULL,
+            GvdbHashItemType::Value,
+            GvdbPointer::NULL,
+        );
+        let item2 = item.clone();
+        println!("{:?}", item2);
+    }
+
+    #[test]
+    fn type_try_from() {
+        assert_matches!(
+            GvdbHashItemType::try_from(b'v'),
+            Ok(GvdbHashItemType::Value)
+        );
+        assert_matches!(
+            GvdbHashItemType::try_from(b'H'),
+            Ok(GvdbHashItemType::HashTable)
+        );
+        assert_matches!(
+            GvdbHashItemType::try_from(b'L'),
+            Ok(GvdbHashItemType::Container)
+        );
+        assert_matches!(
+            GvdbHashItemType::try_from(b'x'),
+            Err(GvdbReaderError::InvalidData)
+        );
+        assert_matches!(
+            GvdbHashItemType::try_from(b'?'),
+            Err(GvdbReaderError::InvalidData)
+        );
+    }
+
+    #[test]
+    fn item() {
+        let item = GvdbHashItem::new(
+            0,
+            0,
+            GvdbPointer::NULL,
+            GvdbHashItemType::Value,
+            GvdbPointer::NULL,
+        );
+
+        assert_eq!(item.hash_value(), 0);
+        assert_eq!(item.parent(), 0);
+        assert_eq!(item.key_ptr(), GvdbPointer::NULL);
+        assert_matches!(item.typ(), Ok(GvdbHashItemType::Value));
+        assert_eq!(item.value_ptr(), &GvdbPointer::NULL);
     }
 }

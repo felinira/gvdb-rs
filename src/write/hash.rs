@@ -197,13 +197,3 @@ impl<'it, 'h> Iterator for SimpleHashTableIter<'it, 'h> {
         None
     }
 }
-/*
-impl<'a, 'b> IntoIterator for &'a SimpleHashTable<'b> {
-    type Item = (usize, Rc<GvdbBuilderItem<'a>>);
-    type IntoIter = SimpleHashTableIter<'a, 'b>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-*/
