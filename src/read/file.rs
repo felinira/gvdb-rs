@@ -401,6 +401,10 @@ pub(crate) mod test {
 
         let svg1: GResourceData = table.get("/gvdb/rs/test/online-symbolic.svg").unwrap();
 
+        // Convert back and forth to prove that works
+        let svg1_owned_value = zvariant::OwnedValue::from(svg1);
+        let svg1 = GResourceData::try_from(svg1_owned_value).unwrap();
+
         assert_eq!(svg1.size, 1390);
         assert_eq!(svg1.flags, 0);
         assert_eq!(svg1.size as usize, svg1.content.len() - 1);
@@ -613,5 +617,11 @@ pub(crate) mod test {
     }
 
     #[test]
-    fn value_for_item() {}
+    fn test_nested_dict_fail() {
+        let file2_name = TEST_FILE_DIR.to_string() + TEST_FILE_2;
+        let file = GvdbFile::from_file(&PathBuf::from(file2_name)).unwrap();
+        let table = file.hash_table().unwrap();
+        let res = table.get_hash_table("string");
+        assert_matches!(res, Err(GvdbReaderError::DataError(_)));
+    }
 }

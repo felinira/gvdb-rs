@@ -400,8 +400,13 @@ pub(crate) mod test {
         GvdbFile::from_bytes(Cow::Owned(cursor.into_inner())).unwrap()
     }
 
-    pub(super) fn new_simple_file() -> GvdbFile {
-        let writer = GvdbFileWriter::new();
+    pub(super) fn new_simple_file(big_endian: bool) -> GvdbFile {
+        let writer = if big_endian {
+            GvdbFileWriter::for_big_endian()
+        } else {
+            GvdbFileWriter::new()
+        };
+
         let mut table_builder = GvdbHashTableBuilder::new();
         table_builder.insert("test", "test").unwrap();
         let data = Vec::new();
@@ -471,7 +476,7 @@ pub(crate) mod test {
         let header = table.get_header();
         assert_eq!(header.n_buckets(), 0);
 
-        let file = new_simple_file();
+        let file = new_simple_file(false);
         let table = file.hash_table().unwrap();
         let header = table.get_header();
         assert_eq!(header.n_buckets(), 1);
@@ -494,42 +499,50 @@ pub(crate) mod test {
         let res = table.get_hash_item("test");
         assert_matches!(res, Err(GvdbReaderError::KeyError(_)));
 
-        let file = new_simple_file();
-        let table = file.hash_table().unwrap();
-        let item = table.get_hash_item("test").unwrap();
-        assert_ne!(item.value_ptr(), &GvdbPointer::NULL);
-        let value: String = table.get_value_for_item(&item).unwrap().try_into().unwrap();
-        assert_eq!(value, "test");
+        for endianess in [true, false] {
+            let file = new_simple_file(endianess);
+            let table = file.hash_table().unwrap();
+            let item = table.get_hash_item("test").unwrap();
+            assert_ne!(item.value_ptr(), &GvdbPointer::NULL);
+            let value: String = table.get_value_for_item(&item).unwrap().try_into().unwrap();
+            assert_eq!(value, "test");
 
-        let res_item = table.get_hash_item("test_fail");
-        assert_matches!(res_item, Err(GvdbReaderError::KeyError(_)));
+            let res_item = table.get_hash_item("test_fail");
+            assert_matches!(res_item, Err(GvdbReaderError::KeyError(_)));
+        }
     }
 
     #[test]
     fn get() {
-        let file = new_simple_file();
-        let table = file.hash_table().unwrap();
-        let res: String = table.get::<String>("test").unwrap().into();
-        assert_eq!(&res, "test");
+        for endianess in [true, false] {
+            let file = new_simple_file(endianess);
+            let table = file.hash_table().unwrap();
+            let res: String = table.get::<String>("test").unwrap().into();
+            assert_eq!(&res, "test");
 
-        let res = table.get::<i32>("test");
-        assert_matches!(res, Err(GvdbReaderError::DataError(_)));
+            let res = table.get::<i32>("test");
+            assert_matches!(res, Err(GvdbReaderError::DataError(_)));
+        }
     }
 
     #[test]
     fn get_bloom_word() {
-        let file = new_simple_file();
-        let table = file.hash_table().unwrap();
-        let res = table.get_bloom_word(0);
-        assert_matches!(res, Err(GvdbReaderError::DataOffset));
+        for endianess in [true, false] {
+            let file = new_simple_file(endianess);
+            let table = file.hash_table().unwrap();
+            let res = table.get_bloom_word(0);
+            assert_matches!(res, Err(GvdbReaderError::DataOffset));
+        }
     }
 
     #[test]
     fn bloom_shift() {
-        let file = new_simple_file();
-        let table = file.hash_table().unwrap();
-        let res = table.bloom_shift();
-        assert_eq!(res, 0);
+        for endianess in [true, false] {
+            let file = new_simple_file(endianess);
+            let table = file.hash_table().unwrap();
+            let res = table.bloom_shift();
+            assert_eq!(res, 0);
+        }
     }
 }
 
@@ -539,9 +552,11 @@ mod test_glib {
 
     #[test]
     fn get_gvariant() {
-        let file = super::test::new_simple_file();
-        let table = file.hash_table().unwrap();
-        let res: glib::Variant = table.get_gvariant("test").unwrap().get().unwrap();
-        assert_eq!(&res, &"test".to_variant());
+        for endianess in [true, false] {
+            let file = super::test::new_simple_file(endianess);
+            let table = file.hash_table().unwrap();
+            let res: glib::Variant = table.get_gvariant("test").unwrap().get().unwrap();
+            assert_eq!(&res, &"test".to_variant());
+        }
     }
 }
