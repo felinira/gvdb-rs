@@ -110,12 +110,15 @@ impl<'a> GResourceFileData<'a> {
         compressed: bool,
         preprocess: &PreprocessOptions,
     ) -> GResourceBuilderResult<Self> {
-        let mut open_file = std::fs::File::open(file_path)
-            .map_err(|err| GResourceBuilderError::Io(err, Some(file_path.to_path_buf())))?;
+        let mut open_file = std::fs::File::open(file_path).map_err(
+            GResourceBuilderError::from_io_with_filename(Some(file_path)),
+        )?;
         let mut data = Vec::new();
         open_file
             .read_to_end(&mut data)
-            .map_err(|err| GResourceBuilderError::Io(err, Some(file_path.to_path_buf())))?;
+            .map_err(GResourceBuilderError::from_io_with_filename(Some(
+                file_path,
+            )))?;
         GResourceFileData::new(
             key,
             Cow::Owned(data),
@@ -146,9 +149,9 @@ impl<'a> GResourceFileData<'a> {
                 .map_err(|err| GResourceBuilderError::XmlRead(err, path.clone()))?
                 .as_writer_event()
             {
-                event_writer
-                    .write(writer_event)
-                    .map_err(|err| GResourceBuilderError::XmlWrite(err, path.clone()))?;
+                if let Err(err) = event_writer.write(writer_event) {
+                    return Err(GResourceBuilderError::XmlWrite(err, path.clone()));
+                }
             }
         }
 
@@ -167,7 +170,7 @@ impl<'a> GResourceFileData<'a> {
         )
         .map_err(|err| GResourceBuilderError::Json(err, path.clone()))?;
         json.write(&mut output)
-            .map_err(|err| GResourceBuilderError::Io(err, path))?;
+            .map_err(GResourceBuilderError::from_io_with_filename(path))?;
 
         output.push(b'\n');
 
@@ -204,12 +207,10 @@ impl<'a> GResourceFileData<'a> {
         let mut encoder = ZlibEncoder::new(Vec::new(), flate2::Compression::best());
         encoder
             .write_all(&data)
-            .map_err(|err| GResourceBuilderError::Io(err, path.clone()))?;
-        Ok(Cow::Owned(
-            encoder
-                .finish()
-                .map_err(|err| GResourceBuilderError::Io(err, path))?,
-        ))
+            .map_err(GResourceBuilderError::from_io_with_filename(path.clone()))?;
+        Ok(Cow::Owned(encoder.finish().map_err(
+            GResourceBuilderError::from_io_with_filename(path),
+        )?))
     }
 
     /// Return the `key` of this `FileData`
@@ -375,11 +376,11 @@ impl<'a> GResourceBuilder<'a> {
             let entry = match res {
                 Ok(entry) => entry,
                 Err(err) => {
-                    let path = PathBuf::from(err.path().unwrap_or_else(|| Path::new("")));
+                    let path = err.path().map(|p| p.to_path_buf());
                     return if err.io_error().is_some() {
                         Err(GResourceBuilderError::Io(
                             err.into_io_error().unwrap(),
-                            Some(path),
+                            path,
                         ))
                     } else {
                         Err(GResourceBuilderError::Generic(err.to_string()))
@@ -475,6 +476,8 @@ mod test {
     use crate::read::test::{assert_is_file_3, byte_compare_file_3};
     use crate::read::GvdbFile;
     use matches::assert_matches;
+    use std::ffi::OsStr;
+    use zvariant::Type;
 
     const GRESOURCE_XML: &str = "test/data/gresource/test3.gresource.xml";
     const GRESOURCE_DIR: &str = "test/data/gresource";
@@ -487,40 +490,46 @@ mod test {
         for file in builder.files {
             assert!(file.key().starts_with("/gvdb/rs/test"));
 
-            if !vec![
-                "/gvdb/rs/test/online-symbolic.svg",
-                "/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg",
-                "/gvdb/rs/test/json/test.json",
-            ]
-            .contains(&&*file.key())
-            {
-                panic!("Unknown file with key: {}", file.key())
-            }
+            assert!(
+                vec![
+                    "/gvdb/rs/test/online-symbolic.svg",
+                    "/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg",
+                    "/gvdb/rs/test/json/test.json",
+                    "/gvdb/rs/test/test.css",
+                ]
+                .contains(&&*file.key()),
+                "Unknown file with key: {}",
+                file.key()
+            )
         }
     }
 
     #[test]
     fn from_dir_file_data() {
-        let builder = GResourceBuilder::from_directory(
-            "/gvdb/rs/test",
-            &PathBuf::from(GRESOURCE_DIR),
-            true,
-            true,
-        )
-        .unwrap();
+        for preprocess in [true, false] {
+            let builder = GResourceBuilder::from_directory(
+                "/gvdb/rs/test",
+                &PathBuf::from(GRESOURCE_DIR),
+                preprocess,
+                preprocess,
+            )
+            .unwrap();
 
-        for file in builder.files {
-            assert!(file.key().starts_with("/gvdb/rs/test"));
+            for file in builder.files {
+                assert!(file.key().starts_with("/gvdb/rs/test"));
 
-            if !vec![
-                "/gvdb/rs/test/icons/scalable/actions/online-symbolic.svg",
-                "/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg",
-                "/gvdb/rs/test/json/test.json",
-                "/gvdb/rs/test/test3.gresource.xml",
-            ]
-            .contains(&&*file.key())
-            {
-                panic!("Unknown file with key: {}", file.key())
+                assert!(
+                    vec![
+                        "/gvdb/rs/test/icons/scalable/actions/online-symbolic.svg",
+                        "/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg",
+                        "/gvdb/rs/test/json/test.json",
+                        "/gvdb/rs/test/test.css",
+                        "/gvdb/rs/test/test3.gresource.xml",
+                    ]
+                    .contains(&&*file.key()),
+                    "Unknown file with key: {}",
+                    file.key()
+                );
             }
         }
     }
@@ -530,8 +539,8 @@ mod test {
         let res = GResourceBuilder::from_directory(
             "/gvdb/rs/test",
             &PathBuf::from("INVALID_DIR"),
-            true,
-            true,
+            false,
+            false,
         );
 
         assert!(res.is_err());
@@ -577,6 +586,7 @@ mod test {
             "/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg",
             "/gvdb/rs/test/json/",
             "/gvdb/rs/test/json/test.json",
+            "/gvdb/rs/test/test.css",
         ];
         assert_eq!(names, reference_names);
 
@@ -596,5 +606,127 @@ mod test {
         // Check for null byte
         assert_eq!(svg2_data[svg2_data.len() - 1], 0);
         assert_eq!(svg2_size as usize, svg2_data.len() - 1);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_from_dir_invalid() {
+        use std::os::unix::ffi::OsStrExt;
+        let invalid_utf8 = OsStr::from_bytes(&[0xC3, 0x28]);
+        let mut dir: PathBuf = ["test", "temp2"].iter().collect();
+        dir.push(invalid_utf8);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::File::create(dir.join("test.xml")).unwrap();
+        let res = GResourceBuilder::from_directory("test", &dir.parent().unwrap(), false, false);
+        let _ = std::fs::remove_file(dir.join("test.xml"));
+        let _ = std::fs::remove_dir(&dir);
+        std::fs::remove_dir(dir.parent().unwrap()).unwrap();
+
+        let err = res.unwrap_err();
+        println!("{}", err);
+        assert_matches!(err, GResourceBuilderError::Generic(_));
+        assert!(format!("{}", err).contains("UTF-8"));
+    }
+
+    #[test]
+    fn test_from_file_data() {
+        let path = PathBuf::from(GRESOURCE_DIR).join("json").join("test.json");
+        let file_data = GResourceFileData::from_file(
+            "test.json".to_string(),
+            &path,
+            false,
+            &PreprocessOptions::empty(),
+        )
+        .unwrap();
+        println!("{:?}", file_data);
+
+        let builder = GResourceBuilder::from_file_data(vec![file_data]);
+        println!("{:?}", builder);
+        let _ = builder.build().unwrap();
+    }
+
+    #[test]
+    fn to_pixdata() {
+        let path = PathBuf::from(GRESOURCE_DIR).join("json").join("test.json");
+        let mut options = PreprocessOptions::empty();
+        options.to_pixdata = true;
+        assert_matches!(
+            GResourceFileData::from_file("test.json".to_string(), &path, false, &options),
+            Err(GResourceBuilderError::Unimplemented(_))
+        );
+    }
+
+    #[test]
+    fn xml_stripblanks() {
+        let xml = "<invalid";
+        let err = GResourceFileData::new(
+            "test".to_string(),
+            Cow::Borrowed(xml.as_bytes()),
+            None,
+            false,
+            &PreprocessOptions::xml_stripblanks(),
+        )
+        .unwrap_err();
+
+        assert_matches!(err, GResourceBuilderError::XmlRead(_, _));
+        assert!(format!("{:?}", err).contains("Unexpected end of"));
+    }
+
+    #[test]
+    fn json_stripblanks() {
+        let invalid_utf8 = [0xC3, 0x28];
+        let err = GResourceFileData::new(
+            "test".to_string(),
+            Cow::Borrowed(&invalid_utf8),
+            None,
+            false,
+            &PreprocessOptions::json_stripblanks(),
+        )
+        .unwrap_err();
+
+        assert_matches!(err, GResourceBuilderError::Utf8(..));
+        assert!(format!("{:?}", err).contains("UTF-8"));
+
+        let invalid_json = r#"{ "test": : }"#.as_bytes();
+        let err = GResourceFileData::new(
+            "test".to_string(),
+            Cow::Borrowed(invalid_json),
+            None,
+            false,
+            &PreprocessOptions::json_stripblanks(),
+        )
+        .unwrap_err();
+
+        assert_matches!(err, GResourceBuilderError::Json(..));
+        assert!(format!("{:?}", err).contains("Unexpected character"));
+
+        let valid_json = r#"{ "test": "test" }"#.as_bytes();
+        let data = GResourceFileData::new(
+            "test".to_string(),
+            Cow::Borrowed(valid_json),
+            None,
+            false,
+            &PreprocessOptions::json_stripblanks(),
+        )
+        .unwrap();
+
+        let json = std::str::from_utf8(&data.data).unwrap();
+        assert_eq!(json, "{\"test\":\"test\"}\n\0");
+    }
+
+    #[test]
+    fn derives_data() {
+        let data = GResourceData {
+            size: 3,
+            flags: 0,
+            data: vec![1, 2, 3],
+        };
+
+        let sig = GResourceData::signature();
+        assert_eq!(sig, "(uuay)");
+        let owned = zvariant::OwnedValue::from(data);
+        let data = GResourceData::try_from(owned).unwrap();
+        let value: zvariant::Value = data.into();
+        let _: GResourceData = value.try_into().unwrap();
     }
 }

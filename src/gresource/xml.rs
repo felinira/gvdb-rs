@@ -1,13 +1,13 @@
 use crate::gresource::error::{GResourceXMLError, GResourceXMLResult};
 use serde::de::Error;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_xml_rs::{Deserializer, EventReader, ParserConfig};
 use std::borrow::Cow;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
 /// A GResource XML document
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct GResourceXMLDocument {
@@ -21,7 +21,7 @@ pub struct GResourceXMLDocument {
 }
 
 /// A GResource section inside a GResource XML document
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct GResource {
@@ -35,7 +35,7 @@ pub struct GResource {
 }
 
 /// A file within a GResource section
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct File {
@@ -56,7 +56,7 @@ pub struct File {
 }
 
 /// Preprocessing options for files that will be put in a GResource
-#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct PreprocessOptions {
     /// Strip whitespace from XML file
@@ -137,30 +137,41 @@ where
 impl GResourceXMLDocument {
     /// Load a GResource XML file from disk using `path`
     pub fn from_file(path: &Path) -> GResourceXMLResult<Self> {
-        let mut file = std::fs::File::open(path)
-            .map_err(|err| GResourceXMLError::Io(err, Some(path.to_path_buf())))?;
+        let mut file =
+            std::fs::File::open(path).map_err(GResourceXMLError::from_io_with_filename(path))?;
         let mut data = Vec::with_capacity(
             file.metadata()
-                .map_err(|err| GResourceXMLError::Io(err, Some(path.to_path_buf())))?
+                .map_err(GResourceXMLError::from_io_with_filename(path))?
                 .len() as usize,
         );
         file.read_to_end(&mut data)
-            .map_err(|err| GResourceXMLError::Io(err, Some(path.to_path_buf())))?;
+            .map_err(GResourceXMLError::from_io_with_filename(path))?;
 
         let dir = path.parent().unwrap();
-        Self::from_bytes(dir, Cow::Owned(data))
+        Self::from_bytes_with_filename(dir, Some(path), Cow::Owned(data))
     }
 
-    /// Load a GResource XML file from the provided `Cow<[u8]>` bytes
-    pub fn from_bytes(dir: &Path, data: Cow<'_, [u8]>) -> GResourceXMLResult<Self> {
+    /// Load a GResource XML file from the provided `Cow<[u8]>` bytes. A filename is provided for
+    /// error context
+    fn from_bytes_with_filename(
+        dir: &Path,
+        filename: Option<&Path>,
+        data: Cow<'_, [u8]>,
+    ) -> GResourceXMLResult<Self> {
         let config = ParserConfig::new()
             .trim_whitespace(true)
             .ignore_comments(true);
         let event_reader = EventReader::new_with_config(&*data, config);
 
-        let mut this = Self::deserialize(&mut Deserializer::new(event_reader))?;
+        let mut this = Self::deserialize(&mut Deserializer::new(event_reader))
+            .map_err(GResourceXMLError::from_serde_with_filename(filename))?;
         this.dir = dir.to_path_buf();
         Ok(this)
+    }
+
+    /// Load a GResource XML file from the provided `Cow<[u8]>` bytes
+    pub fn from_bytes(dir: &Path, data: Cow<'_, [u8]>) -> GResourceXMLResult<Self> {
+        Self::from_bytes_with_filename(dir, None, data)
     }
 
     /// Load a GResource XML file from a `&str` or `String`
@@ -177,16 +188,18 @@ mod test {
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn test_deserialize_simple() {
+    fn deserialize_simple() {
         let test_path = PathBuf::from("/TEST");
 
-        let data = r#"<gresources><gresource><file compressed="false">test</file></gresource></gresources>"#;
+        let data = r#"<gresources><gresource><file compressed="false" preprocess="xml-stripblanks">test</file></gresource></gresources>"#;
         let doc =
             GResourceXMLDocument::from_bytes(&test_path, Cow::Borrowed(data.as_bytes())).unwrap();
+        println!("{:?}", doc);
+        assert_eq!(doc, doc);
         assert_eq!(doc.gresources.len(), 1);
         assert_eq!(doc.gresources[0].files.len(), 1);
         assert_eq!(doc.gresources[0].files[0].filename, "test");
-        assert_eq!(doc.gresources[0].files[0].preprocess.xml_stripblanks, false);
+        assert_eq!(doc.gresources[0].files[0].preprocess.xml_stripblanks, true);
         assert_eq!(
             doc.gresources[0].files[0].preprocess.json_stripblanks,
             false
@@ -196,7 +209,7 @@ mod test {
     }
 
     #[test]
-    fn test_deserialize_complex() {
+    fn deserialize_complex() {
         let test_path = PathBuf::from("/TEST");
 
         let data = r#"<gresources><gresource prefix="/bla/blub"><file compressed="true" preprocess="json-stripblanks,to-pixdata">test.json</file></gresource></gresources>"#;
@@ -213,18 +226,27 @@ mod test {
     }
 
     #[test]
-    fn test_deserialize_fail() {
+    fn deserialize_fail() {
         let test_path = PathBuf::from("/TEST");
 
+        let res = GResourceXMLDocument::from_string(&test_path, r#"<wrong></wrong>"#);
+        assert!(format!("{:?}", res).contains("parsing XML"));
         assert_matches!(
-            GResourceXMLDocument::from_string(&test_path, r#"<wrong></wrong>"#),
+            res,
             Err(GResourceXMLError::Serde(serde_xml_rs::Error::Custom {
                 field
             }, _)) if field == "missing field `gresource`"
         );
 
+        let string = r#"<gresources><gresource><file></file></gresource></gresources>"#.to_string();
+        let res = GResourceXMLDocument::from_bytes_with_filename(
+            &test_path,
+            Some(&PathBuf::from("test_filename")),
+            Cow::Borrowed(string.as_bytes()),
+        );
+        assert!(format!("{:?}", res).contains("test_filename"));
         assert_matches!(
-            GResourceXMLDocument::from_string(&test_path, r#"<gresources><gresource><file></file></gresource></gresources>"#),
+            res,
             Err(GResourceXMLError::Serde(serde_xml_rs::Error::Custom {
                 field
             }, _)) if field == "missing field `$value`"
@@ -257,5 +279,20 @@ mod test {
                 field
             }, _)) if field.starts_with("unknown field `wrong`, expected one of")
         );
+
+        assert_matches!(
+            GResourceXMLDocument::from_string(&test_path, r#"<gresources><gresource><file preprocess="fail">filename</file></gresource></gresources>"#),
+            Err(GResourceXMLError::Serde(serde_xml_rs::Error::Custom {
+                field
+            }, _)) if field.starts_with("got 'fail' but expected any of")
+        );
+    }
+
+    #[test]
+    fn io_error() {
+        let test_path = PathBuf::from("invalid_file_name.xml");
+        let res = GResourceXMLDocument::from_file(&test_path);
+        assert_matches!(res, Err(GResourceXMLError::Io(_, _)));
+        assert!(format!("{:?}", res).contains("invalid_file_name.xml"));
     }
 }

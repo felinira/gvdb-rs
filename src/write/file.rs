@@ -597,6 +597,7 @@ mod test {
     use crate::read::GvdbFile;
     use matches::assert_matches;
     use std::borrow::Cow;
+    use std::io::Cursor;
 
     use crate::test::assert_bytes_eq;
     #[allow(unused_imports)]
@@ -742,6 +743,21 @@ mod test {
             file.serialize_to_vec(1),
             Err(GvdbWriterError::Consistency(_))
         );
+    }
+
+    #[test]
+    fn io_error() {
+        let file = GvdbFileWriter::new();
+
+        // This buffer is intentionally too small to result in I/O error
+        let buffer = [0u8; 10];
+        let mut cursor = Cursor::new(buffer);
+        let mut table = GvdbHashTableBuilder::new();
+        table.insert("test", "test").unwrap();
+        let err = file.write_with_table(table, &mut cursor).unwrap_err();
+        assert_matches!(err, GvdbWriterError::Io(_, _));
+        assert!(format!("{}", err).contains("I/O error"));
+        assert!(format!("{:?}", err).contains("I/O error"));
     }
 }
 

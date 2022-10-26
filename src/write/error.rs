@@ -56,3 +56,16 @@ impl Debug for GvdbWriterError {
 
 /// The Result type for [`GvdbWriterError`]
 pub type GvdbBuilderResult<T> = Result<T, GvdbWriterError>;
+
+#[cfg(test)]
+mod test {
+    use super::GvdbWriterError;
+
+    #[test]
+    fn from() {
+        let err = GvdbWriterError::from(zvariant::Error::Message("Test".to_string()));
+        use matches::assert_matches;
+        assert_matches!(err, GvdbWriterError::ZVariant(_));
+        assert!(format!("{}", err).contains("ZVariant"));
+    }
+}

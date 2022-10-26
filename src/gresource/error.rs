@@ -1,5 +1,6 @@
 use crate::write::GvdbWriterError;
 use std::fmt::{Debug, Display, Formatter};
+use std::path::{Path, PathBuf};
 
 /// Error when parsing a GResource XML file
 pub enum GResourceXMLError {
@@ -10,19 +11,23 @@ pub enum GResourceXMLError {
     Io(std::io::Error, Option<std::path::PathBuf>),
 }
 
+impl GResourceXMLError {
+    pub(crate) fn from_io_with_filename(
+        filename: &Path,
+    ) -> impl FnOnce(std::io::Error) -> GResourceXMLError {
+        let path = filename.to_path_buf();
+        move |err| GResourceXMLError::Io(err, Some(path))
+    }
+
+    pub(crate) fn from_serde_with_filename(
+        filename: Option<&Path>,
+    ) -> impl FnOnce(serde_xml_rs::Error) -> GResourceXMLError {
+        let path = filename.map(|f| f.to_path_buf());
+        move |err| GResourceXMLError::Serde(err, path)
+    }
+}
+
 impl std::error::Error for GResourceXMLError {}
-
-impl From<serde_xml_rs::Error> for GResourceXMLError {
-    fn from(err: serde_xml_rs::Error) -> Self {
-        Self::Serde(err, None)
-    }
-}
-
-impl From<std::io::Error> for GResourceXMLError {
-    fn from(err: std::io::Error) -> Self {
-        Self::Io(err, None)
-    }
-}
 
 impl Display for GResourceXMLError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -81,41 +86,23 @@ pub enum GResourceBuilderError {
     Generic(String),
 }
 
+impl GResourceBuilderError {
+    pub(crate) fn from_io_with_filename<P>(
+        filename: Option<P>,
+    ) -> impl FnOnce(std::io::Error) -> GResourceBuilderError
+    where
+        P: Into<PathBuf>,
+    {
+        let path = filename.map(|p| p.into());
+        move |err| GResourceBuilderError::Io(err, path)
+    }
+}
+
 impl std::error::Error for GResourceBuilderError {}
 
 impl From<GvdbWriterError> for GResourceBuilderError {
     fn from(err: GvdbWriterError) -> Self {
         Self::Gvdb(err)
-    }
-}
-
-impl From<xml::reader::Error> for GResourceBuilderError {
-    fn from(err: xml::reader::Error) -> Self {
-        Self::XmlRead(err, None)
-    }
-}
-
-impl From<xml::writer::Error> for GResourceBuilderError {
-    fn from(err: xml::writer::Error) -> Self {
-        Self::XmlWrite(err, None)
-    }
-}
-
-impl From<std::io::Error> for GResourceBuilderError {
-    fn from(err: std::io::Error) -> Self {
-        Self::Io(err, None)
-    }
-}
-
-impl From<json::Error> for GResourceBuilderError {
-    fn from(err: json::Error) -> Self {
-        Self::Json(err, None)
-    }
-}
-
-impl From<std::string::FromUtf8Error> for GResourceBuilderError {
-    fn from(err: std::string::FromUtf8Error) -> Self {
-        Self::Utf8(err, None)
     }
 }
 
@@ -193,3 +180,28 @@ impl Debug for GResourceBuilderError {
 
 /// Result type for [`GResourceBuilderError`]
 pub type GResourceBuilderResult<T> = Result<T, GResourceBuilderError>;
+
+#[cfg(test)]
+mod test {
+    use crate::gresource::{GResourceBuilderError, GResourceXMLError};
+    use crate::write::GvdbWriterError;
+
+    #[test]
+    fn from() {
+        let io_res = std::fs::File::open("test/invalid_file_name");
+        let err = GResourceXMLError::Io(io_res.unwrap_err(), None);
+        assert!(format!("{}", err).contains("I/O"));
+
+        let io_res = std::fs::File::open("test/invalid_file_name");
+        let err = GResourceBuilderError::Io(io_res.unwrap_err(), None);
+        assert!(format!("{}", err).contains("I/O"));
+
+        let io_res = std::fs::File::open("test/invalid_file_name");
+        let err = GResourceBuilderError::from_io_with_filename(Some("test"))(io_res.unwrap_err());
+        assert!(format!("{}", err).contains("test"));
+
+        let writer_error = GvdbWriterError::Consistency("test".to_string());
+        let err = GResourceBuilderError::from(writer_error);
+        assert!(format!("{}", err).contains("test"));
+    }
+}

@@ -277,10 +277,12 @@ pub(crate) mod test {
     use crate::read::file::GvdbFile;
     use crate::read::hash::test::byte_compare_gvdb_hash_table;
     use std::borrow::Cow;
+    use std::ffi::OsStr;
     use std::io::Read;
     use std::path::PathBuf;
     use std::str::FromStr;
 
+    use crate::gresource::{GResourceBuilder, GResourceBuilderError};
     use crate::read::{GvdbHeader, GvdbPointer, GvdbReaderError};
     use crate::test::assert_bytes_eq;
     use matches::assert_matches;
@@ -294,7 +296,6 @@ pub(crate) mod test {
     const TEST_FILE_3: &str = "test3.gresource";
 
     pub fn byte_compare_gvdb_file(a: &GvdbFile, b: &GvdbFile) {
-        assert_eq!(a.data.as_ref().len(), b.data.as_ref().len());
         assert_eq!(a.get_header().unwrap(), b.get_header().unwrap());
 
         let a_hash = a.hash_table().unwrap();
@@ -388,6 +389,7 @@ pub(crate) mod test {
             "/gvdb/rs/test/json/",
             "/gvdb/rs/test/json/test.json",
             "/gvdb/rs/test/online-symbolic.svg",
+            "/gvdb/rs/test/test.css",
         ];
         assert_eq!(names, reference_names);
 
@@ -525,6 +527,35 @@ pub(crate) mod test {
             GvdbFile::from_bytes(Cow::Owned(data)),
             Err(GvdbReaderError::DataError(_))
         );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn invalid_utf8_filename() {
+        use std::os::unix::ffi::OsStrExt;
+        let temp_path: PathBuf = ["test", "temp"].iter().collect();
+        let mut invalid_path = temp_path.clone();
+
+        invalid_path.push(OsStr::from_bytes(&[0xC3, 0x28]));
+        std::fs::create_dir_all(PathBuf::from(&temp_path)).unwrap();
+        let _ = std::fs::File::create(&invalid_path).unwrap();
+
+        let res = GResourceBuilder::from_directory(
+            "test",
+            &PathBuf::from(temp_path.clone()),
+            false,
+            false,
+        );
+
+        let _ = std::fs::remove_file(invalid_path);
+        std::fs::remove_dir(temp_path).unwrap();
+
+        let err = res.unwrap_err();
+        assert_matches!(err, GResourceBuilderError::Generic(_));
+        assert!(err.to_string().contains("UTF-8"));
+
+        assert_matches!(err, GResourceBuilderError::Generic(_));
+        assert!(err.to_string().contains("UTF-8"));
     }
 
     #[test]

@@ -2,3 +2,4 @@
 Cargo.lock
 *.o
 test/c/create-test-files
+test/temp*

@@ -50,12 +50,6 @@ impl From<FromUtf8Error> for GvdbReaderError {
     }
 }
 
-impl From<std::io::Error> for GvdbReaderError {
-    fn from(err: std::io::Error) -> Self {
-        Self::Io(err, None)
-    }
-}
-
 impl From<zvariant::Error> for GvdbReaderError {
     fn from(err: zvariant::Error) -> Self {
         Self::ZVariant(err)
@@ -82,7 +76,7 @@ impl<S, T> From<safe_transmute::Error<'_, S, T>> for GvdbReaderError {
                         actual - required
                     ))
                 } else {
-                    Self::DataError(format!("Missing {} bytes to read data", actual - required))
+                    Self::DataError(format!("Missing {} bytes to read data", required - actual))
                 }
             }
             safe_transmute::Error::Unaligned(_) => {
@@ -141,3 +135,72 @@ impl Display for GvdbReaderError {
 
 /// The Result type for [`GvdbReaderError`]
 pub type GvdbReaderResult<T> = Result<T, GvdbReaderError>;
+
+#[cfg(test)]
+mod test {
+    use crate::read::{GvdbHeader, GvdbPointer, GvdbReaderError};
+    use matches::assert_matches;
+    use safe_transmute::{transmute_one_pedantic, transmute_one_to_bytes, transmute_vec};
+    use std::num::TryFromIntError;
+
+    #[test]
+    fn derives() {
+        let err = GvdbReaderError::InvalidData;
+        assert!(format!("{:?}", err).contains("InvalidData"));
+        assert!(format!("{}", err).contains("Unexpected data"));
+    }
+
+    #[test]
+    fn from() {
+        let io_res = std::fs::File::open("test/invalid_file_name");
+        let err = GvdbReaderError::Io(io_res.unwrap_err(), None);
+        assert!(format!("{}", err).contains("I/O"));
+
+        let utf8_err = String::from_utf8([0xC3, 0x28].to_vec()).unwrap_err();
+        let err = GvdbReaderError::from(utf8_err);
+        assert!(format!("{}", err).contains("UTF-8"));
+
+        let res: Result<u16, TryFromIntError> = u32::MAX.try_into();
+        let err = GvdbReaderError::from(res.unwrap_err());
+        assert_matches!(err, GvdbReaderError::DataOffset);
+        assert!(format!("{}", err).contains("data offset"));
+
+        let err = GvdbReaderError::DataError("my data error".to_string());
+        assert!(format!("{}", err).contains("my data error"));
+
+        let err = GvdbReaderError::KeyError("test".to_string());
+        assert!(format!("{}", err).contains("test"));
+
+        let err = GvdbReaderError::from(zvariant::Error::Message("test".to_string()));
+        assert!(format!("{}", err).contains("test"));
+
+        let to_transmute = GvdbHeader::new(false, 0, GvdbPointer::NULL);
+        let mut bytes = transmute_one_to_bytes(&to_transmute).to_vec();
+        bytes.extend_from_slice(b"fail");
+        let res = transmute_one_pedantic::<GvdbHeader>(&bytes);
+        let err = GvdbReaderError::from(res.unwrap_err());
+        assert_matches!(err, GvdbReaderError::DataError(_));
+        assert!(format!("{}", err).contains("unexpected trailing bytes"));
+
+        let to_transmute = GvdbHeader::new(false, 0, GvdbPointer::NULL);
+        let mut bytes = transmute_one_to_bytes(&to_transmute).to_vec();
+        bytes.remove(bytes.len() - 1);
+        let res = transmute_one_pedantic::<GvdbHeader>(&bytes);
+        let err = GvdbReaderError::from(res.unwrap_err());
+        assert_matches!(err, GvdbReaderError::DataError(_));
+        assert!(format!("{}", err).contains("Missing 1 bytes"));
+
+        let to_transmute = GvdbHeader::new(false, 0, GvdbPointer::NULL);
+        let mut bytes = b"unalign".to_vec();
+        bytes.extend_from_slice(transmute_one_to_bytes(&to_transmute));
+        let res = transmute_one_pedantic::<GvdbHeader>(&bytes[7..]);
+        let err = GvdbReaderError::from(res.unwrap_err());
+        assert_matches!(err, GvdbReaderError::DataError(_));
+        assert!(format!("{}", err).contains("Unaligned"));
+
+        let bytes = vec![0u8; 5];
+        let res = transmute_vec::<u8, GvdbHeader>(bytes);
+        let err = GvdbReaderError::from(res.unwrap_err());
+        assert_matches!(err, GvdbReaderError::InvalidData);
+    }
+}
