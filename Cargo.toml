@@ -8,6 +8,7 @@ license = "MIT"
 keywords = [ "gvdb", "glib", "gresource", "compile-resources" ]
 categories = [ "gui", "data-structures", "encoding" ]
 exclude = [ ".github", ".idea" ]
+rust-version = "1.65"
 
 [package.metadata.docs.rs]
 all-features = true
