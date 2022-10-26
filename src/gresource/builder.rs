@@ -389,12 +389,12 @@ impl<'a> GResourceBuilder<'a> {
             };
 
             if entry.path().is_file() {
-                let filename = entry.file_name().to_str().ok_or_else(|| {
-                    GResourceBuilderError::Generic(format!(
+                let Some(filename) = entry.file_name().to_str() else {
+                    return Err(GResourceBuilderError::Generic(format!(
                         "Filename '{}' contains invalid UTF-8 characters",
                         entry.file_name().to_string_lossy()
-                    ))
-                })?;
+                    )));
+                };
 
                 for name in skipped_file_names {
                     if filename.ends_with(name) {
@@ -412,15 +412,16 @@ impl<'a> GResourceBuilder<'a> {
                 }
 
                 let file_abs_path = entry.path();
-                let file_path_relative = file_abs_path.strip_prefix(directory).map_err(|_| {
-                    GResourceBuilderError::Generic("Strip prefix error".to_string())
-                })?;
-                let file_path_str_relative = file_path_relative.to_str().ok_or_else(|| {
-                    GResourceBuilderError::Generic(format!(
+                let Ok(file_path_relative) = file_abs_path.strip_prefix(directory) else {
+                    return Err(GResourceBuilderError::Generic("Strip prefix error".to_string()));
+                };
+
+                let Some(file_path_str_relative) = file_path_relative.to_str() else {
+                    return Err(GResourceBuilderError::Generic(format!(
                         "Filename '{}' contains invalid UTF-8 characters",
                         file_path_relative.display()
-                    ))
-                })?;
+                    )));
+                };
 
                 let options = if strip_blanks && file_path_str_relative.ends_with(".json") {
                     PreprocessOptions::json_stripblanks()
@@ -650,55 +651,60 @@ mod test {
         let path = PathBuf::from(GRESOURCE_DIR).join("json").join("test.json");
         let mut options = PreprocessOptions::empty();
         options.to_pixdata = true;
-        assert_matches!(
-            GResourceFileData::from_file("test.json".to_string(), &path, false, &options),
-            Err(GResourceBuilderError::Unimplemented(_))
-        );
+        let err = GResourceFileData::from_file("test.json".to_string(), &path, false, &options)
+            .unwrap_err();
+        assert_matches!(err, GResourceBuilderError::Unimplemented(_));
+        assert!(format!("{}", err).contains("to-pixdata is deprecated"));
     }
 
     #[test]
     fn xml_stripblanks() {
-        let xml = "<invalid";
-        let err = GResourceFileData::new(
-            "test".to_string(),
-            Cow::Borrowed(xml.as_bytes()),
-            None,
-            false,
-            &PreprocessOptions::xml_stripblanks(),
-        )
-        .unwrap_err();
+        for path in [Some(PathBuf::from("test")), None] {
+            let xml = "<invalid";
+            let err = GResourceFileData::new(
+                "test".to_string(),
+                Cow::Borrowed(xml.as_bytes()),
+                path,
+                false,
+                &PreprocessOptions::xml_stripblanks(),
+            )
+            .unwrap_err();
 
-        assert_matches!(err, GResourceBuilderError::XmlRead(_, _));
-        assert!(format!("{:?}", err).contains("Unexpected end of"));
+            assert_matches!(err, GResourceBuilderError::XmlRead(_, _));
+            assert!(format!("{}", err).contains("Error reading XML"));
+            assert!(format!("{:?}", err).contains("Unexpected end of"));
+        }
     }
 
     #[test]
     fn json_stripblanks() {
-        let invalid_utf8 = [0xC3, 0x28];
-        let err = GResourceFileData::new(
-            "test".to_string(),
-            Cow::Borrowed(&invalid_utf8),
-            None,
-            false,
-            &PreprocessOptions::json_stripblanks(),
-        )
-        .unwrap_err();
+        for path in [Some(PathBuf::from("test")), None] {
+            let invalid_utf8 = [0xC3, 0x28];
+            let err = GResourceFileData::new(
+                "test".to_string(),
+                Cow::Borrowed(&invalid_utf8),
+                path.clone(),
+                false,
+                &PreprocessOptions::json_stripblanks(),
+            )
+            .unwrap_err();
 
-        assert_matches!(err, GResourceBuilderError::Utf8(..));
-        assert!(format!("{:?}", err).contains("UTF-8"));
+            assert_matches!(err, GResourceBuilderError::Utf8(..));
+            assert!(format!("{:?}", err).contains("UTF-8"));
 
-        let invalid_json = r#"{ "test": : }"#.as_bytes();
-        let err = GResourceFileData::new(
-            "test".to_string(),
-            Cow::Borrowed(invalid_json),
-            None,
-            false,
-            &PreprocessOptions::json_stripblanks(),
-        )
-        .unwrap_err();
+            let invalid_json = r#"{ "test": : }"#.as_bytes();
+            let err = GResourceFileData::new(
+                "test".to_string(),
+                Cow::Borrowed(invalid_json),
+                path,
+                false,
+                &PreprocessOptions::json_stripblanks(),
+            )
+            .unwrap_err();
 
-        assert_matches!(err, GResourceBuilderError::Json(..));
-        assert!(format!("{:?}", err).contains("Unexpected character"));
+            assert_matches!(err, GResourceBuilderError::Json(..));
+            assert!(format!("{:?}", err).contains("Unexpected character"));
+        }
 
         let valid_json = r#"{ "test": "test" }"#.as_bytes();
         let data = GResourceFileData::new(

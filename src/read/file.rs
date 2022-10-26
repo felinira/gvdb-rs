@@ -264,7 +264,7 @@ impl GvdbFile {
             GvdbHashTable::for_bytes(self.dereference(item.value_ptr(), 4)?, self)
         } else {
             Err(GvdbReaderError::DataError(format!(
-                "Unable to parse item for key '{}' as hash table: Expected type 'H', got type {}",
+                "Unable to parse item for key '{}' as hash table: Expected type 'H', got type '{}'",
                 self.get_key(item)?,
                 typ
             )))
@@ -279,12 +279,14 @@ pub(crate) mod test {
     use std::borrow::Cow;
     use std::ffi::OsStr;
     use std::io::Read;
+    use std::mem::size_of;
     use std::path::PathBuf;
     use std::str::FromStr;
 
     use crate::gresource::{GResourceBuilder, GResourceBuilderError};
     use crate::read::{GvdbHeader, GvdbPointer, GvdbReaderError};
     use crate::test::assert_bytes_eq;
+    use crate::write::{GvdbFileWriter, GvdbHashTableBuilder};
     use matches::assert_matches;
     #[allow(unused_imports)]
     use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
@@ -592,6 +594,48 @@ pub(crate) mod test {
     #[test]
     fn test_minimal_file() {
         let _ = create_minimal_file();
+    }
+
+    #[test]
+    fn broken_hash_table() {
+        let writer = GvdbFileWriter::new();
+        let mut table = GvdbHashTableBuilder::new();
+        table.insert_string("test", "test").unwrap();
+        let mut data = writer.write_to_vec_with_table(table).unwrap();
+
+        // Remove data to see if this will throw an error
+        data.remove(data.len() - 24);
+
+        // We change the root pointer end to be shorter. Otherwise we will trigger
+        // a data offset error when dereferencing. This is a bit hacky.
+        // The root pointer end is always at position sizeof(u32 * 5).
+        // As this is little endian, we can just modify the first byte.
+        let root_ptr_end = size_of::<u32>() * 5;
+        data[root_ptr_end] = data[root_ptr_end] - 25;
+
+        let file = GvdbFile::from_bytes(Cow::Owned(data)).unwrap();
+        let err = file.hash_table().unwrap_err();
+        assert_matches!(err, GvdbReaderError::DataError(_));
+        assert!(format!("{}", err).contains("Not enough bytes to fit hash table"));
+    }
+
+    #[test]
+    fn broken_hash_table2() {
+        let writer = GvdbFileWriter::new();
+        let mut table = GvdbHashTableBuilder::new();
+        table.insert_string("test", "test").unwrap();
+        let mut data = writer.write_to_vec_with_table(table).unwrap();
+
+        // We change the root pointer end to be shorter.
+        // The root pointer end is always at position sizeof(u32 * 5).
+        // As this is little endian, we can just modify the first byte.
+        let root_ptr_end = size_of::<u32>() * 5;
+        data[root_ptr_end] = data[root_ptr_end] - 23;
+
+        let file = GvdbFile::from_bytes(Cow::Owned(data)).unwrap();
+        let err = file.hash_table().unwrap_err();
+        assert_matches!(err, GvdbReaderError::DataError(_));
+        assert!(format!("{}", err).contains("Remaining size invalid"));
     }
 
     #[test]

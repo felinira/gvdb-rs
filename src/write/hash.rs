@@ -63,7 +63,7 @@ impl<'a> SimpleHashTable<'a> {
 
     #[allow(dead_code)]
     /// Remove the item with the specified key
-    pub fn remove(&mut self, key: &str) {
+    pub fn remove(&mut self, key: &str) -> bool {
         let hash_value = djb_hash(key);
         let bucket = self.hash_bucket(hash_value);
 
@@ -76,6 +76,10 @@ impl<'a> SimpleHashTable<'a> {
             }
 
             self.n_items -= 1;
+
+            true
+        } else {
+            false
         }
     }
 
@@ -236,12 +240,14 @@ mod test {
 
         for index in 0..10 {
             let index = index * 2;
-            table.remove(&format!("{}", index));
+            assert!(table.remove(&format!("{}", index)));
         }
 
         for index in 0..20 {
             let item = table.get(&format!("{}", index));
             assert_eq!(index % 2 == 1, item.is_some());
         }
+
+        assert!(!table.remove("50"));
     }
 }

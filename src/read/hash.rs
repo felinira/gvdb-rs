@@ -6,7 +6,7 @@ use safe_transmute::{
     transmute_many_pedantic, transmute_one, transmute_one_pedantic, TriviallyTransmutable,
 };
 use std::borrow::Cow;
-use std::cmp::min;
+use std::cmp::{max, min};
 use std::fmt::{Debug, Formatter};
 use std::mem::size_of;
 
@@ -88,8 +88,10 @@ impl<'a> GvdbHashTable<'a> {
         let header_len = size_of::<GvdbHashHeader>();
         let bloom_words_len = this.bloom_words_end() - this.bloom_words_offset();
         let hash_buckets_len = this.hash_buckets_end() - this.hash_buckets_offset();
-        let hash_items_len = this.hash_items_end() - this.hash_items_offset();
 
+        // we use max() here to prevent possible underflow
+        let hash_items_len =
+            max(this.hash_items_end(), this.hash_items_offset()) - this.hash_items_offset();
         let required_len = header_len + bloom_words_len + hash_buckets_len + hash_items_len;
 
         if required_len > this.data.len() {

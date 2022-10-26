@@ -65,19 +65,19 @@ pub enum GResourceBuilderError {
     Gvdb(GvdbWriterError),
 
     /// I/O error
-    Io(std::io::Error, Option<std::path::PathBuf>),
+    Io(std::io::Error, Option<PathBuf>),
 
     /// This error can occur when using xml-stripblanks and the provided XML file is invalid
-    XmlRead(xml::reader::Error, Option<std::path::PathBuf>),
+    XmlRead(xml::reader::Error, Option<PathBuf>),
 
     /// This error can occur when using xml-stripblanks and the provided XML file is invalid
-    XmlWrite(xml::writer::Error, Option<std::path::PathBuf>),
+    XmlWrite(xml::writer::Error, Option<PathBuf>),
 
     /// A file needs to be interpreted as UTF-8 (for stripping whitespace etc.) but it is invalid
-    Utf8(std::string::FromUtf8Error, Option<std::path::PathBuf>),
+    Utf8(std::string::FromUtf8Error, Option<PathBuf>),
 
     /// This error can occur when using json-stripblanks and the provided JSON file is invalid
-    Json(json::Error, Option<std::path::PathBuf>),
+    Json(json::Error, Option<PathBuf>),
 
     /// This feature is not implemented in gvdb-rs
     Unimplemented(String),
@@ -142,7 +142,12 @@ impl Display for GResourceBuilderError {
             }
             GResourceBuilderError::Json(err, path) => {
                 if let Some(path) = path {
-                    write!(f, "Error parsing JSON from file: {}", path.display())
+                    write!(
+                        f,
+                        "Error parsing JSON from file: '{}': {}",
+                        path.display(),
+                        err
+                    )
                 } else {
                     write!(f, "Error reading/writing JSON data: {}", err)
                 }
@@ -185,6 +190,7 @@ pub type GResourceBuilderResult<T> = Result<T, GResourceBuilderError>;
 mod test {
     use crate::gresource::{GResourceBuilderError, GResourceXMLError};
     use crate::write::GvdbWriterError;
+    use std::path::PathBuf;
 
     #[test]
     fn from() {
@@ -203,5 +209,14 @@ mod test {
         let writer_error = GvdbWriterError::Consistency("test".to_string());
         let err = GResourceBuilderError::from(writer_error);
         assert!(format!("{}", err).contains("test"));
+
+        let err = GResourceBuilderError::XmlWrite(
+            xml::writer::Error::DocumentStartAlreadyEmitted,
+            Some(PathBuf::from("test_file")),
+        );
+        assert!(format!("{}", err).contains("test_file"));
+        let err =
+            GResourceBuilderError::XmlWrite(xml::writer::Error::DocumentStartAlreadyEmitted, None);
+        assert!(format!("{}", err).contains("XML"));
     }
 }

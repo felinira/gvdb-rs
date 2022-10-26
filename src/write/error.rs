@@ -60,12 +60,20 @@ pub type GvdbBuilderResult<T> = Result<T, GvdbWriterError>;
 #[cfg(test)]
 mod test {
     use super::GvdbWriterError;
+    use matches::assert_matches;
+    use std::path::PathBuf;
 
     #[test]
     fn from() {
         let err = GvdbWriterError::from(zvariant::Error::Message("Test".to_string()));
-        use matches::assert_matches;
         assert_matches!(err, GvdbWriterError::ZVariant(_));
         assert!(format!("{}", err).contains("ZVariant"));
+
+        let err = GvdbWriterError::Io(
+            std::io::Error::from(std::io::ErrorKind::NotFound),
+            Some(PathBuf::from("test_path")),
+        );
+        assert_matches!(err, GvdbWriterError::Io(..));
+        assert!(format!("{}", err).contains("test_path"));
     }
 }

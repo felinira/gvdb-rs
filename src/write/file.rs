@@ -610,7 +610,7 @@ mod test {
     }
 
     #[test]
-    fn gvdb_hash_table_builder() {
+    fn hash_table_builder1() {
         let mut builder = GvdbHashTableBuilder::new();
         assert!(builder.is_empty());
         builder.insert_string("string", "Test").unwrap();
@@ -640,9 +640,7 @@ mod test {
         assert_matches!(item.value_ref().table_builder(), Some(_));
         let val = item.value().take();
         assert_matches!(val, GvdbBuilderItemValue::TableBuilder(..));
-        let tb = if let GvdbBuilderItemValue::TableBuilder(tb) = val {
-            tb
-        } else {
+        let GvdbBuilderItemValue::TableBuilder(tb) = val else {
             panic!("Invalid value");
         };
 
@@ -652,6 +650,21 @@ mod test {
             table2.get("bytes").unwrap().value_ref().value().unwrap(),
             &zvariant::Value::new(data)
         );
+    }
+
+    #[test]
+    fn hash_table_builder2() {
+        let mut builder = GvdbHashTableBuilder::new();
+
+        // invalid path
+        builder.insert_string("string/", "collision").unwrap();
+        let err = builder.insert_string("string/test", "test").unwrap_err();
+        assert_matches!(err, GvdbWriterError::Consistency(_));
+
+        let mut builder = GvdbHashTableBuilder::with_path_separator(None);
+        // invalid path but this isn't important as path handling is turned off
+        builder.insert_string("string/", "collision").unwrap();
+        builder.insert_string("string/test", "test").unwrap();
     }
 
     #[test]

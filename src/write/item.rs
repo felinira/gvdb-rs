@@ -178,16 +178,19 @@ mod test {
         let item1 = GvdbBuilderItemValue::Value(value1.clone());
         assert_eq!(item1.typ(), GvdbHashItemType::Value);
         assert_eq!(item1.value().unwrap(), &value1);
+        assert_matches!(item1.gvariant(), None);
 
         let value2 = GvdbHashTableBuilder::new();
         let item2 = GvdbBuilderItemValue::from(value2);
         assert_eq!(item2.typ(), GvdbHashItemType::HashTable);
         assert!(item2.table_builder().is_some());
+        assert_matches!(item2.container(), None);
 
         let value3 = vec!["test".to_string(), "test2".to_string()];
         let item3 = GvdbBuilderItemValue::Container(value3.clone());
         assert_eq!(item3.typ(), GvdbHashItemType::Container);
         assert_eq!(item3.container().unwrap(), &value3);
+        assert_matches!(item3.table_builder(), None);
     }
 
     #[test]
@@ -207,6 +210,7 @@ mod test_glib {
     use crate::read::GvdbHashItemType;
     use crate::write::item::GvdbBuilderItemValue;
     use glib::ToVariant;
+    use matches::assert_matches;
 
     #[test]
     fn item_value() {
@@ -214,5 +218,6 @@ mod test_glib {
         let item1 = GvdbBuilderItemValue::from(value1.clone());
         assert_eq!(item1.typ(), GvdbHashItemType::Value);
         assert_eq!(item1.gvariant().unwrap(), &value1);
+        assert_matches!(item1.value(), None);
     }
 }

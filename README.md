@@ -4,6 +4,10 @@ This is a re-implementation of the glib GVariant database file format in Rust. I
 
 [![CI](https://github.com/felinira/gvdb-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/felinira/gvdb-rs/actions/workflows/ci.yml)
 
+## MSRV
+
+The minimal rust version of this crate is 1.65.
+
 ## Example
 
 ### Create a GResource file
