@@ -1,7 +1,5 @@
 use crate::write::GvdbWriterError;
-use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
-use std::string::FromUtf8Error;
 
 /// Error when parsing a GResource XML file
 pub enum GResourceXMLError {
@@ -12,7 +10,7 @@ pub enum GResourceXMLError {
     Io(std::io::Error, Option<std::path::PathBuf>),
 }
 
-impl Error for GResourceXMLError {}
+impl std::error::Error for GResourceXMLError {}
 
 impl From<serde_xml_rs::Error> for GResourceXMLError {
     fn from(err: serde_xml_rs::Error) -> Self {
@@ -83,7 +81,7 @@ pub enum GResourceBuilderError {
     Generic(String),
 }
 
-impl Error for GResourceBuilderError {}
+impl std::error::Error for GResourceBuilderError {}
 
 impl From<GvdbWriterError> for GResourceBuilderError {
     fn from(err: GvdbWriterError) -> Self {
@@ -116,7 +114,7 @@ impl From<json::Error> for GResourceBuilderError {
 }
 
 impl From<std::string::FromUtf8Error> for GResourceBuilderError {
-    fn from(err: FromUtf8Error) -> Self {
+    fn from(err: std::string::FromUtf8Error) -> Self {
         Self::Utf8(err, None)
     }
 }

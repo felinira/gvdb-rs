@@ -603,56 +603,21 @@ mod test {
     use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
 
     #[test]
-    fn simple_hash_table() {
-        let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
-        let item = GvdbBuilderItemValue::Value(zvariant::Value::new("test"));
-        table.insert("test", item);
-        assert_eq!(table.n_items(), 1);
-        assert_eq!(
-            table.get("test").unwrap().value_ref().value().unwrap(),
-            &"test".into()
-        );
-    }
-
-    #[test]
-    fn simple_hash_table_2() {
-        let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
-        for index in 0..20 {
-            table.insert(&format!("{}", index), zvariant::Value::new(index).into());
-        }
-
-        assert_eq!(table.n_items(), 20);
-
-        for index in 0..20 {
-            assert_eq!(
-                zvariant::Value::new(index),
-                *table
-                    .get(&format!("{}", index))
-                    .unwrap()
-                    .value_ref()
-                    .value()
-                    .unwrap()
-            );
-        }
-
-        for index in 0..10 {
-            let index = index * 2;
-            table.remove(&format!("{}", index));
-        }
-
-        for index in 0..20 {
-            let item = table.get(&format!("{}", index));
-            assert_eq!(index % 2 == 1, item.is_some());
-        }
+    fn derives() {
+        let ht_builder = GvdbHashTableBuilder::default();
+        println!("{:?}", ht_builder);
     }
 
     #[test]
     fn gvdb_hash_table_builder() {
         let mut builder = GvdbHashTableBuilder::new();
+        assert!(builder.is_empty());
         builder.insert_string("string", "Test").unwrap();
         builder
             .insert_value("123", zvariant::Value::new(123u32))
             .unwrap();
+        assert!(!builder.is_empty());
+        assert_eq!(builder.len(), 2);
 
         let mut builder2 = GvdbHashTableBuilder::new();
         builder2.insert_bytes("bytes", &[1, 2, 3, 4]).unwrap();
@@ -768,5 +733,58 @@ mod test {
 
         let root = GvdbFile::from_bytes(Cow::Owned(bytes)).unwrap();
         assert_is_file_1(&root);
+    }
+
+    #[test]
+    fn missing_root() {
+        let file = GvdbFileWriter::new();
+        assert_matches!(
+            file.serialize_to_vec(1),
+            Err(GvdbWriterError::Consistency(_))
+        );
+    }
+}
+
+#[cfg(all(feature = "glib", test))]
+mod test_glib {
+    use crate::write::hash::SimpleHashTable;
+    use crate::write::item::GvdbBuilderItemValue;
+    use crate::write::{GvdbFileWriter, GvdbHashTableBuilder};
+    use glib::ToVariant;
+
+    #[test]
+    fn simple_hash_table() {
+        let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
+        let item = GvdbBuilderItemValue::GVariant("test".to_variant());
+        table.insert("test", item);
+        assert_eq!(table.n_items(), 1);
+        assert_eq!(
+            table.get("test").unwrap().value_ref().gvariant().unwrap(),
+            &"test".to_variant()
+        );
+    }
+
+    #[test]
+    fn hash_table_builder() {
+        let mut table = GvdbHashTableBuilder::new();
+        table.insert_gvariant("test", "test".to_variant()).unwrap();
+        let simple_ht = table.build().unwrap();
+        assert_eq!(
+            simple_ht
+                .get("test")
+                .unwrap()
+                .value_ref()
+                .gvariant()
+                .unwrap(),
+            &"test".to_variant()
+        );
+    }
+
+    #[test]
+    fn file_writer() {
+        let mut table = GvdbHashTableBuilder::default();
+        table.insert_gvariant("test", "test".to_variant()).unwrap();
+        let writer = GvdbFileWriter::default();
+        let _ = writer.write_to_vec_with_table(table).unwrap();
     }
 }

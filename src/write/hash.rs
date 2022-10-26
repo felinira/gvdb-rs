@@ -105,11 +105,6 @@ impl<'a> SimpleHashTable<'a> {
         self.get_from_bucket(key, bucket).map(|r| r.1)
     }
 
-    #[allow(dead_code)]
-    pub fn into_buckets(self) -> Vec<Option<Rc<GvdbBuilderItem<'a>>>> {
-        self.buckets
-    }
-
     pub fn iter(&self) -> SimpleHashTableIter<'_, 'a> {
         SimpleHashTableIter {
             hash_table: self,
@@ -195,5 +190,58 @@ impl<'it, 'h> Iterator for SimpleHashTableIter<'it, 'h> {
 
         // Nothing left
         None
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::write::hash::SimpleHashTable;
+    use crate::write::item::GvdbBuilderItemValue;
+
+    #[test]
+    fn simple_hash_table() {
+        let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
+        let item = GvdbBuilderItemValue::Value(zvariant::Value::new("test_overwrite"));
+        table.insert("test", item);
+        assert_eq!(table.n_items(), 1);
+        let item2 = GvdbBuilderItemValue::Value(zvariant::Value::new("test"));
+        table.insert("test", item2);
+        assert_eq!(table.n_items(), 1);
+        assert_eq!(
+            table.get("test").unwrap().value_ref().value().unwrap(),
+            &"test".into()
+        );
+    }
+
+    #[test]
+    fn simple_hash_table_2() {
+        let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
+        for index in 0..20 {
+            table.insert(&format!("{}", index), zvariant::Value::new(index).into());
+        }
+
+        assert_eq!(table.n_items(), 20);
+
+        for index in 0..20 {
+            assert_eq!(
+                zvariant::Value::new(index),
+                *table
+                    .get(&format!("{}", index))
+                    .unwrap()
+                    .value_ref()
+                    .value()
+                    .unwrap()
+            );
+        }
+
+        for index in 0..10 {
+            let index = index * 2;
+            table.remove(&format!("{}", index));
+        }
+
+        for index in 0..20 {
+            let item = table.get(&format!("{}", index));
+            assert_eq!(index % 2 == 1, item.is_some());
+        }
     }
 }

@@ -2,7 +2,7 @@ use safe_transmute::GuardError;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::num::TryFromIntError;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::string::FromUtf8Error;
 
 /// An error that can occur during GVDB file reading
@@ -31,6 +31,15 @@ pub enum GvdbReaderError {
 
     /// The item with the specified key does not exist in the hash table
     KeyError(String),
+}
+
+impl GvdbReaderError {
+    pub(crate) fn from_io_with_filename(
+        filename: &Path,
+    ) -> impl FnOnce(std::io::Error) -> GvdbReaderError {
+        let path = filename.to_path_buf();
+        move |err| GvdbReaderError::Io(err, Some(path))
+    }
 }
 
 impl Error for GvdbReaderError {}
@@ -90,7 +99,12 @@ impl Display for GvdbReaderError {
             GvdbReaderError::Utf8(err) => write!(f, "Error converting string to UTF-8: {}", err),
             GvdbReaderError::Io(err, path) => {
                 if let Some(path) = path {
-                    write!(f, "I/O error for file '{}': {}", path.display(), err)
+                    write!(
+                        f,
+                        "I/O error while reading file '{}': {}",
+                        path.display(),
+                        err
+                    )
                 } else {
                     write!(f, "I/O error: {}", err)
                 }

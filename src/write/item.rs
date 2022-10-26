@@ -157,3 +157,62 @@ impl<'a> GvdbBuilderItem<'a> {
         self.assigned_index.set(index);
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::read::GvdbHashItemType;
+    use crate::write::item::{GvdbBuilderItem, GvdbBuilderItemValue};
+    use crate::write::GvdbHashTableBuilder;
+    use matches::assert_matches;
+
+    #[test]
+    fn derives() {
+        let value1: zvariant::Value = "test".into();
+        let item1 = GvdbBuilderItemValue::Value(value1.clone());
+        println!("{:?}", item1);
+    }
+
+    #[test]
+    fn item_value() {
+        let value1: zvariant::Value = "test".into();
+        let item1 = GvdbBuilderItemValue::Value(value1.clone());
+        assert_eq!(item1.typ(), GvdbHashItemType::Value);
+        assert_eq!(item1.value().unwrap(), &value1);
+
+        let value2 = GvdbHashTableBuilder::new();
+        let item2 = GvdbBuilderItemValue::from(value2);
+        assert_eq!(item2.typ(), GvdbHashItemType::HashTable);
+        assert!(item2.table_builder().is_some());
+
+        let value3 = vec!["test".to_string(), "test2".to_string()];
+        let item3 = GvdbBuilderItemValue::Container(value3.clone());
+        assert_eq!(item3.typ(), GvdbHashItemType::Container);
+        assert_eq!(item3.container().unwrap(), &value3);
+    }
+
+    #[test]
+    fn builder_item() {
+        let value1: zvariant::Value = "test".into();
+        let item1 = GvdbBuilderItemValue::Value(value1.clone());
+        let item = GvdbBuilderItem::new("test", 0, item1);
+        println!("{:?}", item);
+
+        assert_eq!(item.key(), "test");
+        assert_matches!(&*item.value().borrow(), GvdbBuilderItemValue::Value(_));
+    }
+}
+
+#[cfg(all(feature = "glib", test))]
+mod test_glib {
+    use crate::read::GvdbHashItemType;
+    use crate::write::item::GvdbBuilderItemValue;
+    use glib::ToVariant;
+
+    #[test]
+    fn item_value() {
+        let value1 = "test".to_variant();
+        let item1 = GvdbBuilderItemValue::from(value1.clone());
+        assert_eq!(item1.typ(), GvdbHashItemType::Value);
+        assert_eq!(item1.gvariant().unwrap(), &value1);
+    }
+}

@@ -168,15 +168,15 @@ impl GvdbFile {
     /// let file = gvdb::read::GvdbFile::from_file(&path).unwrap();
     /// ```
     pub fn from_file(filename: &Path) -> GvdbReaderResult<Self> {
-        let mut file = File::open(filename)
-            .map_err(|err| GvdbReaderError::Io(err, Some(filename.to_path_buf())))?;
+        let mut file =
+            File::open(filename).map_err(GvdbReaderError::from_io_with_filename(filename))?;
         let mut data = Vec::with_capacity(
             file.metadata()
-                .map_err(|err| GvdbReaderError::Io(err, Some(filename.to_path_buf())))?
+                .map_err(GvdbReaderError::from_io_with_filename(filename))?
                 .len() as usize,
         );
         file.read_to_end(&mut data)
-            .map_err(|err| GvdbReaderError::Io(err, Some(filename.to_path_buf())))?;
+            .map_err(GvdbReaderError::from_io_with_filename(filename))?;
         Self::from_bytes(Cow::Owned(data))
     }
 
@@ -188,10 +188,9 @@ impl GvdbFile {
     /// This will cause undefined behavior. You must make sure to employ your own locking and to
     /// reload the file yourself when any modification occurs.
     pub unsafe fn from_file_mmap(filename: &Path) -> GvdbReaderResult<Self> {
-        let file = File::open(filename)
-            .map_err(|err| GvdbReaderError::Io(err, Some(filename.to_path_buf())))?;
-        let mmap = Mmap::map(&file)
-            .map_err(|err| GvdbReaderError::Io(err, Some(filename.to_path_buf())))?;
+        let file =
+            File::open(filename).map_err(GvdbReaderError::from_io_with_filename(filename))?;
+        let mmap = Mmap::map(&file).map_err(GvdbReaderError::from_io_with_filename(filename))?;
 
         let mut this = Self {
             data: GvdbData::Mmap(mmap),
