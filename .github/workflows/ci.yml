@@ -10,11 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+
       - name: Build
-        run: cargo build --verbose --all-features
+        run: cargo +nightly build --verbose --all-features
       - name: Clippy
-        run: cargo clippy --verbose --all-features -- -D warnings
+        run: cargo +nightly clippy --verbose --all-features -- -D warnings
       - name: Run tests
-        run: cargo test --verbose --all-features
+        run: cargo +nightly test --verbose --all-features
       - name: Compile documentation
-        run: cargo doc --verbose --no-deps --all-features
+        run: cargo +nightly doc --verbose --no-deps --all-features
