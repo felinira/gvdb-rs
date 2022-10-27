@@ -735,4 +735,33 @@ mod test {
         let value: zvariant::Value = data.into();
         let _: GResourceData = value.try_into().unwrap();
     }
+
+    #[test]
+    #[cfg(unix)]
+    fn invalid_utf8_filename() {
+        use std::os::unix::ffi::OsStrExt;
+        let temp_path: PathBuf = ["test", "temp"].iter().collect();
+        let mut invalid_path = temp_path.clone();
+
+        invalid_path.push(OsStr::from_bytes(&[0xC3, 0x28]));
+        std::fs::create_dir_all(PathBuf::from(&temp_path)).unwrap();
+        let _ = std::fs::File::create(&invalid_path).unwrap();
+
+        let res = GResourceBuilder::from_directory(
+            "test",
+            &PathBuf::from(temp_path.clone()),
+            false,
+            false,
+        );
+
+        let _ = std::fs::remove_file(invalid_path);
+        std::fs::remove_dir(temp_path).unwrap();
+
+        let err = res.unwrap_err();
+        assert_matches!(err, GResourceBuilderError::Generic(_));
+        assert!(err.to_string().contains("UTF-8"));
+
+        assert_matches!(err, GResourceBuilderError::Generic(_));
+        assert!(err.to_string().contains("UTF-8"));
+    }
 }

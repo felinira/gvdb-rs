@@ -178,6 +178,8 @@ mod test {
         let item1 = GvdbBuilderItemValue::Value(value1.clone());
         assert_eq!(item1.typ(), GvdbHashItemType::Value);
         assert_eq!(item1.value().unwrap(), &value1);
+
+        #[cfg(feature = "glib")]
         assert_matches!(item1.gvariant(), None);
 
         let value2 = GvdbHashTableBuilder::new();
