@@ -150,7 +150,7 @@ impl<'a> GResourceFileData<'a> {
                 .as_writer_event()
             {
                 if let Err(err) = event_writer.write(writer_event) {
-                    return Err(GResourceBuilderError::XmlWrite(err, path.clone()));
+                    return Err(GResourceBuilderError::XmlWrite(err, path));
                 }
             }
         }
