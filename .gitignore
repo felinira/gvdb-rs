@@ -4,3 +4,4 @@ Cargo.lock
 test/c/create-test-files
 test/temp*
 *.profraw
+/cobertura.xml
