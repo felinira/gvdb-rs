@@ -1,22 +1,45 @@
-name:                           coverage
+name: Test Coverage
 
-on:                             [push]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
 jobs:
   test:
-    name:                       coverage
-    runs-on:                    ubuntu-latest
-    container:
-      image:                    xd009642/tarpaulin:develop-nightly
-      options:                  --security-opt seccomp=unconfined
+    name: coverage
+    runs-on: ubuntu-latest
     steps:
-      - name:                   Checkout repository
-        uses:                   actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-      - name:                   Generate code coverage
-        run: |
-          cargo +nightly tarpaulin --engine llvm --verbose --all-features --workspace --timeout 120 --out Xml
-
-      - name:                   Upload to codecov.io
-        uses:                   codecov/codecov-action@v2
+      - name: Cache cargo dependencies
+        uses: actions/cache@v3
         with:
-          fail_ci_if_error:     true
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install beta
+        run: rustup install beta
+
+      - name: Install cargo-binstall
+        run: curl -L https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-unknown-linux-musl.tgz -s -o - | tar -xzf - -C $HOME/.cargo/bin
+
+      - name: Install cargo-tarpaulin
+        run: cargo +beta binstall --no-confirm cargo-tarpaulin
+
+      - name: Generate code coverage
+        run: cargo +beta tarpaulin --engine llvm --verbose --all-features --timeout 120 --out Xml
+
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v2
+        with:
+          fail_ci_if_error: true

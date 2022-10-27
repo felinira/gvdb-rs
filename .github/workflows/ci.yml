@@ -1,6 +1,12 @@
 name: Cargo Build & Test
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 env:
   CARGO_TERM_COLOR: always
@@ -11,11 +17,24 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Cache cargo dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Rust beta
+        run: rustup install beta; rustup component add clippy --toolchain beta
       - name: Build
-        run: cargo +nightly build --verbose --all-features
+        run: cargo +beta build --verbose --all-features
       - name: Clippy
-        run: cargo +nightly clippy --verbose --all-features -- -D warnings
+        run: cargo +beta clippy --verbose --all-features -- -D warnings
       - name: Run tests
-        run: cargo +nightly test --verbose --all-features
+        run: cargo +beta test --verbose --all-features
       - name: Compile documentation
-        run: cargo +nightly doc --verbose --no-deps --all-features
+        run: cargo +beta doc --verbose --no-deps --all-features
