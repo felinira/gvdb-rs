@@ -3,7 +3,7 @@
 This crate offers convenience macros for [gvdb](https://crates.io/crates/gvdb).
 The macros are `include_gresource_from_xml!()` and `include_gresource_from_dir!()`
 
-[![Cargo Build & Test](https://github.com/felinira/gvdb-rs-macros/actions/workflows/ci.yml/badge.svg)](https://github.com/felinira/gvdb-rs-macros/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/gvdb-macros)](https://crates.io/crates/gvdb-macros)
 
 ## Examples
 
