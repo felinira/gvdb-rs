@@ -3,11 +3,10 @@ name = "gvdb-macros"
 version = "0.1.5"
 edition = "2021"
 description = "Convenience macros for gvdb"
-repository = "https://github.com/felinira/gvdb-rs-macros"
+repository = "https://github.com/felinira/gvdb-rs"
 license = "MIT"
 keywords = [ "gvdb", "glib", "gresource", "compile-resources" ]
 categories = [ "gui", "data-structures", "encoding" ]
-exclude = [ ".github", ".idea" ]
 
 [lib]
 proc-macro = true
