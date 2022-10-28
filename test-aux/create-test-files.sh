@@ -9,7 +9,7 @@ cd $DIR/c/create-test-files || exit 1
 make
 ./create-test-files
 
-cd $DIR/data/gresource || exit 1
+cd $DIR/../test-data/gresource || exit 1
 echo "Creating test file 3 (gresource file)"
 glib-compile-resources test3.gresource.xml
 mv test3.gresource ../

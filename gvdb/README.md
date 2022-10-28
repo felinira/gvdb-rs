@@ -25,7 +25,7 @@ mod gresource {
     use gvdb::gresource::GResourceXMLDocument;
     use gvdb::read::GvdbFile;
 
-    const GRESOURCE_XML: &str = "test/data/gresource/test3.gresource.xml";
+    const GRESOURCE_XML: &str = "test-data/gresource/test3.gresource.xml";
 
     fn create_gresource() {
         let doc = GResourceXMLDocument::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
@@ -70,7 +70,7 @@ use gvdb::read::GvdbFile;
 use std::path::PathBuf;
 
 pub fn main() {
-    let path = PathBuf::from("test/data/test3.gresource");
+    let path = PathBuf::from("test-data/test3.gresource");
     let file = GvdbFile::from_file(&path).unwrap();
     let table = file.hash_table().unwrap();
 

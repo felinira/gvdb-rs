@@ -11,12 +11,12 @@ Compile a GResource XML file and include the bytes in the file.
 
 ```rust
 use gvdb_macros::include_gresource_from_xml;
-static GRESOURCE_BYTES: &[u8] = include_gresource_from_xml!("test/test3.gresource.xml");
+static GRESOURCE_BYTES: &[u8] = include_gresource_from_xml!("test-data/gresource/test3.gresource.xml");
 ```
 
 Scan a directory and create a GResource file with all the contents of the directory.
 
 ```rust
 use gvdb_macros::include_gresource_from_dir;
-static GRESOURCE_BYTES: &[u8] = include_gresource_from_dir!("/gvdb/rs/test", "test/");
+static GRESOURCE_BYTES: &[u8] = include_gresource_from_dir!("/gvdb/rs/test", "test-data/gresource/");
 ```

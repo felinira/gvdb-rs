@@ -12,7 +12,7 @@
 //! use gvdb::read::GvdbFile;
 //!
 //! pub fn read_gresource_file() {
-//!     let path = PathBuf::from("test/data/test3.gresource");
+//!     let path = PathBuf::from("test-data/test3.gresource");
 //!     let file = GvdbFile::from_file(&path).unwrap();
 //!     let table = file.hash_table().unwrap();
 //!

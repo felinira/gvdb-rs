@@ -23,7 +23,7 @@ static COMPRESS_EXTENSIONS_DEFAULT: &[&str] = &[".ui", ".css"];
 /// use gvdb::gresource::{PreprocessOptions, GResourceFileData};
 ///
 /// let mut key = "/my/app/id/icons/scalable/actions/send-symbolic.svg".to_string();
-/// let mut filename = PathBuf::from("test/data/gresource/icons/scalable/actions/send-symbolic.svg");
+/// let mut filename = PathBuf::from("test-data/gresource/icons/scalable/actions/send-symbolic.svg");
 ///
 /// let preprocess_options = PreprocessOptions::empty();
 /// let file_data =
@@ -98,7 +98,7 @@ impl<'a> GResourceFileData<'a> {
     /// use gvdb::gresource::{GResourceFileData, PreprocessOptions};
     ///
     /// let mut key = "/my/app/id/icons/scalable/actions/send-symbolic.svg".to_string();
-    /// let mut filename = PathBuf::from("test/data/gresource/icons/scalable/actions/send-symbolic.svg");
+    /// let mut filename = PathBuf::from("test-data/gresource/icons/scalable/actions/send-symbolic.svg");
     ///
     /// let preprocess_options = PreprocessOptions::empty();
     /// let file_data =
@@ -474,18 +474,15 @@ impl<'a> GResourceBuilder<'a> {
 mod test {
     use super::*;
     use crate::gresource::xml::GResourceXMLDocument;
-    use crate::read::test::{assert_is_file_3, byte_compare_file_3};
     use crate::read::GvdbFile;
+    use crate::test::{assert_is_file_3, byte_compare_file_3, GRESOURCE_DIR, GRESOURCE_XML};
     use matches::assert_matches;
     use std::ffi::OsStr;
     use zvariant::Type;
 
-    const GRESOURCE_XML: &str = "test/data/gresource/test3.gresource.xml";
-    const GRESOURCE_DIR: &str = "test/data/gresource";
-
     #[test]
     fn file_data() {
-        let doc = GResourceXMLDocument::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
+        let doc = GResourceXMLDocument::from_file(&GRESOURCE_XML).unwrap();
         let builder = GResourceBuilder::from_xml(doc).unwrap();
 
         for file in builder.files {
@@ -510,7 +507,7 @@ mod test {
         for preprocess in [true, false] {
             let builder = GResourceBuilder::from_directory(
                 "/gvdb/rs/test",
-                &PathBuf::from(GRESOURCE_DIR),
+                &GRESOURCE_DIR,
                 preprocess,
                 preprocess,
             )
@@ -551,7 +548,7 @@ mod test {
 
     #[test]
     fn test_file_3() {
-        let doc = GResourceXMLDocument::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
+        let doc = GResourceXMLDocument::from_file(&GRESOURCE_XML).unwrap();
         let builder = GResourceBuilder::from_xml(doc).unwrap();
         let data = builder.build().unwrap();
         let root = GvdbFile::from_bytes(Cow::Owned(data)).unwrap();
@@ -562,13 +559,8 @@ mod test {
 
     #[test]
     fn test_file_from_dir() {
-        let builder = GResourceBuilder::from_directory(
-            "/gvdb/rs/test",
-            &PathBuf::from(GRESOURCE_DIR),
-            true,
-            true,
-        )
-        .unwrap();
+        let builder =
+            GResourceBuilder::from_directory("/gvdb/rs/test", &GRESOURCE_DIR, true, true).unwrap();
         let data = builder.build().unwrap();
         let root = GvdbFile::from_bytes(Cow::Owned(data)).unwrap();
 
@@ -614,7 +606,7 @@ mod test {
     fn test_from_dir_invalid() {
         use std::os::unix::ffi::OsStrExt;
         let invalid_utf8 = OsStr::from_bytes(&[0xC3, 0x28]);
-        let mut dir: PathBuf = ["test", "temp2"].iter().collect();
+        let mut dir: PathBuf = ["test-data", "temp2"].iter().collect();
         dir.push(invalid_utf8);
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::File::create(dir.join("test.xml")).unwrap();
@@ -631,7 +623,7 @@ mod test {
 
     #[test]
     fn test_from_file_data() {
-        let path = PathBuf::from(GRESOURCE_DIR).join("json").join("test.json");
+        let path = GRESOURCE_DIR.join("json").join("test.json");
         let file_data = GResourceFileData::from_file(
             "test.json".to_string(),
             &path,
@@ -648,7 +640,7 @@ mod test {
 
     #[test]
     fn to_pixdata() {
-        let path = PathBuf::from(GRESOURCE_DIR).join("json").join("test.json");
+        let path = GRESOURCE_DIR.join("json").join("test.json");
         let mut options = PreprocessOptions::empty();
         options.to_pixdata = true;
         let err = GResourceFileData::from_file("test.json".to_string(), &path, false, &options)
@@ -740,7 +732,7 @@ mod test {
     #[cfg(unix)]
     fn invalid_utf8_filename() {
         use std::os::unix::ffi::OsStrExt;
-        let temp_path: PathBuf = ["test", "temp"].iter().collect();
+        let temp_path: PathBuf = ["test-data", "temp"].iter().collect();
         let mut invalid_path = temp_path.clone();
 
         invalid_path.push(OsStr::from_bytes(&[0xC3, 0x28]));

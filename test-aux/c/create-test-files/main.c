@@ -3,7 +3,7 @@
 #include "../gvdb/gvdb/gvdb-builder.h"
 #include "../gvdb/gvdb/gvdb-reader.h"
 
-#define TEST_PATH "../../data/"
+#define TEST_PATH "../../../test-data/"
 #define TEST_FILE_1 TEST_PATH "test1.gvdb"
 #define TEST_FILE_2 TEST_PATH "test2.gvdb"
 

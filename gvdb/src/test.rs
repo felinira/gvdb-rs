@@ -1,5 +1,21 @@
-use pretty_assertions::assert_str_eq;
+use crate::read::{GvdbFile, GvdbHashItemType, GvdbHashTable};
+use crate::write::{GvdbFileWriter, GvdbHashTableBuilder};
+use lazy_static::lazy_static;
+pub use matches::assert_matches;
+pub use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
+use std::borrow::Cow;
 use std::cmp::{max, min};
+use std::io::{Cursor, Read};
+use std::path::{Path, PathBuf};
+
+lazy_static! {
+    pub(crate) static ref TEST_FILE_DIR: PathBuf = PathBuf::from("test-data");
+    pub(crate) static ref TEST_FILE_1: PathBuf = TEST_FILE_DIR.join("test1.gvdb");
+    pub(crate) static ref TEST_FILE_2: PathBuf = TEST_FILE_DIR.join("test2.gvdb");
+    pub(crate) static ref TEST_FILE_3: PathBuf = TEST_FILE_DIR.join("test3.gresource");
+    pub(crate) static ref GRESOURCE_DIR: PathBuf = TEST_FILE_DIR.join("gresource");
+    pub(crate) static ref GRESOURCE_XML: PathBuf = GRESOURCE_DIR.join("test3.gresource.xml");
+}
 
 fn write_byte_row(
     f: &mut dyn std::io::Write,
@@ -109,6 +125,248 @@ pub fn assert_bytes_eq(a: &[u8], b: &[u8], context: &str) {
 
             eprintln!("{}", context);
             assert_str_eq!(str_a, str_b);
+        }
+    }
+}
+
+pub fn byte_compare_gvdb_file(a: &GvdbFile, b: &GvdbFile) {
+    assert_eq!(a.get_header().unwrap(), b.get_header().unwrap());
+
+    let a_hash = a.hash_table().unwrap();
+    let b_hash = b.hash_table().unwrap();
+    byte_compare_gvdb_hash_table(&a_hash, &b_hash);
+}
+
+fn byte_compare_file(file: &GvdbFile, reference_path: &Path) {
+    let mut reference_file = std::fs::File::open(reference_path).unwrap();
+    let mut reference_data = Vec::new();
+    reference_file.read_to_end(&mut reference_data).unwrap();
+
+    assert_bytes_eq(
+        &reference_data,
+        file.data.as_ref(),
+        &format!("Byte comparing with file '{}'", reference_path.display()),
+    );
+}
+
+pub fn byte_compare_file_1(file: &GvdbFile) {
+    byte_compare_file(file, &TEST_FILE_1);
+}
+
+pub fn assert_is_file_1(file: &GvdbFile) {
+    let table = file.hash_table().unwrap();
+    let names = table.get_names().unwrap();
+    assert_eq!(names.len(), 1);
+    assert_eq!(names[0], "root_key");
+
+    let value = table.get_value("root_key").unwrap();
+    assert_matches!(value, zvariant::Value::Structure(_));
+    assert_eq!(value.value_signature(), "(uus)");
+
+    let tuple = value.downcast::<zvariant::Structure>().unwrap();
+    let fields = tuple.into_fields();
+
+    assert_eq!(*fields[0].downcast_ref::<u32>().unwrap(), 1234);
+    assert_eq!(*fields[1].downcast_ref::<u32>().unwrap(), 98765);
+    assert_eq!(
+        fields[2].downcast_ref::<str>().unwrap(),
+        "TEST_STRING_VALUE"
+    );
+}
+
+pub fn byte_compare_file_2(file: &GvdbFile) {
+    byte_compare_file(file, &TEST_FILE_2);
+}
+
+pub fn assert_is_file_2(file: &GvdbFile) {
+    let table = file.hash_table().unwrap();
+    let names = table.get_names().unwrap();
+    assert_eq!(names.len(), 2);
+    assert_eq!(names[0], "string");
+    assert_eq!(names[1], "table");
+
+    let str_value = table.get_value("string").unwrap();
+    assert_matches!(str_value, zvariant::Value::Str(_));
+    assert_eq!(str_value.downcast::<String>().unwrap(), "test string");
+
+    let sub_table = table.get_hash_table("table").unwrap();
+    let sub_table_names = sub_table.get_names().unwrap();
+    assert_eq!(sub_table_names.len(), 1);
+    assert_eq!(sub_table_names[0], "int");
+
+    let int_value = sub_table.get_value("int").unwrap();
+    assert_eq!(int_value.downcast::<u32>().unwrap(), 42);
+}
+
+pub fn byte_compare_file_3(file: &GvdbFile) {
+    let ref_root = GvdbFile::from_file(&TEST_FILE_3).unwrap();
+    byte_compare_gvdb_file(file, &ref_root);
+}
+
+pub fn assert_is_file_3(file: &GvdbFile) {
+    let table = file.hash_table().unwrap();
+    let mut names = table.get_names().unwrap();
+    names.sort();
+    let reference_names = vec![
+        "/",
+        "/gvdb/",
+        "/gvdb/rs/",
+        "/gvdb/rs/test/",
+        "/gvdb/rs/test/icons/",
+        "/gvdb/rs/test/icons/scalable/",
+        "/gvdb/rs/test/icons/scalable/actions/",
+        "/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg",
+        "/gvdb/rs/test/json/",
+        "/gvdb/rs/test/json/test.json",
+        "/gvdb/rs/test/online-symbolic.svg",
+        "/gvdb/rs/test/test.css",
+    ];
+    assert_eq!(names, reference_names);
+
+    #[derive(zvariant::OwnedValue)]
+    struct GResourceData {
+        size: u32,
+        flags: u32,
+        content: Vec<u8>,
+    }
+
+    let svg1: GResourceData = table.get("/gvdb/rs/test/online-symbolic.svg").unwrap();
+
+    // Convert back and forth to prove that works
+    let svg1_owned_value = zvariant::OwnedValue::from(svg1);
+    let svg1 = GResourceData::try_from(svg1_owned_value).unwrap();
+
+    assert_eq!(svg1.size, 1390);
+    assert_eq!(svg1.flags, 0);
+    assert_eq!(svg1.size as usize, svg1.content.len() - 1);
+
+    // Ensure the last byte is zero because of zero-padding defined in the format
+    assert_eq!(svg1.content[svg1.content.len() - 1], 0);
+    let svg1_str = std::str::from_utf8(&svg1.content[0..svg1.content.len() - 1]).unwrap();
+    assert!(svg1_str.starts_with(
+        &(r#"<?xml version="1.0" encoding="UTF-8"?>"#.to_string()
+            + "\n\n"
+            + r#"<svg xmlns="http://www.w3.org/2000/svg" height="16px""#)
+    ));
+
+    let svg2 = table
+        .get_value("/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg")
+        .unwrap();
+    assert_matches!(svg2, zvariant::Value::Structure(_));
+    let svg2_fields = svg2
+        .clone()
+        .downcast::<zvariant::Structure>()
+        .unwrap()
+        .into_fields();
+
+    let svg2_size = *svg2_fields[0].downcast_ref::<u32>().unwrap();
+    let svg2_flags = *svg2_fields[1].downcast_ref::<u32>().unwrap();
+    let svg2_content: Vec<u8> = svg2_fields[2].clone().downcast::<Vec<u8>>().unwrap();
+
+    assert_eq!(svg2_size, 345);
+    assert_eq!(svg2_flags, 1);
+    let mut decoder = flate2::read::ZlibDecoder::new(&*svg2_content);
+    let mut svg2_data = Vec::new();
+    decoder.read_to_end(&mut svg2_data).unwrap();
+
+    // Ensure the last byte is *not* zero and len is not one bigger than specified because
+    // compressed data is not zero-padded
+    assert_ne!(svg2_data[svg2_data.len() - 1], 0);
+    assert_eq!(svg2_size as usize, svg2_data.len());
+    let svg2_str = std::str::from_utf8(&svg2_data).unwrap();
+
+    let mut svg2_reference = String::new();
+    std::fs::File::open(GRESOURCE_DIR.join("icons/scalable/actions/send-symbolic.svg"))
+        .unwrap()
+        .read_to_string(&mut svg2_reference)
+        .unwrap();
+    assert_str_eq!(svg2_str, svg2_reference);
+
+    let json = table
+        .get_value("/gvdb/rs/test/json/test.json")
+        .unwrap()
+        .downcast::<zvariant::Structure>()
+        .unwrap()
+        .into_fields();
+    let json_size = *json[0].downcast_ref::<u32>().unwrap();
+    let json_flags = *json[1].downcast_ref::<u32>().unwrap();
+    let json_content = json[2].clone().downcast::<Vec<u8>>().unwrap();
+
+    // Ensure the last byte is zero because of zero-padding defined in the format
+    assert_eq!(json_content[json_content.len() - 1], 0);
+    assert_eq!(json_size as usize, json_content.len() - 1);
+    let json_str = std::str::from_utf8(&json_content[0..json_content.len() - 1]).unwrap();
+
+    assert_eq!(json_flags, 0);
+    assert_str_eq!(
+        json_str,
+        r#"{"test":"test_string","int":42,"table":{"bool":true}}"#.to_string() + "\n"
+    );
+}
+
+pub(crate) fn new_empty_file() -> GvdbFile {
+    let writer = GvdbFileWriter::new();
+    let table_builder = GvdbHashTableBuilder::new();
+    let data = Vec::new();
+    let mut cursor = Cursor::new(data);
+    writer.write_with_table(table_builder, &mut cursor).unwrap();
+
+    GvdbFile::from_bytes(Cow::Owned(cursor.into_inner())).unwrap()
+}
+
+pub(crate) fn new_simple_file(big_endian: bool) -> GvdbFile {
+    let writer = if big_endian {
+        GvdbFileWriter::for_big_endian()
+    } else {
+        GvdbFileWriter::new()
+    };
+
+    let mut table_builder = GvdbHashTableBuilder::new();
+    table_builder.insert("test", "test").unwrap();
+    let data = Vec::new();
+    let mut cursor = Cursor::new(data);
+    writer.write_with_table(table_builder, &mut cursor).unwrap();
+
+    GvdbFile::from_bytes(Cow::Owned(cursor.into_inner())).unwrap()
+}
+
+pub(crate) fn byte_compare_gvdb_hash_table(a: &GvdbHashTable, b: &GvdbHashTable) {
+    assert_eq!(a.get_header(), b.get_header());
+
+    let mut keys_a = a.get_names().unwrap();
+    let mut keys_b = b.get_names().unwrap();
+    keys_a.sort();
+    keys_b.sort();
+    assert_eq!(keys_a, keys_b);
+
+    for key in keys_a {
+        let item_a = a.get_hash_item(&key).unwrap();
+        let item_b = b.get_hash_item(&key).unwrap();
+
+        assert_eq!(item_a.hash_value(), item_b.hash_value());
+        assert_eq!(item_a.key_size(), item_b.key_size());
+        assert_eq!(item_a.typ().unwrap(), item_b.typ().unwrap());
+        assert_eq!(item_a.value_ptr().size(), item_b.value_ptr().size());
+
+        let data_a = a.root.dereference(item_a.value_ptr(), 1).unwrap();
+        let data_b = b.root.dereference(item_b.value_ptr(), 1).unwrap();
+
+        // We don't compare containers, only their length
+        if item_a.typ().unwrap() == GvdbHashItemType::Container {
+            if data_a.len() != data_b.len() {
+                // The lengths should not be different. For context we will compare the data
+                assert_bytes_eq(
+                    data_a,
+                    data_b,
+                    &format!("Containers with key '{}' have different lengths", key),
+                );
+            }
+        } else {
+            assert_bytes_eq(
+                data_a,
+                data_b,
+                &format!("Comparing items with key '{}'", key),
+            );
         }
     }
 }

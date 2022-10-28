@@ -9,9 +9,6 @@ pub use error::{GvdbReaderError, GvdbReaderResult};
 pub use file::GvdbFile;
 pub use hash::GvdbHashTable;
 
-#[cfg(test)]
-pub(crate) use file::test;
-
 pub(crate) use hash::GvdbHashHeader;
 pub(crate) use hash_item::{GvdbHashItem, GvdbHashItemType};
 pub(crate) use header::GvdbHeader;

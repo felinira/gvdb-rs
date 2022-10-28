@@ -17,6 +17,7 @@ all-features = true
 safe-transmute = "0.11.2"
 walkdir = "2.3.2"
 memmap2 = "0.5.3"
+lazy_static = "1.4"
 
 glib = { version = "0.16.1", optional = true }
 xml-rs = { version = "0.8.4", optional = true }

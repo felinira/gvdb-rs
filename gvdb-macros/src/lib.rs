@@ -8,14 +8,14 @@
 //!
 //! ```
 //! use gvdb_macros::include_gresource_from_xml;
-//! static GRESOURCE_BYTES: &[u8] = include_gresource_from_xml!("test/test3.gresource.xml");
+//! static GRESOURCE_BYTES: &[u8] = include_gresource_from_xml!("test-data/gresource/test3.gresource.xml");
 //! ```
 //!
 //! Scan a directory and create a GResource file with all the contents of the directory.
 //!
 //! ```
 //! use gvdb_macros::include_gresource_from_dir;
-//! static GRESOURCE_BYTES: &[u8] = include_gresource_from_dir!("/gvdb/rs/test", "test/");
+//! static GRESOURCE_BYTES: &[u8] = include_gresource_from_dir!("/gvdb/rs/test", "test-data/gresource");
 //! ```
 
 #![warn(missing_docs)]
@@ -23,10 +23,10 @@
 
 extern crate proc_macro;
 
-use std::path::PathBuf;
 use litrs::{Literal, StringLit};
 use proc_macro2::TokenTree;
 use quote::quote;
+use std::path::PathBuf;
 
 fn quote_bytes(bytes: &[u8]) -> proc_macro2::TokenStream {
     let bytes_lit = proc_macro2::Literal::byte_string(bytes);
@@ -55,7 +55,9 @@ fn include_gresource_from_xml_with_filename(filename: &str) -> proc_macro2::Toke
 fn include_gresource_from_xml_inner(input: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
     let mut iter = input.into_iter();
 
-    let first = iter.next().expect("Expected exactly one string literal argument (gresource file location)");
+    let first = iter
+        .next()
+        .expect("Expected exactly one string literal argument (gresource file location)");
     let second = iter.next();
     if let Some(second) = second {
         panic!("Unexpected token '{}', expected exactly one string literal argument (gresource file location)", second)
@@ -74,7 +76,7 @@ fn include_gresource_from_xml_inner(input: proc_macro2::TokenStream) -> proc_mac
 ///
 /// ```
 /// use gvdb_macros::include_gresource_from_xml;
-/// static GRESOURCE_BYTES: &[u8] = include_gresource_from_xml!("test/test3.gresource.xml");
+/// static GRESOURCE_BYTES: &[u8] = include_gresource_from_xml!("test-data/gresource/test3.gresource.xml");
 /// ```
 #[proc_macro]
 pub fn include_gresource_from_xml(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -85,7 +87,8 @@ pub fn include_gresource_from_xml(input: proc_macro::TokenStream) -> proc_macro:
 
 fn include_gresource_from_dir_str(prefix: &str, directory: &str) -> proc_macro2::TokenStream {
     let path = PathBuf::from(directory);
-    let builder = gvdb::gresource::GResourceBuilder::from_directory(prefix, &path, true, true).unwrap();
+    let builder =
+        gvdb::gresource::GResourceBuilder::from_directory(prefix, &path, true, true).unwrap();
     let data = builder.build().unwrap();
 
     quote_bytes(&data)
@@ -99,7 +102,10 @@ fn include_gresource_from_dir_inner(input: proc_macro2::TokenStream) -> proc_mac
                 panic!("{}", err_msg);
             }
 
-            (StringLit::try_from(str1).expect(err_msg), StringLit::try_from(str2).expect(err_msg))
+            (
+                StringLit::try_from(str1).expect(err_msg),
+                StringLit::try_from(str2).expect(err_msg),
+            )
         }
         _ => panic!("{}", err_msg),
     };
@@ -134,23 +140,24 @@ fn include_gresource_from_dir_inner(input: proc_macro2::TokenStream) -> proc_mac
 /// All files that end with `.ui` and `.css` are compressed.
 /// ```
 /// use gvdb_macros::include_gresource_from_dir;
-/// static GRESOURCE_BYTES: &[u8] = include_gresource_from_dir!("/gvdb/rs/test", "test/");
+/// static GRESOURCE_BYTES: &[u8] = include_gresource_from_dir!("/gvdb/rs/tests/data", "test-data/gresource");
 /// ```
 #[proc_macro]
 pub fn include_gresource_from_dir(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-   let input = proc_macro2::TokenStream::from(input);
-   let output = include_gresource_from_dir_inner(input);
+    let input = proc_macro2::TokenStream::from(input);
+    let output = include_gresource_from_dir_inner(input);
     proc_macro::TokenStream::from(output)
 }
 
 #[cfg(test)]
 mod tests {
-    use quote::quote;
     use super::*;
+    use quote::quote;
 
     #[test]
     fn include_gresource_from_xml() {
-        let tokens = include_gresource_from_xml_inner(quote! {"test/test3.gresource.xml"});
+        let tokens =
+            include_gresource_from_xml_inner(quote! {"test-data/gresource/test3.gresource.xml"});
         assert!(tokens.to_string().contains(r#"b"GVariant"#));
     }
 
@@ -162,7 +169,8 @@ mod tests {
 
     #[test]
     fn include_gresource_from_dir() {
-        let tokens = include_gresource_from_dir_inner(quote! {"/gvdb/rs/test", "test"});
+        let tokens =
+            include_gresource_from_dir_inner(quote! {"/gvdb/rs/test", "test-data/gresource"});
         assert!(tokens.to_string().contains(r#"b"GVariant"#));
     }
 

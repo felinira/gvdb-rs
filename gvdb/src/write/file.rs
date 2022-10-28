@@ -593,13 +593,15 @@ impl Default for GvdbFileWriter {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::read::test::*;
     use crate::read::GvdbFile;
     use matches::assert_matches;
     use std::borrow::Cow;
     use std::io::Cursor;
 
-    use crate::test::assert_bytes_eq;
+    use crate::test::{
+        assert_bytes_eq, assert_is_file_1, assert_is_file_2, byte_compare_file_1,
+        byte_compare_file_2,
+    };
     #[allow(unused_imports)]
     use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
 

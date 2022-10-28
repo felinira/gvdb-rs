@@ -71,7 +71,7 @@ impl Debug for GvdbHashHeader {
 #[repr(C)]
 #[derive(Clone, Debug)]
 pub struct GvdbHashTable<'a> {
-    root: &'a GvdbFile,
+    pub(crate) root: &'a GvdbFile,
     data: Cow<'a, [u8]>,
     header: GvdbHashHeader,
 }
@@ -383,81 +383,9 @@ impl<'a> GvdbHashTable<'a> {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use crate::read::hash::GvdbHashTable;
-    use crate::read::hash_item::GvdbHashItemType;
-    use crate::read::{GvdbFile, GvdbHashHeader, GvdbPointer, GvdbReaderError};
-    use crate::test::assert_bytes_eq;
-    use crate::write::{GvdbFileWriter, GvdbHashTableBuilder};
-    use matches::assert_matches;
-    use std::borrow::Cow;
-    use std::io::Cursor;
-
-    fn new_empty_file() -> GvdbFile {
-        let writer = GvdbFileWriter::new();
-        let table_builder = GvdbHashTableBuilder::new();
-        let data = Vec::new();
-        let mut cursor = Cursor::new(data);
-        writer.write_with_table(table_builder, &mut cursor).unwrap();
-
-        GvdbFile::from_bytes(Cow::Owned(cursor.into_inner())).unwrap()
-    }
-
-    pub(super) fn new_simple_file(big_endian: bool) -> GvdbFile {
-        let writer = if big_endian {
-            GvdbFileWriter::for_big_endian()
-        } else {
-            GvdbFileWriter::new()
-        };
-
-        let mut table_builder = GvdbHashTableBuilder::new();
-        table_builder.insert("test", "test").unwrap();
-        let data = Vec::new();
-        let mut cursor = Cursor::new(data);
-        writer.write_with_table(table_builder, &mut cursor).unwrap();
-
-        GvdbFile::from_bytes(Cow::Owned(cursor.into_inner())).unwrap()
-    }
-
-    pub fn byte_compare_gvdb_hash_table(a: &GvdbHashTable, b: &GvdbHashTable) {
-        assert_eq!(a.header, b.header);
-
-        let mut keys_a = a.get_names().unwrap();
-        let mut keys_b = b.get_names().unwrap();
-        keys_a.sort();
-        keys_b.sort();
-        assert_eq!(keys_a, keys_b);
-
-        for key in keys_a {
-            let item_a = a.get_hash_item(&key).unwrap();
-            let item_b = b.get_hash_item(&key).unwrap();
-
-            assert_eq!(item_a.hash_value(), item_b.hash_value());
-            assert_eq!(item_a.key_size(), item_b.key_size());
-            assert_eq!(item_a.typ().unwrap(), item_b.typ().unwrap());
-            assert_eq!(item_a.value_ptr().size(), item_b.value_ptr().size());
-
-            let data_a = a.root.dereference(item_a.value_ptr(), 1).unwrap();
-            let data_b = b.root.dereference(item_b.value_ptr(), 1).unwrap();
-
-            // We don't compare containers, only their length
-            if item_a.typ().unwrap() == GvdbHashItemType::Container {
-                if data_a.len() != data_b.len() {
-                    // The lengths should not be different. For context we will compare the data
-                    assert_bytes_eq(
-                        data_a,
-                        data_b,
-                        &format!("Containers with key '{}' have different lengths", key),
-                    );
-                }
-            } else {
-                assert_bytes_eq(
-                    data_a,
-                    data_b,
-                    &format!("Comparing items with key '{}'", key),
-                );
-            }
-        }
-    }
+    use crate::read::{GvdbHashHeader, GvdbPointer, GvdbReaderError};
+    use crate::test::*;
+    use crate::test::{assert_eq, assert_matches, assert_ne};
 
     #[test]
     fn derives() {
@@ -550,12 +478,13 @@ pub(crate) mod test {
 
 #[cfg(all(feature = "glib", test))]
 mod test_glib {
+    use crate::test::new_simple_file;
     use glib::ToVariant;
 
     #[test]
     fn get_gvariant() {
         for endianess in [true, false] {
-            let file = super::test::new_simple_file(endianess);
+            let file = new_simple_file(endianess);
             let table = file.hash_table().unwrap();
             let res: glib::Variant = table.get_gvariant("test").unwrap().get().unwrap();
             assert_eq!(&res, &"test".to_variant());
