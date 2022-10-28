@@ -2,7 +2,10 @@
 
 This is a re-implementation of the glib GVariant database file format in Rust. It includes a GResource XML parser.
 
-[![CI](https://github.com/felinira/gvdb-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/felinira/gvdb-rs/actions/workflows/ci.yml)
+![Crates.io](https://img.shields.io/crates/v/gvdb)
+![GitHub](https://img.shields.io/github/license/felinira/gvdb-rs)
+![GitHub Workflow Status](https://img.shields.io/github/workflow/status/felinira/gvdb-rs/Cargo%20Build%20&%20Test)
+![Codecov](https://img.shields.io/codecov/c/github/felinira/gvdb-rs?token=YDF2YPLDIK)
 
 ## MSRV
 
