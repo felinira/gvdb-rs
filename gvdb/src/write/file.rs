@@ -261,6 +261,7 @@ impl<'a> Default for GvdbHashTableBuilder<'a> {
     }
 }
 
+#[derive(Debug)]
 struct GvdbChunk {
     // The pointer that points to the data where the chunk will be in memory in the finished file
     pointer: GvdbPointer,
@@ -411,12 +412,10 @@ impl GvdbFileWriter {
         self.allocate_chunk_with_data(data, 1)
     }
 
-    fn add_hash_table(
+    fn add_simple_hash_table(
         &mut self,
-        table_builder: GvdbHashTableBuilder,
+        table: SimpleHashTable,
     ) -> GvdbBuilderResult<(usize, &mut GvdbChunk)> {
-        let table = table_builder.build()?;
-
         for (index, (_bucket, item)) in table.iter().enumerate() {
             item.set_assigned_index(index as u32);
         }
@@ -458,7 +457,7 @@ impl GvdbFileWriter {
 
                 if key.is_empty() {
                     return Err(GvdbWriterError::Consistency(format!(
-                        "Item '{}' already exists in hash map",
+                        "Item '{}' already exists in hash map or key is empty",
                         current_item.key()
                     )));
                 }
@@ -472,7 +471,9 @@ impl GvdbFileWriter {
                     GvdbBuilderItemValue::GVariant(variant) => {
                         self.add_gvariant(&variant).1.pointer()
                     }
-                    GvdbBuilderItemValue::TableBuilder(tb) => self.add_hash_table(tb)?.1.pointer(),
+                    GvdbBuilderItemValue::TableBuilder(tb) => {
+                        self.add_table_builder(tb)?.1.pointer()
+                    }
                     GvdbBuilderItemValue::Container(children) => {
                         let size = children.len() * size_of::<u32>();
                         let chunk = self.allocate_empty_chunk(size, 4).1;
@@ -517,6 +518,13 @@ impl GvdbFileWriter {
             hash_table_chunk_index,
             &mut self.chunks[hash_table_chunk_index],
         ))
+    }
+
+    fn add_table_builder(
+        &mut self,
+        table_builder: GvdbHashTableBuilder,
+    ) -> GvdbBuilderResult<(usize, &mut GvdbChunk)> {
+        self.add_simple_hash_table(table_builder.build()?)
     }
 
     fn file_size(&self) -> usize {
@@ -570,7 +578,7 @@ impl GvdbFileWriter {
         table_builder: GvdbHashTableBuilder,
         writer: &mut dyn Write,
     ) -> GvdbBuilderResult<usize> {
-        let index = self.add_hash_table(table_builder)?.0;
+        let index = self.add_table_builder(table_builder)?.0;
         self.serialize(index, writer)
     }
 
@@ -579,7 +587,7 @@ impl GvdbFileWriter {
         mut self,
         table_builder: GvdbHashTableBuilder,
     ) -> GvdbBuilderResult<Vec<u8>> {
-        let index = self.add_hash_table(table_builder)?.0;
+        let index = self.add_table_builder(table_builder)?.0;
         self.serialize_to_vec(index)
     }
 }
@@ -609,6 +617,9 @@ mod test {
     fn derives() {
         let ht_builder = GvdbHashTableBuilder::default();
         println!("{:?}", ht_builder);
+
+        let chunk = GvdbChunk::new(Box::new([0; 0]), GvdbPointer::NULL);
+        assert!(format!("{:?}", chunk).contains("GvdbChunk"));
     }
 
     #[test]
@@ -680,7 +691,7 @@ mod test {
         let tuple_data = (value1, value2, value3);
         let variant = zvariant::Value::new(tuple_data);
         table_builder.insert_value("root_key", variant).unwrap();
-        let root_index = file_builder.add_hash_table(table_builder).unwrap().0;
+        let root_index = file_builder.add_table_builder(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
         let root = GvdbFile::from_bytes(Cow::Owned(bytes)).unwrap();
         assert_is_file_1(&root);
@@ -702,7 +713,7 @@ mod test {
         table_builder
             .insert_table("table", table_builder_2)
             .unwrap();
-        let root_index = file_builder.add_hash_table(table_builder).unwrap().0;
+        let root_index = file_builder.add_table_builder(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
         let root = GvdbFile::from_bytes(Cow::Owned(bytes)).unwrap();
         assert_is_file_2(&root);
@@ -741,7 +752,7 @@ mod test {
         let tuple_data = (value1, value2, value3);
         let variant = zvariant::Value::new(tuple_data);
         table_builder.insert_value("root_key", variant).unwrap();
-        let root_index = file_builder.add_hash_table(table_builder).unwrap().0;
+        let root_index = file_builder.add_table_builder(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
 
         // "GVariant" byteswapped at 32 bit boundaries is the header for big-endian GVariant files
@@ -761,8 +772,50 @@ mod test {
     }
 
     #[test]
-    fn io_error() {
+    fn missing_child() {
+        let mut table = GvdbHashTableBuilder::new();
+        let item = GvdbBuilderItemValue::Container(vec!["missing".to_string()]);
+        table.insert_item_value("test", item).unwrap();
+
+        assert_matches!(table.build(), Err(GvdbWriterError::Consistency(_)));
+    }
+
+    #[test]
+    fn empty_key() {
+        let mut table = GvdbHashTableBuilder::new();
+        table.insert_string("", "test").unwrap();
         let file = GvdbFileWriter::new();
+        let err = file.write_to_vec_with_table(table).unwrap_err();
+
+        assert_matches!(err, GvdbWriterError::Consistency(_))
+    }
+
+    #[test]
+    fn remove_child() {
+        let mut table_builder = GvdbHashTableBuilder::new();
+        table_builder.insert_string("test/test", "test").unwrap();
+        table_builder.items.remove("test/test");
+        let file = GvdbFileWriter::new();
+
+        let err = file.write_to_vec_with_table(table_builder).unwrap_err();
+        assert_matches!(err, GvdbWriterError::Consistency(_))
+    }
+
+    #[test]
+    fn remove_child2() {
+        let mut table_builder = GvdbHashTableBuilder::new();
+        table_builder.insert_string("test/test", "test").unwrap();
+        let mut table = table_builder.build().unwrap();
+        table.remove("test/test");
+
+        let mut file = GvdbFileWriter::new();
+        let err = file.add_simple_hash_table(table).unwrap_err();
+        assert_matches!(err, GvdbWriterError::Consistency(_))
+    }
+
+    #[test]
+    fn io_error() {
+        let file = GvdbFileWriter::default();
 
         // This buffer is intentionally too small to result in I/O error
         let buffer = [0u8; 10];
@@ -813,9 +866,11 @@ mod test_glib {
 
     #[test]
     fn file_writer() {
-        let mut table = GvdbHashTableBuilder::default();
-        table.insert_gvariant("test", "test".to_variant()).unwrap();
-        let writer = GvdbFileWriter::default();
-        let _ = writer.write_to_vec_with_table(table).unwrap();
+        for byteswap in [true, false] {
+            let mut table = GvdbHashTableBuilder::default();
+            table.insert_gvariant("test", "test".to_variant()).unwrap();
+            let writer = GvdbFileWriter::with_byteswap(byteswap);
+            let _ = writer.write_to_vec_with_table(table).unwrap();
+        }
     }
 }

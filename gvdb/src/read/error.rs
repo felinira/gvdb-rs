@@ -1,4 +1,3 @@
-use safe_transmute::GuardError;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::num::TryFromIntError;
@@ -65,21 +64,20 @@ impl From<TryFromIntError> for GvdbReaderError {
 impl<S, T> From<safe_transmute::Error<'_, S, T>> for GvdbReaderError {
     fn from(err: safe_transmute::Error<S, T>) -> Self {
         match err {
-            safe_transmute::Error::Guard(GuardError {
-                required,
-                actual,
-                reason: _,
-            }) => {
-                if actual > required {
+            safe_transmute::Error::Guard(guard_err) => {
+                if guard_err.actual > guard_err.required {
                     Self::DataError(format!(
                         "Found {} unexpected trailing bytes at the end while reading data",
-                        actual - required
+                        guard_err.actual - guard_err.required
                     ))
                 } else {
-                    Self::DataError(format!("Missing {} bytes to read data", required - actual))
+                    Self::DataError(format!(
+                        "Missing {} bytes to read data",
+                        guard_err.required - guard_err.actual
+                    ))
                 }
             }
-            safe_transmute::Error::Unaligned(_) => {
+            safe_transmute::Error::Unaligned(..) => {
                 Self::DataError("Unaligned data read".to_string())
             }
             _ => Self::InvalidData,

@@ -145,14 +145,9 @@ impl<'a> GvdbHashTable<'a> {
     /// Returns the bloom words for this hash table
     #[allow(dead_code)]
     fn bloom_words(&self) -> Option<&[u32]> {
-        let data_u8 = self
-            .data
-            .get(self.bloom_words_offset()..self.bloom_words_end());
-        if let Some(data_u8) = data_u8 {
-            transmute_many_pedantic(data_u8).ok()
-        } else {
-            None
-        }
+        // This indexing operation is safe as data is guaranteed to be larger than
+        // bloom_words_offset and this will just return an empty slice if end == offset
+        transmute_many_pedantic(&self.data[self.bloom_words_offset()..self.bloom_words_end()]).ok()
     }
 
     fn get_bloom_word(&self, index: usize) -> GvdbReaderResult<u32> {
@@ -383,7 +378,7 @@ impl<'a> GvdbHashTable<'a> {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use crate::read::{GvdbHashHeader, GvdbPointer, GvdbReaderError};
+    use crate::read::{GvdbFile, GvdbHashHeader, GvdbPointer, GvdbReaderError};
     use crate::test::*;
     use crate::test::{assert_eq, assert_matches, assert_ne};
 
@@ -437,6 +432,9 @@ pub(crate) mod test {
             let value: String = table.get_value_for_item(&item).unwrap().try_into().unwrap();
             assert_eq!(value, "test");
 
+            let item_fail = table.get_hash_item("fail").unwrap_err();
+            assert_matches!(item_fail, GvdbReaderError::KeyError(_));
+
             let res_item = table.get_hash_item("test_fail");
             assert_matches!(res_item, Err(GvdbReaderError::KeyError(_)));
         }
@@ -474,12 +472,36 @@ pub(crate) mod test {
             assert_eq!(res, 0);
         }
     }
+
+    #[test]
+    fn get_value() {
+        for endianess in [true, false] {
+            let file = new_simple_file(endianess);
+            let table = file.hash_table().unwrap();
+            let res = table.get_value("test").unwrap();
+            assert_eq!(&res, &zvariant::Value::from("test"));
+
+            let fail = table.get_value("fail").unwrap_err();
+            assert_matches!(fail, GvdbReaderError::KeyError(_));
+        }
+    }
+
+    #[test]
+    fn get_hash_table() {
+        let file = GvdbFile::from_file(&TEST_FILE_2).unwrap();
+        let table = file.hash_table().unwrap();
+        let table = table.get_hash_table("table").unwrap();
+        let fail = table.get_hash_table("fail").unwrap_err();
+        assert_matches!(fail, GvdbReaderError::KeyError(_));
+    }
 }
 
 #[cfg(all(feature = "glib", test))]
 mod test_glib {
+    use crate::read::GvdbReaderError;
     use crate::test::new_simple_file;
     use glib::ToVariant;
+    use matches::assert_matches;
 
     #[test]
     fn get_gvariant() {
@@ -488,6 +510,9 @@ mod test_glib {
             let table = file.hash_table().unwrap();
             let res: glib::Variant = table.get_gvariant("test").unwrap().get().unwrap();
             assert_eq!(&res, &"test".to_variant());
+
+            let fail = table.get_gvariant("fail").unwrap_err();
+            assert_matches!(fail, GvdbReaderError::KeyError(_));
         }
     }
 }

@@ -2,6 +2,7 @@ use crate::util::djb_hash;
 use crate::write::item::{GvdbBuilderItem, GvdbBuilderItemValue};
 use std::rc::Rc;
 
+#[derive(Debug)]
 pub struct SimpleHashTable<'a> {
     buckets: Vec<Option<Rc<GvdbBuilderItem<'a>>>>,
     n_items: usize,
@@ -201,6 +202,12 @@ impl<'it, 'h> Iterator for SimpleHashTableIter<'it, 'h> {
 mod test {
     use crate::write::hash::SimpleHashTable;
     use crate::write::item::GvdbBuilderItemValue;
+
+    #[test]
+    fn derives() {
+        let table = SimpleHashTable::with_n_buckets(1);
+        assert!(format!("{:?}", table).contains("SimpleHashTable"));
+    }
 
     #[test]
     fn simple_hash_table() {
