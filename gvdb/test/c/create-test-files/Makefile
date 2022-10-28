@@ -1,7 +1,7 @@
 CFLAGS = -c -Wall $(shell pkg-config --cflags gio-2.0)
 LDFLAGS = $(shell pkg-config --libs gio-2.0)
 
-SOURCES = $(wildcard *.c)
+SOURCES = $(wildcard *.c) $(wildcard ../gvdb/gvdb/*.c)
 OBJECTS = $(SOURCES:.c=.o)
 BIN = create-test-files
 

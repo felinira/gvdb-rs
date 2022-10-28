@@ -1,13 +1,11 @@
 #include <stdio.h>
 #include <glib-2.0/glib.h>
-#include "gvdb-builder.h"
-#include "gvdb-reader.h"
+#include "../gvdb/gvdb/gvdb-builder.h"
+#include "../gvdb/gvdb/gvdb-reader.h"
 
-#define TEST_PATH "../data/"
+#define TEST_PATH "../../data/"
 #define TEST_FILE_1 TEST_PATH "test1.gvdb"
 #define TEST_FILE_2 TEST_PATH "test2.gvdb"
-#define GRESOURCE_XML "test_file_3_gresource.xml"
-#define TEST_FILE_3 TEST_PATH "test3.gvdb"
 
 /**
  * Pretty prints a gvdb table structure

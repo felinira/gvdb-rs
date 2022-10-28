@@ -1,0 +1,3 @@
+[submodule "gvdb/test/c/gvdb"]
+	path = gvdb/test/c/gvdb
+	url = https://gitlab.gnome.org/GNOME/gvdb.git
