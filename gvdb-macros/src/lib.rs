@@ -168,6 +168,18 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
+    fn include_gresource_from_xml_panic2() {
+        include_gresource_from_xml_inner(quote! { "test", 4 });
+    }
+
+    #[test]
+    #[should_panic]
+    fn include_gresource_from_xml_panic3() {
+        include_gresource_from_xml_inner(quote! { test });
+    }
+
+    #[test]
     fn include_gresource_from_dir() {
         let tokens =
             include_gresource_from_dir_inner(quote! {"/gvdb/rs/test", "test-data/gresource"});
@@ -196,5 +208,11 @@ mod tests {
     #[should_panic]
     fn include_gresource_from_dir_panic4() {
         include_gresource_from_dir_inner(quote! {"/gvdb/rs/test","INVALID_DIRECTORY"});
+    }
+
+    #[test]
+    #[should_panic]
+    fn include_gresource_from_dir_panic5() {
+        include_gresource_from_dir_inner(quote! {"/gvdb/rs/test"."test-data/gresource"});
     }
 }
