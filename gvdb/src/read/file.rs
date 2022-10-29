@@ -226,7 +226,7 @@ impl GvdbFile {
         &self,
         item: &GvdbHashItem,
     ) -> GvdbReaderResult<glib::Variant> {
-        let data = self.get_bytes_for_item(item).unwrap();
+        let data = self.get_bytes_for_item(item)?;
         let variant = glib::Variant::from_data_with_type(data, glib::VariantTy::VARIANT);
 
         if self.byteswapped {
