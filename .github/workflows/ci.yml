@@ -28,13 +28,11 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install Rust beta
-        run: rustup install beta; rustup component add clippy --toolchain beta
       - name: Build
-        run: cargo +beta build --verbose --all-features
+        run: cargo build --verbose --all-features
       - name: Clippy
-        run: cargo +beta clippy --verbose --all-features -- -D warnings
+        run: cargo clippy --verbose --all-features -- -D warnings
       - name: Run tests
-        run: cargo +beta test --verbose --all-features
+        run: cargo test --verbose --all-features
       - name: Compile documentation
-        run: cargo +beta doc --verbose --no-deps --all-features
+        run: cargo doc --verbose --no-deps --all-features

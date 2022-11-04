@@ -30,17 +30,14 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install beta
-        run: rustup install beta
-
       - name: Install cargo-binstall
         run: curl -L https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-unknown-linux-musl.tgz -s -o - | tar -xzf - -C $HOME/.cargo/bin
 
       - name: Install cargo-tarpaulin
-        run: cargo +beta binstall --no-confirm cargo-tarpaulin
+        run: cargo binstall --no-confirm cargo-tarpaulin
 
       - name: Generate code coverage
-        run: cargo +beta tarpaulin --engine llvm --verbose --all-features --timeout 120 --out Xml --workspace
+        run: cargo tarpaulin --engine llvm --verbose --all-features --timeout 120 --out Xml --workspace
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v2
