@@ -559,7 +559,7 @@ impl GvdbFileWriter {
                 writer.write_all(&vec![0; padding])?;
             }
 
-            size += chunk.pointer().size() as usize;
+            size += chunk.pointer().size();
             writer.write_all(&chunk.into_data())?;
         }
 

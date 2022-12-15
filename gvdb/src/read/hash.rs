@@ -226,7 +226,7 @@ impl<'a> GvdbHashTable<'a> {
         let mut inserted = 0;
         while inserted < count {
             let last_inserted = inserted;
-            for index in 0..count as usize {
+            for index in 0..count {
                 let item = self.get_hash_item_for_index(index)?;
                 let parent: usize = item.parent().try_into()?;
 
@@ -309,7 +309,7 @@ impl<'a> GvdbHashTable<'a> {
         let mut itemno = self.get_hash(bucket as usize)? as usize;
 
         let lastno = if bucket == self.header.n_buckets() - 1 {
-            self.n_hash_items() as usize
+            self.n_hash_items()
         } else {
             min(
                 self.get_hash(bucket as usize + 1)?,
