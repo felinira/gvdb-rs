@@ -162,16 +162,13 @@ impl<'a> GResourceFileData<'a> {
         data: Cow<'a, [u8]>,
         path: Option<PathBuf>,
     ) -> GResourceBuilderResult<Cow<'a, [u8]>> {
-        let mut output = Vec::new();
+        let string = String::from_utf8(data.to_vec())
+            .map_err(|err| GResourceBuilderError::Utf8(err, path.clone()))?;
 
-        let json = json::parse(
-            &String::from_utf8(data.to_vec())
-                .map_err(|err| GResourceBuilderError::Utf8(err, path.clone()))?,
-        )
-        .map_err(|err| GResourceBuilderError::Json(err, path.clone()))?;
-        json.write(&mut output)
-            .map_err(GResourceBuilderError::from_io_with_filename(path))?;
+        let json: serde_json::Value = serde_json::from_str(&string)
+            .map_err(|err| GResourceBuilderError::Json(err, path.clone()))?;
 
+        let mut output = json.to_string().as_bytes().to_vec();
         output.push(b'\n');
 
         Ok(Cow::Owned(output))
@@ -695,7 +692,7 @@ mod test {
             .unwrap_err();
 
             assert_matches!(err, GResourceBuilderError::Json(..));
-            assert!(format!("{:?}", err).contains("Unexpected character"));
+            assert!(format!("{:?}", err).contains("expected value at line"));
         }
 
         let valid_json = r#"{ "test": "test" }"#.as_bytes();

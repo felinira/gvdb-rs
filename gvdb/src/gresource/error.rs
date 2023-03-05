@@ -77,7 +77,7 @@ pub enum GResourceBuilderError {
     Utf8(std::string::FromUtf8Error, Option<PathBuf>),
 
     /// This error can occur when using json-stripblanks and the provided JSON file is invalid
-    Json(json::Error, Option<PathBuf>),
+    Json(serde_json::Error, Option<PathBuf>),
 
     /// This feature is not implemented in gvdb-rs
     Unimplemented(String),
