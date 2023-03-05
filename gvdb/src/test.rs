@@ -300,7 +300,7 @@ pub fn assert_is_file_3(file: &GvdbFile) {
     assert_eq!(json_flags, 0);
     assert_str_eq!(
         json_str,
-        r#"{"test":"test_string","int":42,"table":{"bool":true}}"#.to_string() + "\n"
+        r#"["test_string",42,{"bool":true}]"#.to_string() + "\n"
     );
 }
 
