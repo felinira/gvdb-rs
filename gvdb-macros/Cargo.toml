@@ -15,5 +15,5 @@ proc-macro = true
 [dependencies]
 gvdb = { version = "0.4", default-features = false, features = ["gresource"], path = "../gvdb" }
 proc-macro2 = "1.0.37"
-litrs = "0.2.3"
+litrs = "0.4"
 quote = "1.0.18"
