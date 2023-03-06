@@ -1,7 +1,6 @@
 use crate::gresource::error::{GResourceXMLError, GResourceXMLResult};
 use serde::de::Error;
 use serde::Deserialize;
-use serde_xml_rs::{Deserializer, EventReader, ParserConfig};
 use std::borrow::Cow;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -30,7 +29,7 @@ pub struct GResource {
     pub files: Vec<File>,
 
     /// An optional prefix to prepend to the containing file keys
-    #[serde(default)]
+    #[serde(default, rename = "@prefix")]
     pub prefix: String,
 }
 
@@ -44,14 +43,19 @@ pub struct File {
     pub filename: String,
 
     /// The alias for this file if it should be named differently inside the GResource file
+    #[serde(rename = "@alias")]
     pub alias: Option<String>,
 
     /// Whether the file should be compressed using zlib
-    #[serde(deserialize_with = "parse_bool_value", default)]
+    #[serde(deserialize_with = "parse_bool_value", default, rename = "@compressed")]
     pub compressed: bool,
 
     /// A list of preprocessing options
-    #[serde(deserialize_with = "parse_preprocess_options", default)]
+    #[serde(
+        deserialize_with = "parse_preprocess_options",
+        default,
+        rename = "@preprocess"
+    )]
     pub preprocess: PreprocessOptions,
 }
 
@@ -148,23 +152,22 @@ impl GResourceXMLDocument {
             .map_err(GResourceXMLError::from_io_with_filename(path))?;
 
         let dir = path.parent().unwrap();
-        Self::from_bytes_with_filename(dir, Some(path), Cow::Owned(data))
+        Self::from_bytes_with_filename(dir, Some(path.to_path_buf()), Cow::Owned(data))
     }
 
     /// Load a GResource XML file from the provided `Cow<[u8]>` bytes. A filename is provided for
     /// error context
     fn from_bytes_with_filename(
         dir: &Path,
-        filename: Option<&Path>,
+        filename: Option<PathBuf>,
         data: Cow<'_, [u8]>,
     ) -> GResourceXMLResult<Self> {
-        let config = ParserConfig::new()
-            .trim_whitespace(true)
-            .ignore_comments(true);
-        let event_reader = EventReader::new_with_config(&*data, config);
+        let mut this: Self = quick_xml::de::from_str(
+            std::str::from_utf8(&data)
+                .map_err(|err| GResourceXMLError::Utf8(err, filename.clone()))?,
+        )
+        .map_err(|err| GResourceXMLError::Serde(err, filename))?;
 
-        let mut this = Self::deserialize(&mut Deserializer::new(event_reader))
-            .map_err(GResourceXMLError::from_serde_with_filename(filename))?;
         this.dir = dir.to_path_buf();
         Ok(this)
     }
@@ -233,58 +236,44 @@ mod test {
         assert!(format!("{:?}", res).contains("parsing XML"));
         assert_matches!(
             res,
-            Err(GResourceXMLError::Serde(serde_xml_rs::Error::Custom {
-                field
-            }, _)) if field == "missing field `gresource`"
+            Err(GResourceXMLError::Serde(quick_xml::DeError::Custom(field), _)) if field == "missing field `gresource`"
         );
 
         let string = r#"<gresources><gresource><file></file></gresource></gresources>"#.to_string();
         let res = GResourceXMLDocument::from_bytes_with_filename(
             &test_path,
-            Some(&PathBuf::from("test_filename")),
+            Some(PathBuf::from("test_filename")),
             Cow::Borrowed(string.as_bytes()),
         );
         assert!(format!("{:?}", res).contains("test_filename"));
         assert_matches!(
             res,
-            Err(GResourceXMLError::Serde(serde_xml_rs::Error::Custom {
-                field
-            }, _)) if field == "missing field `$value`"
+            Err(GResourceXMLError::Serde(quick_xml::de::DeError::Custom(field), _)) if field == "missing field `$value`"
         );
 
         assert_matches!(
             GResourceXMLDocument::from_string(&test_path, r#"<gresources><gresource><file compressed="nobool">filename</file></gresource></gresources>"#),
-            Err(GResourceXMLError::Serde(serde_xml_rs::Error::Custom {
-                field
-            }, _)) if field.starts_with("got 'nobool', but expected any of")
+            Err(GResourceXMLError::Serde(quick_xml::de::DeError::Custom(field), _)) if field.starts_with("got 'nobool', but expected any of")
         );
 
         assert_matches!(
             GResourceXMLDocument::from_string(&test_path, r#"<gresources><wrong></wrong></gresources>"#),
-            Err(GResourceXMLError::Serde(serde_xml_rs::Error::Custom {
-                field
-            }, _)) if field.starts_with("unknown field `wrong`, expected `gresource`")
+            Err(GResourceXMLError::Serde(quick_xml::de::DeError::Custom(field), _))if field.starts_with("unknown field `wrong`, expected `gresource`")
         );
 
         assert_matches!(
             GResourceXMLDocument::from_string(&test_path, r#"<gresources><gresource><wrong>filename</wrong></gresource></gresources>"#),
-            Err(GResourceXMLError::Serde(serde_xml_rs::Error::Custom {
-                field
-            }, _)) if field.starts_with("unknown field `wrong`, expected `file` or `prefix`")
+            Err(GResourceXMLError::Serde(quick_xml::de::DeError::Custom(field), _)) if field.starts_with("unknown field `wrong`, expected `file` or `@prefix`")
         );
 
         assert_matches!(
             GResourceXMLDocument::from_string(&test_path, r#"<gresources><gresource><file wrong="1">filename</file></gresource></gresources>"#),
-            Err(GResourceXMLError::Serde(serde_xml_rs::Error::Custom {
-                field
-            }, _)) if field.starts_with("unknown field `wrong`, expected one of")
+            Err(GResourceXMLError::Serde(quick_xml::de::DeError::Custom(field), _)) if field.starts_with("unknown field `@wrong`, expected one of")
         );
 
         assert_matches!(
             GResourceXMLDocument::from_string(&test_path, r#"<gresources><gresource><file preprocess="fail">filename</file></gresource></gresources>"#),
-            Err(GResourceXMLError::Serde(serde_xml_rs::Error::Custom {
-                field
-            }, _)) if field.starts_with("got 'fail' but expected any of")
+            Err(GResourceXMLError::Serde(quick_xml::de::DeError::Custom(field), _)) if field.starts_with("got 'fail' but expected any of")
         );
     }
 
