@@ -5,7 +5,6 @@ use flate2::write::ZlibEncoder;
 use std::borrow::Cow;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use xml::{EmitterConfig, EventReader, EventWriter, ParserConfig};
 
 use walkdir::WalkDir;
 
@@ -132,46 +131,42 @@ impl<'a> GResourceFileData<'a> {
         data: Cow<'a, [u8]>,
         path: Option<PathBuf>,
     ) -> GResourceBuilderResult<Cow<'a, [u8]>> {
-        let mut output = Vec::new();
+        let output = Vec::new();
 
-        let reader_config = ParserConfig::new()
-            .trim_whitespace(true)
-            .ignore_comments(true);
-        let event_reader = EventReader::new_with_config(&*data, reader_config);
+        let mut reader = quick_xml::Reader::from_str(
+            std::str::from_utf8(&data)
+                .map_err(|err| GResourceBuilderError::Utf8(err, path.clone()))?,
+        );
+        reader.trim_text(true);
 
-        let writer_config = EmitterConfig::new()
-            .perform_indent(false)
-            .line_separator("\n");
-        let mut event_writer = EventWriter::new_with_config(&mut output, writer_config);
+        let mut writer = quick_xml::Writer::new(std::io::Cursor::new(output));
 
-        for event in event_reader {
-            if let Some(writer_event) = event
-                .map_err(|err| GResourceBuilderError::XmlRead(err, path.clone()))?
-                .as_writer_event()
+        loop {
+            match reader
+                .read_event()
+                .map_err(|err| GResourceBuilderError::Xml(err, path.clone()))?
             {
-                if let Err(err) = event_writer.write(writer_event) {
-                    return Err(GResourceBuilderError::XmlWrite(err, path));
-                }
+                quick_xml::events::Event::Eof => break,
+                event => writer
+                    .write_event(event)
+                    .map_err(|err| GResourceBuilderError::Xml(err, path.clone()))?,
             }
         }
 
-        Ok(Cow::Owned(output))
+        Ok(Cow::Owned(writer.into_inner().into_inner()))
     }
 
     fn json_stripblanks(
         data: Cow<'a, [u8]>,
         path: Option<PathBuf>,
     ) -> GResourceBuilderResult<Cow<'a, [u8]>> {
-        let mut output = Vec::new();
+        let string = std::str::from_utf8(&data)
+            .map_err(|err| GResourceBuilderError::Utf8(err, path.clone()))?;
 
-        let json = json::parse(
-            &String::from_utf8(data.to_vec())
-                .map_err(|err| GResourceBuilderError::Utf8(err, path.clone()))?,
-        )
-        .map_err(|err| GResourceBuilderError::Json(err, path.clone()))?;
-        json.write(&mut output)
-            .map_err(GResourceBuilderError::from_io_with_filename(path))?;
+        let json: serde_json::Value = serde_json::from_str(string)
+            .map_err(|err| GResourceBuilderError::Json(err, path.clone()))?;
 
+        let mut output = json.to_string().as_bytes().to_vec();
         output.push(b'\n');
 
         Ok(Cow::Owned(output))
@@ -662,9 +657,9 @@ mod test {
             )
             .unwrap_err();
 
-            assert_matches!(err, GResourceBuilderError::XmlRead(_, _));
-            assert!(format!("{}", err).contains("Error reading XML"));
-            assert!(format!("{:?}", err).contains("Unexpected end of"));
+            assert_matches!(err, GResourceBuilderError::Xml(_, _));
+            assert!(format!("{}", err).contains("Error processing XML data"));
+            assert!(format!("{:?}", err).contains("Unexpected EOF"));
         }
     }
 
@@ -695,7 +690,7 @@ mod test {
             .unwrap_err();
 
             assert_matches!(err, GResourceBuilderError::Json(..));
-            assert!(format!("{:?}", err).contains("Unexpected character"));
+            assert!(format!("{:?}", err).contains("expected value at line"));
         }
 
         let valid_json = r#"{ "test": "test" }"#.as_bytes();

@@ -1,7 +1,7 @@
-{
-  "test": "test_string",
-  "int": 42,
-  "table": {
+[
+  "test_string",
+  42,
+  {
     "bool": true
   }
-}
+]
