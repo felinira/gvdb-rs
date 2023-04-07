@@ -10,7 +10,7 @@ use walkdir::WalkDir;
 
 const FLAG_COMPRESSED: u32 = 1 << 0;
 
-static SKIPPED_FILE_NAMES_DEFAULT: &[&str] = &["meson.build", "gresource.xml"];
+static SKIPPED_FILE_NAMES_DEFAULT: &[&str] = &["meson.build", "gresource.xml", ".gitignore"];
 static COMPRESS_EXTENSIONS_DEFAULT: &[&str] = &[".ui", ".css"];
 
 /// A container for a GResource data object
