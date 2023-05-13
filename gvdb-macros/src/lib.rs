@@ -33,7 +33,7 @@ fn quote_bytes(bytes: &[u8]) -> proc_macro2::TokenStream {
 
     quote! {
         {{
-            #[repr(align(2))]
+            #[repr(align(16))]
             #[doc(hidden)]
             struct __GVDB_Aligned<T: ?Sized>(T);
             #[doc(hidden)]
