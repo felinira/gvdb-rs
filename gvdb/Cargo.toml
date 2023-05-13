@@ -1,6 +1,6 @@
 [package]
 name = "gvdb"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 description = "Read and write GLib GVariant database files"
 repository = "https://github.com/felinira/gvdb-rs"
