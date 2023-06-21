@@ -69,8 +69,6 @@ fn create_gvdb_file() {
 
 ### Read a GVDB file
 
-Requires the `read` feature to be enabled.
-
 The stored data at `/gvdb/rs/test/online-symbolic.svg` corresponds to the `(uuay)` GVariant type signature.
 
 ```rust
