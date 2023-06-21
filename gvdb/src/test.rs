@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use crate::read::{GvdbFile, GvdbHashItemType, GvdbHashTable};
 use crate::write::{GvdbFileWriter, GvdbHashTableBuilder};
 use lazy_static::lazy_static;
