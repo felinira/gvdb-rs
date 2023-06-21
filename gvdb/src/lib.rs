@@ -64,6 +64,10 @@
 //!
 //! By default, no features are enabled.
 //!
+//! ### `mmap`
+//!
+//! Use the memmap2 crate to read memory-mapped GVDB files.
+//!
 //! ### `glib`
 //!
 //! By default this crate uses the [glib](https://crates.io/crates/zvariant) crate to allow reading
@@ -72,7 +76,7 @@
 //!
 //! ### `gresource`
 //!
-//! To use the GResource compilation module, the `gresource` feature must be enabled.
+//! To be able to compile GResource files, the `gresource` feature must be enabled.
 //!
 //! ## Macros
 //!

@@ -3,7 +3,6 @@ use crate::read::hash_item::{GvdbHashItem, GvdbHashItemType};
 use crate::read::header::GvdbHeader;
 use crate::read::pointer::GvdbPointer;
 use crate::read::GvdbHashTable;
-use memmap2::Mmap;
 use safe_transmute::transmute_one_pedantic;
 use std::borrow::Cow;
 use std::fs::File;
@@ -14,13 +13,15 @@ use std::path::Path;
 #[derive(Debug)]
 pub(crate) enum GvdbData {
     Cow(Cow<'static, [u8]>),
-    Mmap(Mmap),
+    #[cfg(feature = "mmap")]
+    Mmap(memmap2::Mmap),
 }
 
 impl AsRef<[u8]> for GvdbData {
     fn as_ref(&self) -> &[u8] {
         match self {
             GvdbData::Cow(cow) => cow.as_ref(),
+            #[cfg(feature = "mmap")]
             GvdbData::Mmap(mmap) => mmap.as_ref(),
         }
     }
@@ -187,10 +188,12 @@ impl GvdbFile {
     /// This is marked unsafe as the file could be modified on-disk while the mmap is active.
     /// This will cause undefined behavior. You must make sure to employ your own locking and to
     /// reload the file yourself when any modification occurs.
+    #[cfg(feature = "mmap")]
     pub unsafe fn from_file_mmap(filename: &Path) -> GvdbReaderResult<Self> {
         let file =
             File::open(filename).map_err(GvdbReaderError::from_io_with_filename(filename))?;
-        let mmap = Mmap::map(&file).map_err(GvdbReaderError::from_io_with_filename(filename))?;
+        let mmap =
+            memmap2::Mmap::map(&file).map_err(GvdbReaderError::from_io_with_filename(filename))?;
 
         let mut this = Self {
             data: GvdbData::Mmap(mmap),
@@ -293,6 +296,7 @@ mod test {
         assert_is_file_1(&file);
     }
 
+    #[cfg(feature = "mmap")]
     #[test]
     fn test_file_1_mmap() {
         let file = unsafe { GvdbFile::from_file_mmap(&TEST_FILE_1).unwrap() };
@@ -341,6 +345,7 @@ mod test {
         println!("{}", res.unwrap_err());
     }
 
+    #[cfg(feature = "mmap")]
     #[test]
     fn file_error_mmap() {
         unsafe {

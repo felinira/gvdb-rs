@@ -8,6 +8,12 @@ This is an implementation of the glib GVariant database file format in Rust. It 
 
 The minimal rust version of this crate is 1.65.
 
+## Breaking changes
+
+### 0.5
+
+Added the `mmap` feature, disabled by default.
+
 ## Example
 
 ### Create a GResource file
@@ -62,6 +68,8 @@ fn create_gvdb_file() {
 ```
 
 ### Read a GVDB file
+
+Requires the `read` feature to be enabled.
 
 The stored data at `/gvdb/rs/test/online-symbolic.svg` corresponds to the `(uuay)` GVariant type signature.
 

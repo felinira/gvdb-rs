@@ -1,6 +1,6 @@
 [package]
 name = "gvdb-macros"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 description = "Convenience macros for gvdb"
 repository = "https://github.com/felinira/gvdb-rs"
@@ -13,7 +13,7 @@ rust-version = "1.65"
 proc-macro = true
 
 [dependencies]
-gvdb = { version = "0.4", default-features = false, features = ["gresource"], path = "../gvdb" }
-proc-macro2 = "1.0.37"
+gvdb = { version = "0.5", default-features = false, features = ["gresource"], path = "../gvdb" }
+proc-macro2 = "1.0"
 litrs = "0.4"
-quote = "1.0.18"
+quote = "1.0"
