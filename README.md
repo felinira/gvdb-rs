@@ -18,3 +18,9 @@ This is an implementation of the glib GVariant database file format in Rust. It 
 
 This crate offers convenience macros for [gvdb](https://crates.io/crates/gvdb).
 The macros are `include_gresource_from_xml!()` and `include_gresource_from_dir!()`
+
+## License
+
+`gvdb` and `gvdb-macros` are available under the MIT license. See the [LICENSE.md](./LICENSE.md) file for more info.
+
+SVG icon files included in `test-data/gresource/icons/` are available under the CC0 license. See the [LICENSE.Icons.md](./LICENSE.Icons.md) file for more info.
