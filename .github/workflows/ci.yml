@@ -26,10 +26,10 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
 
       - name: Install cargo-all-features
-        run: cargo install cargo-all-features
+        run: cargo install --locked --force cargo-all-features
       - name: Build
         run: cargo build --verbose --all-features
       - name: Clippy
@@ -38,3 +38,33 @@ jobs:
         run: cargo test-all-features --verbose
       - name: Compile documentation
         run: cargo doc --verbose --no-deps --all-features
+
+  big_endian:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-s390x-cargo-${{ hashFiles('**/Cargo.toml') }}
+
+      - uses: uraimo/run-on-arch-action@v2
+        name: Build and test on s390x
+        id: runcmd
+        with:
+          arch: s390x
+          distro: alpine_latest
+          githubToken: ${{ github.token }}
+          install: |
+            apk add cargo glib-dev
+            cargo install --locked --force cargo-all-features
+          run: |
+            cargo build --verbose --all-features
+            cargo test-all-features --verbose
