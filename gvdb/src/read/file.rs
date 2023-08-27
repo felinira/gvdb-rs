@@ -331,7 +331,7 @@ mod test {
 
     #[test]
     fn invalid_header() {
-        let header = GvdbHeader::new(false, 0, GvdbPointer::new(0, 0));
+        let header = GvdbHeader::new_be(0, GvdbPointer::new(0, 0));
         let mut data = transmute_one_to_bytes(&header).to_vec();
 
         data[0] = 0;
@@ -343,7 +343,7 @@ mod test {
 
     #[test]
     fn invalid_version() {
-        let header = GvdbHeader::new(false, 1, GvdbPointer::new(0, 0));
+        let header = GvdbHeader::new_le(1, GvdbPointer::new(0, 0));
         let data = transmute_one_to_bytes(&header).to_vec();
 
         assert_matches!(
@@ -371,7 +371,7 @@ mod test {
     }
 
     fn create_minimal_file() -> GvdbFile {
-        let header = GvdbHeader::new(false, 0, GvdbPointer::new(0, 0));
+        let header = GvdbHeader::new_le(0, GvdbPointer::new(0, 0));
         let data = transmute_one_to_bytes(&header).to_vec();
         assert_bytes_eq(
             &data,
