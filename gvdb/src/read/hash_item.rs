@@ -78,14 +78,12 @@ impl GvdbHashItem {
         let key_start = key_ptr.start().to_le();
         let key_size = (key_ptr.size() as u16).to_le();
 
-        let typ = typ.try_into().unwrap_or(b'v');
-
         Self {
             hash_value: hash_value.to_le(),
             parent: parent.to_le(),
             key_start,
             key_size,
-            typ,
+            typ: typ.into(),
             unused: 0,
             value,
         }
