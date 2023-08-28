@@ -56,12 +56,11 @@ impl GvdbHashHeader {
 
 impl Debug for GvdbHashHeader {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "GvdbHashHeader {{ n_bloom_words: {}, n_buckets: {} }}",
-            self.n_bloom_words(),
-            self.n_buckets()
-        )
+        f.debug_struct("GvdbHashHeader")
+            .field("n_bloom_words", &self.n_bloom_words())
+            .field("n_buckets", &self.n_buckets())
+            .field("data", &safe_transmute::transmute_one_to_bytes(self))
+            .finish()
     }
 }
 
@@ -69,7 +68,7 @@ impl Debug for GvdbHashHeader {
 ///
 ///
 #[repr(C)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct GvdbHashTable<'a> {
     pub(crate) root: &'a GvdbFile,
     data: Cow<'a, [u8]>,
@@ -373,6 +372,47 @@ impl<'a> GvdbHashTable<'a> {
 
     fn get_hash_table_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<GvdbHashTable> {
         self.root.get_hash_table_for_item(item)
+    }
+}
+
+impl std::fmt::Debug for GvdbHashTable<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GvdbHashTable")
+            .field("header", &self.header)
+            .field(
+                "map",
+                &self.get_names().map(|res| {
+                    res.iter()
+                        .map(|name| {
+                            let item = self.get_hash_item(name);
+                            match item {
+                                Ok(item) => {
+                                    let value = match item.typ() {
+                                        Ok(super::GvdbHashItemType::Container) => {
+                                            Ok(Box::new(item) as Box<dyn std::fmt::Debug>)
+                                        }
+                                        Ok(super::GvdbHashItemType::HashTable) => {
+                                            self.get_hash_table_for_item(&item).map(|table| {
+                                                Box::new(table) as Box<dyn std::fmt::Debug>
+                                            })
+                                        }
+                                        Ok(super::GvdbHashItemType::Value) => {
+                                            self.get_value_for_item(&item).map(|value| {
+                                                Box::new(value) as Box<dyn std::fmt::Debug>
+                                            })
+                                        }
+                                        Err(err) => Err(err),
+                                    };
+
+                                    (name.to_string(), Ok((item, value)))
+                                }
+                                Err(err) => (name.to_string(), Err(err)),
+                            }
+                        })
+                        .collect::<std::collections::HashMap<_, _>>()
+                }),
+            )
+            .finish()
     }
 }
 
