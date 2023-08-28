@@ -62,9 +62,10 @@ jobs:
           arch: s390x
           distro: alpine_latest
           githubToken: ${{ github.token }}
+          dockerRunArgs: |
+            --volume "${HOME}/.cargo:/root/.cargo"
           install: |
             apk add cargo glib-dev
-            cargo install --locked --force cargo-all-features
           run: |
-            cargo build --verbose --all-features
-            cargo test-all-features --verbose
+            cargo test --all-features --verbose
+            chmod -R a+r target

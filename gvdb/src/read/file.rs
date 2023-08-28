@@ -278,11 +278,13 @@ impl std::fmt::Debug for GvdbFile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Ok(hash_table) = self.hash_table() {
             f.debug_struct("GvdbFile")
+                .field("byteswapped", &self.byteswapped)
                 .field("header", &self.get_header())
                 .field("hash_table", &hash_table)
                 .finish()
         } else {
             f.debug_struct("GvdbFile")
+                .field("byteswapped", &self.byteswapped)
                 .field("header", &self.get_header())
                 .finish_non_exhaustive()
         }
