@@ -85,7 +85,6 @@ impl AsRef<[u8]> for GvdbData {
 ///     assert_eq!(int_value, 42);
 /// }
 /// ```
-#[derive(Debug)]
 pub struct GvdbFile {
     pub(crate) data: GvdbData,
     pub(crate) byteswapped: bool,
@@ -271,6 +270,21 @@ impl GvdbFile {
                 self.get_key(item)?,
                 typ
             )))
+        }
+    }
+}
+
+impl std::fmt::Debug for GvdbFile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Ok(hash_table) = self.hash_table() {
+            f.debug_struct("GvdbFile")
+                .field("header", &self.get_header())
+                .field("hash_table", &hash_table)
+                .finish()
+        } else {
+            f.debug_struct("GvdbFile")
+                .field("header", &self.get_header())
+                .finish_non_exhaustive()
         }
     }
 }
