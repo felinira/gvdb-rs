@@ -76,7 +76,7 @@ impl GvdbHashItem {
         value: GvdbPointer,
     ) -> Self {
         let key_start = key_ptr.start().to_le();
-        let key_size = key_ptr.size().to_le() as u16;
+        let key_size = (key_ptr.size() as u16).to_le();
 
         let typ = typ.try_into().unwrap_or(b'v');
 
