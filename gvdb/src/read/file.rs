@@ -386,7 +386,8 @@ mod test {
 
     #[test]
     fn test_minimal_file() {
-        let _ = create_minimal_file();
+        let file = create_minimal_file();
+        format!("{file:?}");
     }
 
     #[test]
