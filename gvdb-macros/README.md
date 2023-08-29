@@ -20,3 +20,9 @@ Scan a directory and create a GResource file with all the contents of the direct
 use gvdb_macros::include_gresource_from_dir;
 static GRESOURCE_BYTES: &[u8] = include_gresource_from_dir!("/gvdb/rs/test", "test-data/gresource/");
 ```
+
+## License
+
+`gvdb` and `gvdb-macros` are available under the MIT license. See the [LICENSE.md](./LICENSE.md) file for more info.
+
+SVG icon files included in `test-data/gresource/icons/` are available under the CC0 license and redistributed from [Icon Development Kit](https://gitlab.gnome.org/Teams/Design/icon-development-kit). See the [LICENSE.Icons.md](./LICENSE.Icons.md) and file for more info.
