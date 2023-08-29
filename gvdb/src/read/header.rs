@@ -21,6 +21,26 @@ pub struct GvdbHeader {
 unsafe impl TriviallyTransmutable for GvdbHeader {}
 
 impl GvdbHeader {
+    #[cfg(test)]
+    pub fn new_le(version: u32, root: GvdbPointer) -> Self {
+        #[cfg(target_endian = "little")]
+        let byteswap = false;
+        #[cfg(target_endian = "big")]
+        let byteswap = true;
+
+        Self::new(byteswap, version, root)
+    }
+
+    #[cfg(test)]
+    pub fn new_be(version: u32, root: GvdbPointer) -> Self {
+        #[cfg(target_endian = "little")]
+        let byteswap = true;
+        #[cfg(target_endian = "big")]
+        let byteswap = false;
+
+        Self::new(byteswap, version, root)
+    }
+
     pub fn new(byteswap: bool, version: u32, root: GvdbPointer) -> Self {
         let signature = if !byteswap {
             [GVDB_SIGNATURE0, GVDB_SIGNATURE1]

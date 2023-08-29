@@ -1,5 +1,5 @@
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct GvdbPointer {
     start: u32,
     end: u32,
@@ -25,6 +25,15 @@ impl GvdbPointer {
 
     pub fn size(&self) -> usize {
         (self.end() - self.start()) as usize
+    }
+}
+
+impl std::fmt::Debug for GvdbPointer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GvdbPointer")
+            .field("start", &self.start())
+            .field("end", &self.end())
+            .finish()
     }
 }
 

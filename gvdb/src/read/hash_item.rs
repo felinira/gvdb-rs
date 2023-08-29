@@ -50,7 +50,7 @@ impl Display for GvdbHashItemType {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub struct GvdbHashItem {
     hash_value: u32,
     parent: u32,
@@ -61,7 +61,6 @@ pub struct GvdbHashItem {
     typ: u8,
     unused: u8,
 
-    // no endianness here otherwise we would need context
     value: GvdbPointer,
 }
 
@@ -78,14 +77,12 @@ impl GvdbHashItem {
         let key_start = key_ptr.start().to_le();
         let key_size = (key_ptr.size() as u16).to_le();
 
-        let typ = typ.try_into().unwrap_or(b'v');
-
         Self {
             hash_value: hash_value.to_le(),
             parent: parent.to_le(),
             key_start,
             key_size,
-            typ,
+            typ: typ.into(),
             unused: 0,
             value,
         }
@@ -120,6 +117,20 @@ impl GvdbHashItem {
 
     pub fn value_ptr(&self) -> &GvdbPointer {
         &self.value
+    }
+}
+
+impl std::fmt::Debug for GvdbHashItem {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GvdbHashItem")
+            .field("hash_value", &self.hash_value())
+            .field("parent", &self.parent())
+            .field("key_start", &self.key_start())
+            .field("key_size", &self.key_size())
+            .field("typ", &self.typ())
+            .field("unused", &self.unused)
+            .field("value", &self.value_ptr())
+            .finish()
     }
 }
 
