@@ -275,6 +275,12 @@ mod test {
             GResourceXMLDocument::from_string(&test_path, r#"<gresources><gresource><file preprocess="fail">filename</file></gresource></gresources>"#),
             Err(GResourceXMLError::Serde(quick_xml::de::DeError::Custom(field), _)) if field.starts_with("got 'fail' but expected any of")
         );
+
+        let res =
+            GResourceXMLDocument::from_bytes(&test_path, Cow::Borrowed(&[0x80, 0x81])).unwrap_err();
+
+        println!("{}", res);
+        assert_matches!(res, GResourceXMLError::Utf8(..));
     }
 
     #[test]

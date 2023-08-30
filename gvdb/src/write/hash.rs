@@ -200,6 +200,10 @@ impl<'it, 'h> Iterator for SimpleHashTableIter<'it, 'h> {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashSet;
+
+    use matches::assert_matches;
+
     use crate::write::hash::SimpleHashTable;
     use crate::write::item::GvdbBuilderItemValue;
 
@@ -256,5 +260,45 @@ mod test {
         }
 
         assert!(!table.remove("50"));
+    }
+
+    #[test]
+    fn simple_hash_table_iter() {
+        let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
+        for index in 0..20 {
+            table.insert(&format!("{}", index), zvariant::Value::new(index).into());
+        }
+
+        let mut iter = table.iter();
+        for _ in 0..20 {
+            let value: i32 = iter
+                .next()
+                .unwrap()
+                .1
+                .value()
+                .borrow()
+                .value()
+                .unwrap()
+                .try_into()
+                .unwrap();
+            assert_matches!(value, 0..=19);
+        }
+    }
+
+    #[test]
+    fn simple_hash_table_bucket_iter() {
+        let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
+        for index in 0..20 {
+            table.insert(&format!("{}", index), zvariant::Value::new(index).into());
+        }
+
+        let mut values: HashSet<i32> = (0..20).collect();
+        for bucket in 0..table.n_buckets() {
+            let mut iter = table.iter_bucket(bucket);
+            while let Some(next) = iter.next() {
+                let num: i32 = next.value().borrow().value().unwrap().try_into().unwrap();
+                assert_eq!(values.remove(&num), true);
+            }
+        }
     }
 }

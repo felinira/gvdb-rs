@@ -24,7 +24,7 @@ impl GvdbPointer {
     }
 
     pub fn size(&self) -> usize {
-        (self.end() - self.start()) as usize
+        self.end().saturating_sub(self.start()) as usize
     }
 }
 
@@ -46,5 +46,12 @@ mod test {
         let pointer = GvdbPointer::new(0, 2);
         let pointer2 = pointer.clone();
         println!("{:?}", pointer2);
+    }
+
+    #[test]
+    fn no_panic_invalid_size() {
+        let invalid_ptr = GvdbPointer::new(100, 0);
+        let size = invalid_ptr.size();
+        assert_eq!(size, 0);
     }
 }

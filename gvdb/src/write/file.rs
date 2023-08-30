@@ -601,7 +601,7 @@ impl Default for GvdbFileWriter {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::read::GvdbFile;
+    use crate::read::{GvdbFile, GvdbHashItemType};
     use matches::assert_matches;
     use std::borrow::Cow;
     use std::io::Cursor;
@@ -694,6 +694,9 @@ mod test {
         let root_index = file_builder.add_table_builder(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
         let root = GvdbFile::from_bytes(Cow::Owned(bytes)).unwrap();
+
+        println!("{:?}", root);
+
         assert_is_file_1(&root);
         byte_compare_file_1(&root);
     }
@@ -716,6 +719,9 @@ mod test {
         let root_index = file_builder.add_table_builder(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
         let root = GvdbFile::from_bytes(Cow::Owned(bytes)).unwrap();
+
+        println!("{:?}", root);
+
         assert_is_file_2(&root);
         byte_compare_file_2(&root);
     }
@@ -759,7 +765,31 @@ mod test {
         assert_eq!("raVGtnai", std::str::from_utf8(&bytes[0..8]).unwrap());
 
         let root = GvdbFile::from_bytes(Cow::Owned(bytes)).unwrap();
+        println!("{:?}", root);
+
         assert_is_file_1(&root);
+    }
+
+    #[test]
+    fn container() {
+        let mut file_builder = GvdbFileWriter::new();
+        let mut table_builder = GvdbHashTableBuilder::new();
+
+        table_builder
+            .insert_string("contained/string", "str")
+            .unwrap();
+        let root_index = file_builder.add_table_builder(table_builder).unwrap().0;
+        let bytes = file_builder.serialize_to_vec(root_index).unwrap();
+        let root = GvdbFile::from_bytes(Cow::Owned(bytes)).unwrap();
+
+        let container_item = root
+            .hash_table()
+            .unwrap()
+            .get_hash_item("contained/")
+            .unwrap();
+
+        assert_eq!(container_item.typ().unwrap(), GvdbHashItemType::Container);
+        println!("{:?}", root);
     }
 
     #[test]
