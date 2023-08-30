@@ -1,19 +1,21 @@
 [package]
 name = "gvdb-macros"
-version = "0.1.8"
+version = "0.1.9"
 edition = "2021"
 description = "Convenience macros for gvdb"
 repository = "https://github.com/felinira/gvdb-rs"
 license = "MIT"
-keywords = [ "gvdb", "glib", "gresource", "compile-resources" ]
-categories = [ "gui", "data-structures", "encoding" ]
+keywords = ["gvdb", "glib", "gresource", "compile-resources"]
+categories = ["gui", "data-structures", "encoding"]
 rust-version = "1.65"
 
 [lib]
 proc-macro = true
 
 [dependencies]
-gvdb = { version = "0.5", default-features = false, features = ["gresource"], path = "../gvdb" }
+gvdb = { version = "0.5", default-features = false, features = [
+    "gresource",
+], path = "../gvdb" }
 proc-macro2 = "1.0"
 litrs = "0.4"
 quote = "1.0"
