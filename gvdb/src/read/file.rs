@@ -298,7 +298,7 @@ mod test {
     use std::mem::size_of;
     use std::path::PathBuf;
 
-    use crate::read::{GvdbHeader, GvdbPointer, GvdbReaderError};
+    use crate::read::{GvdbHashItem, GvdbHeader, GvdbPointer, GvdbReaderError};
     use crate::test::*;
     use crate::write::{GvdbFileWriter, GvdbHashTableBuilder};
     use matches::assert_matches;
@@ -432,6 +432,67 @@ mod test {
         let err = file.hash_table().unwrap_err();
         assert_matches!(err, GvdbReaderError::DataError(_));
         assert!(format!("{}", err).contains("Remaining size invalid"));
+    }
+
+    #[test]
+    fn parent_invalid_offset() {
+        let writer = GvdbFileWriter::new();
+        let mut table = GvdbHashTableBuilder::new();
+        table.insert_string("parent/test", "test").unwrap();
+        let mut data = writer.write_to_vec_with_table(table).unwrap();
+
+        let file = GvdbFile::from_bytes(Cow::Owned(data.clone())).unwrap();
+
+        // We change the parent offset to be bigger than the item size in the hash table.
+        // 'test' will always end up being item 2.
+        // The parent field is at +4.
+        let hash_item_size = size_of::<GvdbHashItem>();
+        let start = file.hash_table().unwrap().hash_items_offset() + hash_item_size * 2;
+
+        let parent_field = start + 4;
+        data[parent_field..parent_field + size_of::<u32>()]
+            .copy_from_slice(safe_transmute::transmute_one_to_bytes(&10u32.to_le()));
+
+        println!(
+            "{:?}",
+            GvdbFile::from_bytes(Cow::Owned(data.clone())).unwrap()
+        );
+
+        let file = GvdbFile::from_bytes(Cow::Owned(data)).unwrap();
+        let err = file.hash_table().unwrap().get_names().unwrap_err();
+        assert_matches!(err, GvdbReaderError::DataError(_));
+        assert!(format!("{}", err).contains("Parent with invalid offset"));
+        assert!(format!("{}", err).contains("10"));
+    }
+
+    #[test]
+    fn parent_loop() {
+        let writer = GvdbFileWriter::new();
+        let mut table = GvdbHashTableBuilder::new();
+        table.insert_string("parent/test", "test").unwrap();
+        let mut data = writer.write_to_vec_with_table(table).unwrap();
+
+        let file = GvdbFile::from_bytes(Cow::Owned(data.clone())).unwrap();
+
+        // We change the parent offset to be pointing to itself.
+        // 'test' will always end up being item 2.
+        // The parent field is at +4.
+        let hash_item_size = size_of::<GvdbHashItem>();
+        let start = file.hash_table().unwrap().hash_items_offset() + hash_item_size * 2;
+
+        let parent_field = start + 4;
+        data[parent_field..parent_field + size_of::<u32>()]
+            .copy_from_slice(safe_transmute::transmute_one_to_bytes(&1u32.to_le()));
+
+        println!(
+            "{:?}",
+            GvdbFile::from_bytes(Cow::Owned(data.clone())).unwrap()
+        );
+
+        let file = GvdbFile::from_bytes(Cow::Owned(data)).unwrap();
+        let err = file.hash_table().unwrap().get_names().unwrap_err();
+        assert_matches!(err, GvdbReaderError::DataError(_));
+        assert!(format!("{}", err).contains("loop"));
     }
 
     #[test]

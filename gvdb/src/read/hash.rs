@@ -191,7 +191,7 @@ impl<'a> GvdbHashTable<'a> {
         self.get_u32(start)
     }
 
-    fn hash_items_offset(&self) -> usize {
+    pub(crate) fn hash_items_offset(&self) -> usize {
         self.hash_buckets_end()
     }
 
@@ -418,12 +418,12 @@ impl std::fmt::Debug for GvdbHashTable<'_> {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use crate::read::{GvdbFile, GvdbHashHeader, GvdbPointer, GvdbReaderError};
+    use crate::read::{GvdbFile, GvdbHashHeader, GvdbHashItem, GvdbPointer, GvdbReaderError};
     use crate::test::*;
     use crate::test::{assert_eq, assert_matches, assert_ne};
 
     #[test]
-    fn derives() {
+    fn debug() {
         let header = GvdbHashHeader::new(0, 0, 0);
         let header2 = header.clone();
         println!("{:?}", header2);
@@ -445,6 +445,7 @@ pub(crate) mod test {
         let table = file.hash_table().unwrap();
         let header = table.get_header();
         assert_eq!(header.n_buckets(), 1);
+        println!("{:?}", table);
     }
 
     #[test]
@@ -533,6 +534,76 @@ pub(crate) mod test {
         let table = table.get_hash_table("table").unwrap();
         let fail = table.get_hash_table("fail").unwrap_err();
         assert_matches!(fail, GvdbReaderError::KeyError(_));
+    }
+
+    #[test]
+    fn check_name_pass() {
+        let file = GvdbFile::from_file(&TEST_FILE_2).unwrap();
+        let table = file.hash_table().unwrap();
+        let item = table.get_hash_item("string").unwrap();
+        assert_eq!(table.check_name(&item, "string"), true);
+    }
+
+    #[test]
+    fn check_name_invalid_name() {
+        let file = GvdbFile::from_file(&TEST_FILE_2).unwrap();
+        let table = file.hash_table().unwrap();
+        let item = table.get_hash_item("string").unwrap();
+        assert_eq!(table.check_name(&item, "fail"), false);
+    }
+
+    #[test]
+    fn check_name_wrong_item() {
+        let file = GvdbFile::from_file(&TEST_FILE_2).unwrap();
+        let table = file.hash_table().unwrap();
+        let table = table.get_hash_table("table").unwrap();
+
+        // Get an item from the sub-hash table and call check_names on the root
+        let item = table.get_hash_item("int").unwrap();
+        assert_eq!(table.check_name(&item, "table"), false);
+    }
+
+    #[test]
+    fn check_name_broken_key_pointer() {
+        let file = GvdbFile::from_file(&TEST_FILE_2).unwrap();
+        let table = file.hash_table().unwrap();
+        let table = table.get_hash_table("table").unwrap();
+
+        // Break the key pointer
+        let item = table.get_hash_item("int").unwrap();
+        let key_ptr = GvdbPointer::new(500, 500);
+        let broken_item = GvdbHashItem::new(
+            item.hash_value(),
+            item.parent(),
+            key_ptr,
+            item.typ().unwrap(),
+            item.value_ptr().clone(),
+        );
+
+        assert_eq!(table.check_name(&broken_item, "table"), false);
+    }
+
+    #[test]
+    fn check_name_invalid_parent() {
+        let file = GvdbFile::from_file(&TEST_FILE_3).unwrap();
+        let table = file.hash_table().unwrap();
+
+        // Break the key pointer
+        let item = table
+            .get_hash_item("/gvdb/rs/test/online-symbolic.svg")
+            .unwrap();
+        let broken_item = GvdbHashItem::new(
+            item.hash_value(),
+            50,
+            item.key_ptr(),
+            item.typ().unwrap(),
+            item.value_ptr().clone(),
+        );
+
+        assert_eq!(
+            table.check_name(&broken_item, "/gvdb/rs/test/online-symbolic.svg"),
+            false
+        );
     }
 }
 

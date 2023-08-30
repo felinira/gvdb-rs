@@ -617,6 +617,25 @@ mod test {
     }
 
     #[test]
+    fn test_invalid_utf8_json() {
+        use std::os::unix::ffi::OsStrExt;
+        let invalid_utf8 = OsStr::from_bytes(&[0xC3, 0x28]);
+        let dir: PathBuf = ["test-data", "temp3"].iter().collect();
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut file = std::fs::File::create(dir.join("test.json")).unwrap();
+        let _ = file.write(invalid_utf8.as_bytes());
+
+        let res = GResourceBuilder::from_directory("test", &dir.parent().unwrap(), true, true);
+        let _ = std::fs::remove_file(dir.join("test.json"));
+        let _ = std::fs::remove_dir(&dir);
+
+        let err = res.unwrap_err();
+        println!("{}", err);
+        assert_matches!(err, GResourceBuilderError::Utf8(..));
+        assert!(format!("{}", err).contains("UTF-8"));
+    }
+
+    #[test]
     fn test_from_file_data() {
         let path = GRESOURCE_DIR.join("json").join("test.json");
         let file_data = GResourceFileData::from_file(
