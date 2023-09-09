@@ -408,7 +408,9 @@ impl<'a> GResourceBuilder<'a> {
 
                 let file_abs_path = entry.path();
                 let Ok(file_path_relative) = file_abs_path.strip_prefix(directory) else {
-                    return Err(GResourceBuilderError::Generic("Strip prefix error".to_string()));
+                    return Err(GResourceBuilderError::Generic(
+                        "Strip prefix error".to_string(),
+                    ));
                 };
 
                 let Some(file_path_str_relative) = file_path_relative.to_str() else {
@@ -625,7 +627,7 @@ mod test {
         let mut file = std::fs::File::create(dir.join("test.json")).unwrap();
         let _ = file.write(invalid_utf8.as_bytes());
 
-        let res = GResourceBuilder::from_directory("test", &dir.parent().unwrap(), true, true);
+        let res = GResourceBuilder::from_directory("test", &dir, true, true);
         let _ = std::fs::remove_file(dir.join("test.json"));
         let _ = std::fs::remove_dir(&dir);
 
