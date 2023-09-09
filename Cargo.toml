@@ -1,11 +1,6 @@
 [workspace]
+resolver = "2"
 
-default-members = [
-    "gvdb",
-    "gvdb-macros",
-]
+default-members = ["gvdb", "gvdb-macros"]
 
-members = [
-    "gvdb",
-    "gvdb-macros",
-]
+members = ["gvdb", "gvdb-macros"]
