@@ -1,6 +1,6 @@
 [package]
 name = "gvdb-macros"
-version = "0.1.9"
+version = "0.1.10"
 edition = "2021"
 description = "Convenience macros for gvdb"
 repository = "https://github.com/felinira/gvdb-rs"
