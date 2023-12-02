@@ -1,6 +1,6 @@
 [package]
 name = "gvdb"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2021"
 description = "Read and write GLib GVariant database files"
 repository = "https://github.com/felinira/gvdb-rs"
@@ -8,7 +8,7 @@ license = "MIT"
 keywords = ["gvdb", "glib", "gresource", "compile-resources"]
 categories = ["gui", "data-structures", "encoding"]
 exclude = ["test/c"]
-rust-version = "1.65"
+rust-version = "1.70"
 
 [package.metadata.docs.rs]
 all-features = true

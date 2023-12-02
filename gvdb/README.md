@@ -6,7 +6,7 @@ This is an implementation of the glib GVariant database file format in Rust. It 
 
 ## MSRV
 
-The minimal rust version of this crate is 1.65.
+The minimum supported rust version of this crate is 1.67.
 
 ## Breaking changes
 
