@@ -14,9 +14,21 @@ env:
 jobs:
   build_and_test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust:
+          - 1.67.1 # MSRV
+          - stable
+          - nightly
     steps:
       - uses: actions/checkout@v2
-
+      - name: Install rust ${{ matrix.rust }}
+        uses: actions-rs/toolchain@v1
+        with:
+            toolchain: ${{ matrix.rust }}
+            override: true
+            components: rustfmt, clippy
       - name: Cache cargo dependencies
         uses: actions/cache@v3
         with:
@@ -26,10 +38,12 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+          key: ${{ runner.os }}-test-dotcargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.toml') }}
 
       - name: Install cargo-all-features
-        run: cargo install --locked --force cargo-all-features
+        uses: taiki-e/cache-cargo-install-action@v1
+        with:
+          tool: cargo-all-features
       - name: Build
         run: cargo build --verbose --all-features
       - name: Clippy
