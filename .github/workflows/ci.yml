@@ -18,9 +18,9 @@ jobs:
       fail-fast: false
       matrix:
         rust:
-          - 1.67.1 # MSRV
-          - stable
-          - nightly
+          - "1.70" # MSRV
+          - "stable"
+          - "nightly"
     steps:
       - uses: actions/checkout@v2
       - name: Install rust ${{ matrix.rust }}
