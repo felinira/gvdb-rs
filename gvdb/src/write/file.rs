@@ -16,7 +16,7 @@ use std::mem::size_of;
 /// # Example
 ///
 /// ```
-/// use glib::ToVariant;
+/// use glib::prelude::*;
 /// use gvdb::write::{GvdbFileWriter, GvdbHashTableBuilder};
 ///
 /// let file_writer = GvdbFileWriter::new();
@@ -147,7 +147,7 @@ impl<'a> GvdbHashTableBuilder<'a> {
     ///
     /// ```
     /// # #[cfg(feature = "glib")]
-    /// # use glib::ToVariant;
+    /// # use glib::prelude::*;
     /// #
     /// let mut table_builder = gvdb::write::GvdbHashTableBuilder::new();
     /// let variant = 123u32.to_variant();
@@ -292,7 +292,7 @@ impl GvdbChunk {
 ///
 /// # Example
 /// ```
-/// use glib::ToVariant;
+/// use glib::prelude::*;
 /// use gvdb::write::{GvdbFileWriter, GvdbHashTableBuilder};
 ///
 /// fn create_gvdb_file() {
@@ -864,7 +864,7 @@ mod test_glib {
     use crate::write::hash::SimpleHashTable;
     use crate::write::item::GvdbBuilderItemValue;
     use crate::write::{GvdbFileWriter, GvdbHashTableBuilder};
-    use glib::ToVariant;
+    use glib::prelude::*;
 
     #[test]
     fn simple_hash_table() {

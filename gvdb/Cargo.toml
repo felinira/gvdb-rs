@@ -22,7 +22,7 @@ zvariant = { version = "3.2", default-features = false, features = [
 ] }
 
 flate2 = { version = "1.0", optional = true }
-glib = { version = "0.18", optional = true }
+glib = { version = "0.19", optional = true }
 quick-xml = { version = "0.31", optional = true, features = ["serialize"] }
 memmap2 = { version = "0.9", optional = true }
 serde_json = { version = "1.0", optional = true }
@@ -31,7 +31,7 @@ walkdir = { version = "2.3", optional = true }
 [dev-dependencies]
 # Use zlib for binary compatibility in tests
 flate2 = { version = "1.0", features = ["zlib"] }
-glib = "0.18"
+glib = "0.19"
 lazy_static = "1.4"
 matches = "0.1"
 pretty_assertions = "1.2"

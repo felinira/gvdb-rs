@@ -611,7 +611,7 @@ pub(crate) mod test {
 mod test_glib {
     use crate::read::GvdbReaderError;
     use crate::test::new_simple_file;
-    use glib::ToVariant;
+    use glib::prelude::*;
     use matches::assert_matches;
 
     #[test]
