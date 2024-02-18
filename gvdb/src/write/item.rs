@@ -211,7 +211,7 @@ mod test {
 mod test_glib {
     use crate::read::GvdbHashItemType;
     use crate::write::item::GvdbBuilderItemValue;
-    use glib::ToVariant;
+    use glib::prelude::*;
     use matches::assert_matches;
 
     #[test]
