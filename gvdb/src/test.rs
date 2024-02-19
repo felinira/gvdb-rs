@@ -341,8 +341,8 @@ pub(crate) fn byte_compare_gvdb_hash_table(a: &GvdbHashTable, b: &GvdbHashTable)
         assert_eq!(item_a.typ().unwrap(), item_b.typ().unwrap());
         assert_eq!(item_a.value_ptr().size(), item_b.value_ptr().size());
 
-        let data_a = a.root.dereference(item_a.value_ptr(), 1).unwrap();
-        let data_b = b.root.dereference(item_b.value_ptr(), 1).unwrap();
+        let data_a = a.file.dereference(item_a.value_ptr(), 1).unwrap();
+        let data_b = b.file.dereference(item_b.value_ptr(), 1).unwrap();
 
         // We don't compare containers, only their length
         if item_a.typ().unwrap() == GvdbHashItemType::Container {
