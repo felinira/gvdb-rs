@@ -105,7 +105,7 @@ impl<'a> GvdbFile<'a> {
     pub fn hash_table(&self) -> GvdbReaderResult<GvdbHashTable> {
         let header = self.get_header()?;
         let root_ptr = header.root();
-        GvdbHashTable::for_bytes(self.dereference(root_ptr, 4)?, self)
+        GvdbHashTable::for_bytes(*root_ptr, self)
     }
 
     /// Dereference a pointer

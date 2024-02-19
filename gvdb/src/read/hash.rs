@@ -6,13 +6,12 @@ use safe_transmute::{
     transmute_many_pedantic, transmute_one, transmute_one_pedantic, TriviallyTransmutable,
 };
 use serde::Deserialize;
-use std::borrow::Cow;
 use std::cmp::{max, min};
 use std::fmt::{Debug, Formatter};
 use std::mem::size_of;
 use zvariant::Type;
 
-use super::GvdbHashItemType;
+use super::{GvdbHashItemType, GvdbPointer};
 
 /// The header of a GVDB hash table
 #[repr(C)]
@@ -74,18 +73,22 @@ impl Debug for GvdbHashHeader {
 #[derive(Clone)]
 pub struct GvdbHashTable<'a> {
     pub(crate) root: &'a GvdbFile<'a>,
-    data: Cow<'a, [u8]>,
+    pointer: GvdbPointer,
     header: GvdbHashHeader,
 }
 
 impl<'a> GvdbHashTable<'a> {
     /// Interpret a chunk of bytes as a HashTable. The table_ptr should point to the hash table.
     /// Data has to be the complete GVDB file, as hash table items are stored somewhere else.
-    pub fn for_bytes(data: &'a [u8], root: &'a GvdbFile) -> GvdbReaderResult<Self> {
+    pub fn for_bytes(pointer: GvdbPointer, root: &'a GvdbFile) -> GvdbReaderResult<Self> {
+        let data = root.dereference(&pointer, 4)?;
         let header = Self::hash_header(data)?;
-        let data = Cow::Borrowed(data);
 
-        let this = Self { root, data, header };
+        let this = Self {
+            root,
+            pointer,
+            header,
+        };
 
         let header_len = size_of::<GvdbHashHeader>();
         let bloom_words_len = this.bloom_words_end() - this.bloom_words_offset();
@@ -96,18 +99,18 @@ impl<'a> GvdbHashTable<'a> {
             max(this.hash_items_end(), this.hash_items_offset()) - this.hash_items_offset();
         let required_len = header_len + bloom_words_len + hash_buckets_len + hash_items_len;
 
-        if required_len > this.data.len() {
+        if required_len > data.len() {
             Err(GvdbReaderError::DataError(format!(
                 "Not enough bytes to fit hash table: Expected at least {} bytes, got {}",
                 required_len,
-                this.data.len()
+                data.len()
             )))
         } else if hash_items_len % size_of::<GvdbHashItem>() != 0 {
             // Wrong data length
             Err(GvdbReaderError::DataError(format!(
                 "Remaining size invalid: Expected a multiple of {}, got {}",
                 size_of::<GvdbHashItem>(),
-                this.data.len()
+                data.len()
             )))
         } else {
             Ok(this)
@@ -123,6 +126,10 @@ impl<'a> GvdbHashTable<'a> {
         Ok(transmute_one(bytes)?)
     }
 
+    fn data(&self) -> GvdbReaderResult<&[u8]> {
+        self.root.dereference(&self.pointer, 4)
+    }
+
     /// Returns the header for this hash table
     pub fn get_header(&self) -> GvdbHashHeader {
         self.header
@@ -130,7 +137,7 @@ impl<'a> GvdbHashTable<'a> {
 
     fn get_u32(&self, offset: usize) -> GvdbReaderResult<u32> {
         let bytes = self
-            .data
+            .data()?
             .get(offset..offset + size_of::<u32>())
             .ok_or(GvdbReaderError::DataOffset)?;
         Ok(u32::from_le_bytes(bytes.try_into().unwrap()))
@@ -146,10 +153,13 @@ impl<'a> GvdbHashTable<'a> {
 
     /// Returns the bloom words for this hash table
     #[allow(dead_code)]
-    fn bloom_words(&self) -> Option<&[u32]> {
+    fn bloom_words(&self) -> GvdbReaderResult<Option<&[u32]>> {
         // This indexing operation is safe as data is guaranteed to be larger than
         // bloom_words_offset and this will just return an empty slice if end == offset
-        transmute_many_pedantic(&self.data[self.bloom_words_offset()..self.bloom_words_end()]).ok()
+        Ok(transmute_many_pedantic(
+            &self.data()?[self.bloom_words_offset()..self.bloom_words_end()],
+        )
+        .ok())
     }
 
     fn get_bloom_word(&self, index: usize) -> GvdbReaderResult<u32> {
@@ -204,7 +214,7 @@ impl<'a> GvdbHashTable<'a> {
     }
 
     fn hash_items_end(&self) -> usize {
-        self.data.len()
+        self.pointer.size()
     }
 
     /// Get the hash item at hash item index
@@ -214,7 +224,7 @@ impl<'a> GvdbHashTable<'a> {
         let end = start + size;
 
         let data = self
-            .data
+            .data()?
             .get(start..end)
             .ok_or(GvdbReaderError::DataOffset)?;
         Ok(transmute_one_pedantic(data)?)
@@ -378,7 +388,7 @@ impl<'a> GvdbHashTable<'a> {
     fn get_hash_table_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<GvdbHashTable> {
         let typ = item.typ()?;
         if typ == GvdbHashItemType::HashTable {
-            GvdbHashTable::for_bytes(self.root.dereference(item.value_ptr(), 4)?, self.root)
+            GvdbHashTable::for_bytes(*item.value_ptr(), self.root)
         } else {
             Err(GvdbReaderError::DataError(format!(
                 "Unable to parse item for key '{}' as hash table: Expected type 'H', got type '{}'",
@@ -511,7 +521,7 @@ pub(crate) mod test {
         let header = table.get_header();
         assert_eq!(header.n_bloom_words(), 0);
         assert_eq!(header.bloom_words_len(), 0);
-        assert_eq!(table.bloom_words(), None);
+        assert_eq!(table.bloom_words().unwrap(), None);
     }
 
     #[test]
