@@ -151,7 +151,7 @@ impl<'a> GvdbFile<'a> {
     }
 
     /// Interpret a slice of bytes as a GVDB file
-    pub fn from_bytes(bytes: Cow<'static, [u8]>) -> GvdbReaderResult<GvdbFile<'a>> {
+    pub fn from_bytes(bytes: Cow<'a, [u8]>) -> GvdbReaderResult<Self> {
         let mut this = Self {
             data: GvdbData::Cow(bytes),
             byteswapped: false,
@@ -494,5 +494,19 @@ mod test {
         let table = file.hash_table().unwrap();
         let res = table.get_hash_table("string");
         assert_matches!(res, Err(GvdbReaderError::DataError(_)));
+    }
+
+    #[test]
+    fn test_from_file_lifetime() {
+        // Ensure the lifetime of the file is not bound by the filename
+        let filename = TEST_FILE_2.clone();
+        let file = GvdbFile::from_file(&filename).unwrap();
+        drop(filename);
+
+        // Ensure the hash table only borrows the file immutably
+        let table = file.hash_table().unwrap();
+        let table2 = file.hash_table().unwrap();
+        table2.get_names().unwrap();
+        table.get_names().unwrap();
     }
 }
