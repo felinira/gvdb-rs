@@ -165,15 +165,12 @@ pub fn assert_is_file_1(file: &GvdbFile) {
     assert_matches!(value, zvariant::Value::Structure(_));
     assert_eq!(value.value_signature(), "(uus)");
 
-    let tuple = value.downcast::<zvariant::Structure>().unwrap();
+    let tuple = zvariant::Structure::try_from(value).unwrap();
     let fields = tuple.into_fields();
 
-    assert_eq!(fields[0].downcast_ref::<u32>().unwrap(), 1234);
-    assert_eq!(fields[1].downcast_ref::<u32>().unwrap(), 98765);
-    assert_eq!(
-        fields[2].downcast_ref::<&str>().unwrap(),
-        "TEST_STRING_VALUE"
-    );
+    assert_eq!(u32::try_from(&fields[0]), Ok(1234));
+    assert_eq!(u32::try_from(&fields[1]), Ok(98765));
+    assert_eq!(<&str>::try_from(&fields[2]), Ok("TEST_STRING_VALUE"));
 }
 
 pub fn byte_compare_file_2(file: &GvdbFile) {
@@ -189,7 +186,7 @@ pub fn assert_is_file_2(file: &GvdbFile) {
 
     let str_value = table.get_value("string").unwrap();
     assert_matches!(str_value, zvariant::Value::Str(_));
-    assert_eq!(str_value.downcast::<String>().unwrap(), "test string");
+    assert_eq!(<&str>::try_from(&str_value), Ok("test string"));
 
     let sub_table = table.get_hash_table("table").unwrap();
     let sub_table_names = sub_table.get_names().unwrap();
@@ -197,7 +194,7 @@ pub fn assert_is_file_2(file: &GvdbFile) {
     assert_eq!(sub_table_names[0], "int");
 
     let int_value = sub_table.get_value("int").unwrap();
-    assert_eq!(int_value.downcast::<u32>().unwrap(), 42);
+    assert_eq!(u32::try_from(int_value), Ok(42));
 }
 
 pub fn byte_compare_file_3(file: &GvdbFile) {
@@ -255,18 +252,11 @@ pub fn assert_is_file_3(file: &GvdbFile) {
         .get_value("/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg")
         .unwrap();
     assert_matches!(svg2, zvariant::Value::Structure(_));
-    let svg2_fields = svg2
-        .downcast::<zvariant::Structure>()
-        .unwrap()
-        .into_fields();
+    let svg2_fields = zvariant::Structure::try_from(svg2).unwrap().into_fields();
 
-    let svg2_size = svg2_fields[0].downcast_ref::<u32>().unwrap();
-    let svg2_flags = svg2_fields[1].downcast_ref::<u32>().unwrap();
-    let svg2_content: Vec<u8> = svg2_fields[2]
-        .try_clone()
-        .unwrap()
-        .downcast::<Vec<u8>>()
-        .unwrap();
+    let svg2_size = u32::try_from(&svg2_fields[0]).unwrap();
+    let svg2_flags = u32::try_from(&svg2_fields[1]).unwrap();
+    let svg2_content: Vec<u8> = <Vec<u8>>::try_from(svg2_fields[2].try_clone().unwrap()).unwrap();
 
     assert_eq!(svg2_size, 345);
     assert_eq!(svg2_flags, 1);
@@ -287,15 +277,13 @@ pub fn assert_is_file_3(file: &GvdbFile) {
         .unwrap();
     assert_str_eq!(svg2_str, svg2_reference);
 
-    let json = table
-        .get_value("/gvdb/rs/test/json/test.json")
-        .unwrap()
-        .downcast::<zvariant::Structure>()
-        .unwrap()
-        .into_fields();
-    let json_size = json[0].downcast_ref::<u32>().unwrap();
-    let json_flags = json[1].downcast_ref::<u32>().unwrap();
-    let json_content = json[2].try_clone().unwrap().downcast::<Vec<u8>>().unwrap();
+    let json =
+        zvariant::Structure::try_from(table.get_value("/gvdb/rs/test/json/test.json").unwrap())
+            .unwrap()
+            .into_fields();
+    let json_size: u32 = (&json[0]).try_into().unwrap();
+    let json_flags: u32 = (&json[1]).try_into().unwrap();
+    let json_content: Vec<u8> = json[2].try_clone().unwrap().try_into().unwrap();
 
     // Ensure the last byte is zero because of zero-padding defined in the format
     assert_eq!(json_content[json_content.len() - 1], 0);

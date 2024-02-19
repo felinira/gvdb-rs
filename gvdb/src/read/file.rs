@@ -54,11 +54,11 @@ impl AsRef<[u8]> for GvdbData {
 /// let value = table
 ///     .get_value("/gvdb/rs/test/online-symbolic.svg")
 ///     .unwrap();
-/// let structure = value.downcast_ref::<zvariant::Structure>().unwrap();
+/// let structure = zvariant::Structure::try_from(value).unwrap();
 /// let svg = structure.fields();
-/// let svg1_size = svg[0].downcast_ref::<u32>().unwrap();
-/// let svg1_flags = svg[1].downcast_ref::<u32>().unwrap();
-/// let svg1_content = svg[2].try_clone().unwrap().downcast::<Vec<u8>>().unwrap();
+/// let svg1_size = u32::try_from(&svg[0]).unwrap();
+/// let svg1_flags = u32::try_from(&svg[1]).unwrap();
+/// let svg1_content = <Vec<u8>>::try_from(svg[2].try_clone().unwrap()).unwrap();
 /// let svg1_str = std::str::from_utf8(&svg1_content[0..svg1_content.len() - 1]).unwrap();
 ///
 /// println!("{}", svg1_str);
