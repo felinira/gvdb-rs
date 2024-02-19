@@ -71,16 +71,16 @@ impl Debug for GvdbHashHeader {
 ///
 ///
 #[derive(Clone)]
-pub struct GvdbHashTable<'a> {
-    pub(crate) file: &'a GvdbFile<'a>,
+pub struct GvdbHashTable<'a, 'file> {
+    pub(crate) file: &'a GvdbFile<'file>,
     pointer: GvdbPointer,
     header: GvdbHashHeader,
 }
 
-impl<'a> GvdbHashTable<'a> {
+impl<'a, 'file> GvdbHashTable<'a, 'file> {
     /// Interpret a chunk of bytes as a HashTable. The table_ptr should point to the hash table.
     /// Data has to be the complete GVDB file, as hash table items are stored somewhere else.
-    pub fn for_bytes(pointer: GvdbPointer, root: &'a GvdbFile) -> GvdbReaderResult<Self> {
+    pub fn for_bytes(pointer: GvdbPointer, root: &'a GvdbFile<'file>) -> GvdbReaderResult<Self> {
         let data = root.dereference(&pointer, 4)?;
         let header = Self::hash_header(data)?;
 
@@ -441,7 +441,7 @@ impl<'a> GvdbHashTable<'a> {
     }
 }
 
-impl std::fmt::Debug for GvdbHashTable<'_> {
+impl std::fmt::Debug for GvdbHashTable<'_, '_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GvdbHashTable")
             .field("header", &self.header)
