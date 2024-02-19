@@ -226,6 +226,7 @@ impl GvdbFile {
         }
     }
 
+    /// Get a glib::Variant from the [`GvdbHashItem`]
     #[cfg(feature = "glib")]
     pub(crate) fn get_gvariant_for_item(
         &self,
@@ -241,22 +242,26 @@ impl GvdbFile {
         }
     }
 
+    /// Determine the endianess to use for zvariant
+    pub(crate) fn zvariant_endianess(&self) -> zvariant::Endian {
+        if cfg!(target_endian = "little") && !self.byteswapped
+            || cfg!(target_endian = "big") && self.byteswapped
+        {
+            zvariant::LE
+        } else {
+            zvariant::BE
+        }
+    }
+
+    /// Get a zvariant::Value from the [`GvdbHashItem`]
     pub(crate) fn get_value_for_item(
         &self,
         item: &GvdbHashItem,
     ) -> GvdbReaderResult<zvariant::Value> {
         let data = self.get_bytes_for_item(item)?;
-        #[cfg(target_endian = "little")]
-        let le = true;
-        #[cfg(target_endian = "big")]
-        let le = false;
 
         // Create a new zvariant context based our endianess and the byteswapped property
-        let context = if le && !self.byteswapped || !le && self.byteswapped {
-            zvariant::serialized::Context::new_gvariant(zvariant::LE, 0)
-        } else {
-            zvariant::serialized::Context::new_gvariant(zvariant::BE, 0)
-        };
+        let context = zvariant::serialized::Context::new_gvariant(self.zvariant_endianess(), 0);
 
         // On non-unix systems this function lacks the FD argument
         #[cfg(unix)]
