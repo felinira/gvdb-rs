@@ -580,15 +580,16 @@ mod test {
         ];
         assert_eq!(names, reference_names);
 
-        let svg2 = table
-            .get_value("/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg")
-            .unwrap()
-            .downcast::<zvariant::Structure>()
-            .unwrap()
-            .into_fields();
-        let svg2_size = svg2[0].downcast_ref::<u32>().unwrap();
-        let svg2_flags = svg2[1].downcast_ref::<u32>().unwrap();
-        let svg2_data = svg2[2].try_clone().unwrap().downcast::<Vec<u8>>().unwrap();
+        let svg2 = zvariant::Structure::try_from(
+            table
+                .get_value("/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg")
+                .unwrap(),
+        )
+        .unwrap()
+        .into_fields();
+        let svg2_size = u32::try_from(&svg2[0]).unwrap();
+        let svg2_flags = u32::try_from(&svg2[1]).unwrap();
+        let svg2_data = <Vec<u8>>::try_from(svg2[2].try_clone().unwrap()).unwrap();
 
         assert_eq!(svg2_size, 339);
         assert_eq!(svg2_flags, 0);
