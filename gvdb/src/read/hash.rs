@@ -13,6 +13,12 @@ use zvariant::Type;
 
 use super::{GvdbHashItemType, GvdbPointer};
 
+#[cfg(unix)]
+type GVariantDeserializer<'de, 'sig, 'f> =
+    zvariant::gvariant::Deserializer<'de, 'sig, 'f, zvariant::Fd<'f>>;
+#[cfg(not(unix))]
+type GVariantDeserializer<'de, 'sig, 'f> = zvariant::gvariant::Deserializer<'de, 'sig, 'f, ()>;
+
 /// The header of a GVDB hash table
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -371,29 +377,6 @@ impl<'a, 'file> GvdbHashTable<'a, 'file> {
         }
     }
 
-    /// Get the item at key `key` and try to interpret it as a [`enum@zvariant::Value`]
-    pub fn get_value(&self, key: &str) -> GvdbReaderResult<zvariant::Value> {
-        let data = self.get_bytes(key)?;
-
-        // Create a new zvariant context based our endianess and the byteswapped property
-        let context =
-            zvariant::serialized::Context::new_gvariant(self.file.zvariant_endianess(), 0);
-
-        // On non-unix systems this function lacks the FD argument
-        #[cfg(unix)]
-        let mut de: zvariant::gvariant::Deserializer<_> = zvariant::gvariant::Deserializer::new(
-            data,
-            None::<&[zvariant::Fd]>,
-            zvariant::Value::signature(),
-            context,
-        )?;
-        #[cfg(not(unix))]
-        let mut de: zvariant::gvariant::Deserializer<()> =
-            zvariant::gvariant::Deserializer::new(data, zvariant::Value::signature(), context)?;
-
-        Ok(zvariant::Value::deserialize(&mut de)?)
-    }
-
     /// Get the item at key `key` and try to interpret it as a [`GvdbHashTable`]
     pub fn get_hash_table(&self, key: &str) -> GvdbReaderResult<GvdbHashTable> {
         let item = self.get_hash_item(key)?;
@@ -409,14 +392,51 @@ impl<'a, 'file> GvdbHashTable<'a, 'file> {
         }
     }
 
-    /// Get the item at key `key` and try to convert it from [`enum@zvariant::Value`] to T
-    pub fn get<T: ?Sized>(&self, key: &str) -> GvdbReaderResult<T>
+    fn deserializer_for_key(&self, key: &str) -> GvdbReaderResult<GVariantDeserializer> {
+        let data = self.get_bytes(key)?;
+
+        // Create a new zvariant context based our endianess and the byteswapped property
+        let context =
+            zvariant::serialized::Context::new_gvariant(self.file.zvariant_endianess(), 0);
+
+        // On non-unix systems this function lacks the FD argument
+        let de: GVariantDeserializer = GVariantDeserializer::new(
+            data,
+            #[cfg(unix)]
+            None::<&[zvariant::Fd]>,
+            zvariant::Value::signature(),
+            context,
+        )?;
+
+        Ok(de)
+    }
+
+    /// Get the data at key `key` as a [`enum@zvariant::Value`]
+    ///
+    /// Unless you need to inspect the value at runtime, it is recommended to use [`GvdbHashTable::get`]
+    pub fn get_value(&self, key: &str) -> GvdbReaderResult<zvariant::Value> {
+        let mut de = self.deserializer_for_key(key)?;
+        Ok(zvariant::Value::deserialize(&mut de)?)
+    }
+
+    /// Get the data at key `key` and try to deserialize a [`enum@zvariant::Value`]
+    ///
+    /// Then try to extract an underlying `T`
+    pub fn get<'d, T>(&'d self, key: &str) -> GvdbReaderResult<T>
     where
-        T: TryFrom<zvariant::OwnedValue>,
+        T: zvariant::Type + serde::Deserialize<'d> + 'd,
     {
-        T::try_from(zvariant::OwnedValue::try_from(self.get_value(key)?)?).map_err(|_| {
-            GvdbReaderError::DataError("Can't convert Value to specified type".to_string())
-        })
+        let mut de = self.deserializer_for_key(key)?;
+        let value = zvariant::DeserializeValue::deserialize(&mut de).map_err(|err| {
+            GvdbReaderError::DataError(format!(
+                "Error deserializing value for key \"{}\" as gvariant type \"{}\": {}",
+                key,
+                T::signature(),
+                err
+            ))
+        })?;
+
+        Ok(value.0)
     }
 
     /// Get a glib::Variant from the [`GvdbHashItem`]
