@@ -1,11 +1,11 @@
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub struct GvdbPointer {
+pub struct Pointer {
     start: u32,
     end: u32,
 }
 
-impl GvdbPointer {
+impl Pointer {
     pub const NULL: Self = Self { start: 0, end: 0 };
 
     pub fn new(start: usize, end: usize) -> Self {
@@ -28,9 +28,9 @@ impl GvdbPointer {
     }
 }
 
-impl std::fmt::Debug for GvdbPointer {
+impl std::fmt::Debug for Pointer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GvdbPointer")
+        f.debug_struct("Pointer")
             .field("start", &self.start())
             .field("end", &self.end())
             .finish()
@@ -39,18 +39,18 @@ impl std::fmt::Debug for GvdbPointer {
 
 #[cfg(test)]
 mod test {
-    use crate::read::GvdbPointer;
+    use crate::read::Pointer;
 
     #[test]
     fn derives() {
-        let pointer = GvdbPointer::new(0, 2);
+        let pointer = Pointer::new(0, 2);
         let pointer2 = pointer.clone();
         println!("{:?}", pointer2);
     }
 
     #[test]
     fn no_panic_invalid_size() {
-        let invalid_ptr = GvdbPointer::new(100, 0);
+        let invalid_ptr = Pointer::new(100, 0);
         let size = invalid_ptr.size();
         assert_eq!(size, 0);
     }

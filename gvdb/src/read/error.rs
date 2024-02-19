@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::num::TryFromIntError;
 use std::path::{Path, PathBuf};
@@ -6,7 +5,7 @@ use std::string::FromUtf8Error;
 
 /// An error that can occur during GVDB file reading
 #[derive(Debug)]
-pub enum GvdbReaderError {
+pub enum Error {
     /// Error converting a string to UTF-8
     Utf8(FromUtf8Error),
 
@@ -32,36 +31,34 @@ pub enum GvdbReaderError {
     KeyError(String),
 }
 
-impl GvdbReaderError {
-    pub(crate) fn from_io_with_filename(
-        filename: &Path,
-    ) -> impl FnOnce(std::io::Error) -> GvdbReaderError {
+impl Error {
+    pub(crate) fn from_io_with_filename(filename: &Path) -> impl FnOnce(std::io::Error) -> Error {
         let path = filename.to_path_buf();
-        move |err| GvdbReaderError::Io(err, Some(path))
+        move |err| Error::Io(err, Some(path))
     }
 }
 
-impl Error for GvdbReaderError {}
+impl std::error::Error for Error {}
 
-impl From<FromUtf8Error> for GvdbReaderError {
+impl From<FromUtf8Error> for Error {
     fn from(err: FromUtf8Error) -> Self {
         Self::Utf8(err)
     }
 }
 
-impl From<zvariant::Error> for GvdbReaderError {
+impl From<zvariant::Error> for Error {
     fn from(err: zvariant::Error) -> Self {
         Self::ZVariant(err)
     }
 }
 
-impl From<TryFromIntError> for GvdbReaderError {
+impl From<TryFromIntError> for Error {
     fn from(_err: TryFromIntError) -> Self {
         Self::DataOffset
     }
 }
 
-impl<S, T> From<safe_transmute::Error<'_, S, T>> for GvdbReaderError {
+impl<S, T> From<safe_transmute::Error<'_, S, T>> for Error {
     fn from(err: safe_transmute::Error<S, T>) -> Self {
         match err {
             safe_transmute::Error::Guard(guard_err) => {
@@ -85,11 +82,11 @@ impl<S, T> From<safe_transmute::Error<'_, S, T>> for GvdbReaderError {
     }
 }
 
-impl Display for GvdbReaderError {
+impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            GvdbReaderError::Utf8(err) => write!(f, "Error converting string to UTF-8: {}", err),
-            GvdbReaderError::Io(err, path) => {
+            Error::Utf8(err) => write!(f, "Error converting string to UTF-8: {}", err),
+            Error::Io(err, path) => {
                 if let Some(path) = path {
                     write!(
                         f,
@@ -101,49 +98,49 @@ impl Display for GvdbReaderError {
                     write!(f, "I/O error: {}", err)
                 }
             }
-            GvdbReaderError::ZVariant(err) => write!(f, "Error parsing ZVariant data: {}", err),
-            GvdbReaderError::DataOffset => {
+            Error::ZVariant(err) => write!(f, "Error parsing ZVariant data: {}", err),
+            Error::DataOffset => {
                 write!(f, "Tried to access an invalid data offset. Most likely reason is a corrupted GVDB file")
             }
-            GvdbReaderError::DataAlignment => {
+            Error::DataAlignment => {
                 write!(
                     f,
                     "Tried to read unaligned data. Most likely reason is a corrupted GVDB file"
                 )
             }
-            GvdbReaderError::InvalidData => {
+            Error::InvalidData => {
                 write!(
                     f,
                     "Unexpected data. Most likely reason is a corrupted GVDB file"
                 )
             }
-            GvdbReaderError::DataError(msg) => {
+            Error::DataError(msg) => {
                 write!(
                     f,
                     "A data inconsistency error occured while reading gvdb file: {}",
                     msg
                 )
             }
-            GvdbReaderError::KeyError(key) => {
+            Error::KeyError(key) => {
                 write!(f, "The item with the key '{}' does not exist", key)
             }
         }
     }
 }
 
-/// The Result type for [`GvdbReaderError`]
-pub type GvdbReaderResult<T> = Result<T, GvdbReaderError>;
+/// The Result type for [`Error`]
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]
 mod test {
-    use crate::read::{GvdbHeader, GvdbPointer, GvdbReaderError};
+    use crate::read::{Error, Header, Pointer};
     use matches::assert_matches;
     use safe_transmute::{transmute_one_pedantic, transmute_one_to_bytes, transmute_vec};
     use std::num::TryFromIntError;
 
     #[test]
     fn derives() {
-        let err = GvdbReaderError::InvalidData;
+        let err = Error::InvalidData;
         assert!(format!("{:?}", err).contains("InvalidData"));
         assert!(format!("{}", err).contains("Unexpected data"));
     }
@@ -151,54 +148,54 @@ mod test {
     #[test]
     fn from() {
         let io_res = std::fs::File::open("test/invalid_file_name");
-        let err = GvdbReaderError::Io(io_res.unwrap_err(), None);
+        let err = Error::Io(io_res.unwrap_err(), None);
         assert!(format!("{}", err).contains("I/O"));
 
         let utf8_err = String::from_utf8([0xC3, 0x28].to_vec()).unwrap_err();
-        let err = GvdbReaderError::from(utf8_err);
+        let err = Error::from(utf8_err);
         assert!(format!("{}", err).contains("UTF-8"));
 
         let res: Result<u16, TryFromIntError> = u32::MAX.try_into();
-        let err = GvdbReaderError::from(res.unwrap_err());
-        assert_matches!(err, GvdbReaderError::DataOffset);
+        let err = Error::from(res.unwrap_err());
+        assert_matches!(err, Error::DataOffset);
         assert!(format!("{}", err).contains("data offset"));
 
-        let err = GvdbReaderError::DataError("my data error".to_string());
+        let err = Error::DataError("my data error".to_string());
         assert!(format!("{}", err).contains("my data error"));
 
-        let err = GvdbReaderError::KeyError("test".to_string());
+        let err = Error::KeyError("test".to_string());
         assert!(format!("{}", err).contains("test"));
 
-        let err = GvdbReaderError::from(zvariant::Error::Message("test".to_string()));
+        let err = Error::from(zvariant::Error::Message("test".to_string()));
         assert!(format!("{}", err).contains("test"));
 
-        let to_transmute = GvdbHeader::new(false, 0, GvdbPointer::NULL);
+        let to_transmute = Header::new(false, 0, Pointer::NULL);
         let mut bytes = transmute_one_to_bytes(&to_transmute).to_vec();
         bytes.extend_from_slice(b"fail");
-        let res = transmute_one_pedantic::<GvdbHeader>(&bytes);
-        let err = GvdbReaderError::from(res.unwrap_err());
-        assert_matches!(err, GvdbReaderError::DataError(_));
+        let res = transmute_one_pedantic::<Header>(&bytes);
+        let err = Error::from(res.unwrap_err());
+        assert_matches!(err, Error::DataError(_));
         assert!(format!("{}", err).contains("unexpected trailing bytes"));
 
-        let to_transmute = GvdbHeader::new(false, 0, GvdbPointer::NULL);
+        let to_transmute = Header::new(false, 0, Pointer::NULL);
         let mut bytes = transmute_one_to_bytes(&to_transmute).to_vec();
         bytes.remove(bytes.len() - 1);
-        let res = transmute_one_pedantic::<GvdbHeader>(&bytes);
-        let err = GvdbReaderError::from(res.unwrap_err());
-        assert_matches!(err, GvdbReaderError::DataError(_));
+        let res = transmute_one_pedantic::<Header>(&bytes);
+        let err = Error::from(res.unwrap_err());
+        assert_matches!(err, Error::DataError(_));
         assert!(format!("{}", err).contains("Missing 1 bytes"));
 
-        let to_transmute = GvdbHeader::new(false, 0, GvdbPointer::NULL);
+        let to_transmute = Header::new(false, 0, Pointer::NULL);
         let mut bytes = b"unalign".to_vec();
         bytes.extend_from_slice(transmute_one_to_bytes(&to_transmute));
-        let res = transmute_one_pedantic::<GvdbHeader>(&bytes[7..]);
-        let err = GvdbReaderError::from(res.unwrap_err());
-        assert_matches!(err, GvdbReaderError::DataError(_));
+        let res = transmute_one_pedantic::<Header>(&bytes[7..]);
+        let err = Error::from(res.unwrap_err());
+        assert_matches!(err, Error::DataError(_));
         assert!(format!("{}", err).contains("Unaligned"));
 
         let bytes = vec![0u8; 5];
-        let res = transmute_vec::<u8, GvdbHeader>(bytes);
-        let err = GvdbReaderError::from(res.unwrap_err());
-        assert_matches!(err, GvdbReaderError::InvalidData);
+        let res = transmute_vec::<u8, Header>(bytes);
+        let err = Error::from(res.unwrap_err());
+        assert_matches!(err, Error::InvalidData);
     }
 }

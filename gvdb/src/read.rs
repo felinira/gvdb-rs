@@ -5,11 +5,11 @@ mod hash_item;
 mod header;
 mod pointer;
 
-pub use error::{GvdbReaderError, GvdbReaderResult};
-pub use file::GvdbFile;
-pub use hash::GvdbHashTable;
+pub use error::{Error, Result};
+pub use file::File;
+pub use hash::HashTable;
 
-pub(crate) use hash::GvdbHashHeader;
-pub(crate) use hash_item::{GvdbHashItem, GvdbHashItemType};
-pub(crate) use header::GvdbHeader;
-pub(crate) use pointer::GvdbPointer;
+pub(crate) use hash::HashHeader;
+pub(crate) use hash_item::{HashItem, HashItemType};
+pub(crate) use header::Header;
+pub(crate) use pointer::Pointer;

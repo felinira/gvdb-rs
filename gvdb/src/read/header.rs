@@ -1,5 +1,5 @@
-use crate::read::error::{GvdbReaderError, GvdbReaderResult};
-use crate::read::pointer::GvdbPointer;
+use crate::read::error::{Error, Result};
+use crate::read::pointer::Pointer;
 use safe_transmute::TriviallyTransmutable;
 
 // This is just a string, but it is stored in the byteorder of the file
@@ -11,18 +11,18 @@ const GVDB_SIGNATURE1: u32 = 1953390953;
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct GvdbHeader {
+pub struct Header {
     signature: [u32; 2],
     version: u32,
     options: u32,
-    root: GvdbPointer,
+    root: Pointer,
 }
 
-unsafe impl TriviallyTransmutable for GvdbHeader {}
+unsafe impl TriviallyTransmutable for Header {}
 
-impl GvdbHeader {
+impl Header {
     #[cfg(test)]
-    pub fn new_le(version: u32, root: GvdbPointer) -> Self {
+    pub fn new_le(version: u32, root: Pointer) -> Self {
         #[cfg(target_endian = "little")]
         let byteswap = false;
         #[cfg(target_endian = "big")]
@@ -32,7 +32,7 @@ impl GvdbHeader {
     }
 
     #[cfg(test)]
-    pub fn new_be(version: u32, root: GvdbPointer) -> Self {
+    pub fn new_be(version: u32, root: Pointer) -> Self {
         #[cfg(target_endian = "little")]
         let byteswap = true;
         #[cfg(target_endian = "big")]
@@ -41,7 +41,7 @@ impl GvdbHeader {
         Self::new(byteswap, version, root)
     }
 
-    pub fn new(byteswap: bool, version: u32, root: GvdbPointer) -> Self {
+    pub fn new(byteswap: bool, version: u32, root: Pointer) -> Self {
         let signature = if !byteswap {
             [GVDB_SIGNATURE0, GVDB_SIGNATURE1]
         } else {
@@ -56,7 +56,7 @@ impl GvdbHeader {
         }
     }
 
-    pub fn is_byteswap(&self) -> GvdbReaderResult<bool> {
+    pub fn is_byteswap(&self) -> Result<bool> {
         if self.signature[0] == GVDB_SIGNATURE0 && self.signature[1] == GVDB_SIGNATURE1 {
             Ok(false)
         } else if self.signature[0] == GVDB_SIGNATURE0.swap_bytes()
@@ -64,7 +64,7 @@ impl GvdbHeader {
         {
             Ok(true)
         } else {
-            Err(GvdbReaderError::InvalidData)
+            Err(Error::InvalidData)
         }
     }
 
@@ -76,7 +76,7 @@ impl GvdbHeader {
         self.version
     }
 
-    pub fn root(&self) -> &GvdbPointer {
+    pub fn root(&self) -> &Pointer {
         &self.root
     }
 }
@@ -88,23 +88,23 @@ mod test {
 
     #[test]
     fn derives() {
-        let header = GvdbHeader::new(false, 0, GvdbPointer::NULL);
+        let header = Header::new(false, 0, Pointer::NULL);
         let header2 = header.clone();
         println!("{:?}", header2);
     }
 
     #[test]
     fn header_serialize() {
-        let header = GvdbHeader::new(false, 123, GvdbPointer::NULL);
+        let header = Header::new(false, 123, Pointer::NULL);
         assert_eq!(header.is_byteswap().unwrap(), false);
         let data = transmute_one_to_bytes(&header);
-        let parsed_header: GvdbHeader = transmute_one_pedantic(data.as_ref()).unwrap();
+        let parsed_header: Header = transmute_one_pedantic(data.as_ref()).unwrap();
         assert_eq!(parsed_header.is_byteswap().unwrap(), false);
 
-        let header = GvdbHeader::new(true, 0, GvdbPointer::NULL);
+        let header = Header::new(true, 0, Pointer::NULL);
         assert_eq!(header.is_byteswap().unwrap(), true);
         let data = transmute_one_to_bytes(&header);
-        let parsed_header: GvdbHeader = transmute_one_pedantic(data.as_ref()).unwrap();
+        let parsed_header: Header = transmute_one_pedantic(data.as_ref()).unwrap();
         assert_eq!(parsed_header.is_byteswap().unwrap(), true);
     }
 }

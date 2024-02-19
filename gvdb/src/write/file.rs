@@ -1,7 +1,7 @@
-use crate::read::GvdbHashHeader;
-use crate::read::GvdbHashItem;
-use crate::read::GvdbHeader;
-use crate::read::GvdbPointer;
+use crate::read::HashHeader;
+use crate::read::HashItem;
+use crate::read::Header;
+use crate::read::Pointer;
 use crate::util::align_offset;
 use crate::write::error::{GvdbBuilderResult, GvdbWriterError};
 use crate::write::hash::SimpleHashTable;
@@ -264,14 +264,14 @@ impl<'a> Default for GvdbHashTableBuilder<'a> {
 #[derive(Debug)]
 struct GvdbChunk {
     // The pointer that points to the data where the chunk will be in memory in the finished file
-    pointer: GvdbPointer,
+    pointer: Pointer,
 
     // We use a boxed slice because this guarantees that the size is not changed afterwards
     data: Box<[u8]>,
 }
 
 impl GvdbChunk {
-    pub fn new(data: Box<[u8]>, pointer: GvdbPointer) -> Self {
+    pub fn new(data: Box<[u8]>, pointer: Pointer) -> Self {
         Self { pointer, data }
     }
 
@@ -283,7 +283,7 @@ impl GvdbChunk {
         self.data
     }
 
-    pub fn pointer(&self) -> GvdbPointer {
+    pub fn pointer(&self) -> Pointer {
         self.pointer
     }
 }
@@ -345,7 +345,7 @@ impl GvdbFileWriter {
             byteswap,
         };
 
-        this.allocate_empty_chunk(size_of::<GvdbHeader>(), 1);
+        this.allocate_empty_chunk(size_of::<Header>(), 1);
         this
     }
 
@@ -361,7 +361,7 @@ impl GvdbFileWriter {
         // Calculate the pointer
         let offset_start = self.offset;
         let offset_end = offset_start + data.len();
-        let pointer = GvdbPointer::new(offset_start, offset_end);
+        let pointer = Pointer::new(offset_start, offset_end);
 
         // Update the offset to the end of the chunk
         self.offset = offset_end;
@@ -420,14 +420,12 @@ impl GvdbFileWriter {
             item.set_assigned_index(index as u32);
         }
 
-        let header = GvdbHashHeader::new(5, 0, table.n_buckets() as u32);
-        let items_len = table.n_items() * size_of::<GvdbHashItem>();
-        let size = size_of::<GvdbHashHeader>()
-            + header.bloom_words_len()
-            + header.buckets_len()
-            + items_len;
+        let header = HashHeader::new(5, 0, table.n_buckets() as u32);
+        let items_len = table.n_items() * size_of::<HashItem>();
+        let size =
+            size_of::<HashHeader>() + header.bloom_words_len() + header.buckets_len() + items_len;
 
-        let hash_buckets_offset = size_of::<GvdbHashHeader>() + header.bloom_words_len();
+        let hash_buckets_offset = size_of::<HashHeader>() + header.bloom_words_len();
         let hash_items_offset = hash_buckets_offset + header.buckets_len();
 
         let (hash_table_chunk_index, hash_table_chunk) = self.allocate_empty_chunk(size, 4);
@@ -501,11 +499,10 @@ impl GvdbFileWriter {
                     }
                 };
 
-                let hash_item =
-                    GvdbHashItem::new(current_item.hash(), parent, key_ptr, typ, value_ptr);
+                let hash_item = HashItem::new(current_item.hash(), parent, key_ptr, typ, value_ptr);
 
-                let hash_item_start = hash_items_offset + n_item * size_of::<GvdbHashItem>();
-                let hash_item_end = hash_item_start + size_of::<GvdbHashItem>();
+                let hash_item_start = hash_items_offset + n_item * size_of::<HashItem>();
+                let hash_item_end = hash_item_start + size_of::<HashItem>();
 
                 self.chunks[hash_table_chunk_index].data[hash_item_start..hash_item_end]
                     .copy_from_slice(transmute_one_to_bytes(&hash_item));
@@ -546,8 +543,8 @@ impl GvdbFileWriter {
                 ))
             })?
             .pointer();
-        let header = GvdbHeader::new(self.byteswap, 0, root_ptr);
-        self.chunks[0].data_mut()[0..size_of::<GvdbHeader>()]
+        let header = Header::new(self.byteswap, 0, root_ptr);
+        self.chunks[0].data_mut()[0..size_of::<Header>()]
             .copy_from_slice(transmute_one_to_bytes(&header));
 
         let mut size = 0;
@@ -601,7 +598,7 @@ impl Default for GvdbFileWriter {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::read::{GvdbFile, GvdbHashItemType};
+    use crate::read::{File, HashItemType};
     use matches::assert_matches;
     use std::borrow::Cow;
     use std::io::Cursor;
@@ -618,7 +615,7 @@ mod test {
         let ht_builder = GvdbHashTableBuilder::default();
         println!("{:?}", ht_builder);
 
-        let chunk = GvdbChunk::new(Box::new([0; 0]), GvdbPointer::NULL);
+        let chunk = GvdbChunk::new(Box::new([0; 0]), Pointer::NULL);
         assert!(format!("{:?}", chunk).contains("GvdbChunk"));
     }
 
@@ -693,7 +690,7 @@ mod test {
         table_builder.insert_value("root_key", variant).unwrap();
         let root_index = file_builder.add_table_builder(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
-        let root = GvdbFile::from_bytes(Cow::Owned(bytes)).unwrap();
+        let root = File::from_bytes(Cow::Owned(bytes)).unwrap();
 
         println!("{:?}", root);
 
@@ -718,7 +715,7 @@ mod test {
             .unwrap();
         let root_index = file_builder.add_table_builder(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
-        let root = GvdbFile::from_bytes(Cow::Owned(bytes)).unwrap();
+        let root = File::from_bytes(Cow::Owned(bytes)).unwrap();
 
         println!("{:?}", root);
 
@@ -764,7 +761,7 @@ mod test {
         // "GVariant" byteswapped at 32 bit boundaries is the header for big-endian GVariant files
         assert_eq!("raVGtnai", std::str::from_utf8(&bytes[0..8]).unwrap());
 
-        let root = GvdbFile::from_bytes(Cow::Owned(bytes)).unwrap();
+        let root = File::from_bytes(Cow::Owned(bytes)).unwrap();
         println!("{:?}", root);
 
         assert_is_file_1(&root);
@@ -780,7 +777,7 @@ mod test {
             .unwrap();
         let root_index = file_builder.add_table_builder(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
-        let root = GvdbFile::from_bytes(Cow::Owned(bytes)).unwrap();
+        let root = File::from_bytes(Cow::Owned(bytes)).unwrap();
 
         let container_item = root
             .hash_table()
@@ -788,7 +785,7 @@ mod test {
             .get_hash_item("contained/")
             .unwrap();
 
-        assert_eq!(container_item.typ().unwrap(), GvdbHashItemType::Container);
+        assert_eq!(container_item.typ().unwrap(), HashItemType::Container);
         println!("{:?}", root);
     }
 
