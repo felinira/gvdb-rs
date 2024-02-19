@@ -383,12 +383,12 @@ impl GvdbFileWriter {
         #[cfg(target_endian = "big")]
         let le = false;
 
-        let data = if le && !self.byteswap || !le && self.byteswap {
-            let context = zvariant::EncodingContext::<byteorder::LE>::new_gvariant(0);
-            zvariant::to_bytes(context, value)?.into_boxed_slice()
+        let data: Box<[u8]> = if le && !self.byteswap || !le && self.byteswap {
+            let context = zvariant::serialized::Context::new_gvariant(zvariant::LE, 0);
+            Box::from(&*zvariant::to_bytes(context, value)?)
         } else {
-            let context = zvariant::EncodingContext::<byteorder::BE>::new_gvariant(0);
-            zvariant::to_bytes(context, value)?.into_boxed_slice()
+            let context = zvariant::serialized::Context::new_gvariant(zvariant::BE, 0);
+            Box::from(&*zvariant::to_bytes(context, value)?)
         };
 
         Ok(self.allocate_chunk_with_data(data, 8))

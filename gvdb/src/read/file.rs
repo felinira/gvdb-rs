@@ -4,11 +4,13 @@ use crate::read::header::GvdbHeader;
 use crate::read::pointer::GvdbPointer;
 use crate::read::GvdbHashTable;
 use safe_transmute::transmute_one_pedantic;
+use serde::Deserialize;
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::Read;
 use std::mem::size_of;
 use std::path::Path;
+use zvariant::{gvariant, Type};
 
 #[derive(Debug)]
 pub(crate) enum GvdbData {
@@ -52,10 +54,11 @@ impl AsRef<[u8]> for GvdbData {
 /// let value = table
 ///     .get_value("/gvdb/rs/test/online-symbolic.svg")
 ///     .unwrap();
-/// let svg = value.downcast_ref::<zvariant::Structure>().unwrap().fields();
+/// let structure = value.downcast_ref::<zvariant::Structure>().unwrap();
+/// let svg = structure.fields();
 /// let svg1_size = svg[0].downcast_ref::<u32>().unwrap();
 /// let svg1_flags = svg[1].downcast_ref::<u32>().unwrap();
-/// let svg1_content = svg[2].clone().downcast::<Vec<u8>>().unwrap();
+/// let svg1_content = svg[2].try_clone().unwrap().downcast::<Vec<u8>>().unwrap();
 /// let svg1_str = std::str::from_utf8(&svg1_content[0..svg1_content.len() - 1]).unwrap();
 ///
 /// println!("{}", svg1_str);
@@ -248,13 +251,25 @@ impl GvdbFile {
         #[cfg(target_endian = "big")]
         let le = false;
 
-        if le && !self.byteswapped || !le && self.byteswapped {
-            let context = zvariant::EncodingContext::<byteorder::LE>::new_gvariant(0);
-            Ok(zvariant::from_slice(data, context)?)
+        // Create a new zvariant context based our endianess and the byteswapped property
+        let context = if le && !self.byteswapped || !le && self.byteswapped {
+            zvariant::serialized::Context::new_gvariant(zvariant::LE, 0)
         } else {
-            let context = zvariant::EncodingContext::<byteorder::BE>::new_gvariant(0);
-            Ok(zvariant::from_slice(data, context)?)
-        }
+            zvariant::serialized::Context::new_gvariant(zvariant::BE, 0)
+        };
+
+        // On non-unix systems this function lacks the FD argument
+        #[cfg(unix)]
+        let mut de = gvariant::Deserializer::new(
+            data,
+            None::<&[zvariant::Fd]>,
+            zvariant::Value::signature(),
+            context,
+        )?;
+        #[cfg(not(unix))]
+        let mut de = gvariant::Deserializer::new(&data, zvariant::Value::signature(), context)?;
+
+        Ok(zvariant::Value::deserialize(&mut de)?)
     }
 
     pub(crate) fn get_hash_table_for_item(

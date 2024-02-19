@@ -338,9 +338,9 @@ impl<'a> GvdbHashTable<'a> {
     where
         T: TryFrom<zvariant::OwnedValue>,
     {
-        T::try_from(zvariant::OwnedValue::from(
+        T::try_from(zvariant::OwnedValue::try_from(
             self.get_value_for_item(&self.get_hash_item(key)?)?,
-        ))
+        )?)
         .map_err(|_| {
             GvdbReaderError::DataError("Can't convert Value to specified type".to_string())
         })

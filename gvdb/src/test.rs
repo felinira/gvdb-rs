@@ -168,10 +168,10 @@ pub fn assert_is_file_1(file: &GvdbFile) {
     let tuple = value.downcast::<zvariant::Structure>().unwrap();
     let fields = tuple.into_fields();
 
-    assert_eq!(*fields[0].downcast_ref::<u32>().unwrap(), 1234);
-    assert_eq!(*fields[1].downcast_ref::<u32>().unwrap(), 98765);
+    assert_eq!(fields[0].downcast_ref::<u32>().unwrap(), 1234);
+    assert_eq!(fields[1].downcast_ref::<u32>().unwrap(), 98765);
     assert_eq!(
-        fields[2].downcast_ref::<str>().unwrap(),
+        fields[2].downcast_ref::<&str>().unwrap(),
         "TEST_STRING_VALUE"
     );
 }
@@ -235,7 +235,7 @@ pub fn assert_is_file_3(file: &GvdbFile) {
     let svg1: GResourceData = table.get("/gvdb/rs/test/online-symbolic.svg").unwrap();
 
     // Convert back and forth to prove that works
-    let svg1_owned_value = zvariant::OwnedValue::from(svg1);
+    let svg1_owned_value = zvariant::OwnedValue::try_from(svg1).unwrap();
     let svg1 = GResourceData::try_from(svg1_owned_value).unwrap();
 
     assert_eq!(svg1.size, 1390);
@@ -256,14 +256,17 @@ pub fn assert_is_file_3(file: &GvdbFile) {
         .unwrap();
     assert_matches!(svg2, zvariant::Value::Structure(_));
     let svg2_fields = svg2
-        .clone()
         .downcast::<zvariant::Structure>()
         .unwrap()
         .into_fields();
 
-    let svg2_size = *svg2_fields[0].downcast_ref::<u32>().unwrap();
-    let svg2_flags = *svg2_fields[1].downcast_ref::<u32>().unwrap();
-    let svg2_content: Vec<u8> = svg2_fields[2].clone().downcast::<Vec<u8>>().unwrap();
+    let svg2_size = svg2_fields[0].downcast_ref::<u32>().unwrap();
+    let svg2_flags = svg2_fields[1].downcast_ref::<u32>().unwrap();
+    let svg2_content: Vec<u8> = svg2_fields[2]
+        .try_clone()
+        .unwrap()
+        .downcast::<Vec<u8>>()
+        .unwrap();
 
     assert_eq!(svg2_size, 345);
     assert_eq!(svg2_flags, 1);
@@ -290,9 +293,9 @@ pub fn assert_is_file_3(file: &GvdbFile) {
         .downcast::<zvariant::Structure>()
         .unwrap()
         .into_fields();
-    let json_size = *json[0].downcast_ref::<u32>().unwrap();
-    let json_flags = *json[1].downcast_ref::<u32>().unwrap();
-    let json_content = json[2].clone().downcast::<Vec<u8>>().unwrap();
+    let json_size = json[0].downcast_ref::<u32>().unwrap();
+    let json_flags = json[1].downcast_ref::<u32>().unwrap();
+    let json_content = json[2].try_clone().unwrap().downcast::<Vec<u8>>().unwrap();
 
     // Ensure the last byte is zero because of zero-padding defined in the format
     assert_eq!(json_content[json_content.len() - 1], 0);

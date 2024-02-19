@@ -586,9 +586,9 @@ mod test {
             .downcast::<zvariant::Structure>()
             .unwrap()
             .into_fields();
-        let svg2_size = *svg2[0].downcast_ref::<u32>().unwrap();
-        let svg2_flags = *svg2[1].downcast_ref::<u32>().unwrap();
-        let svg2_data: &[u8] = &svg2[2].clone().downcast::<Vec<u8>>().unwrap();
+        let svg2_size = svg2[0].downcast_ref::<u32>().unwrap();
+        let svg2_flags = svg2[1].downcast_ref::<u32>().unwrap();
+        let svg2_data = svg2[2].try_clone().unwrap().downcast::<Vec<u8>>().unwrap();
 
         assert_eq!(svg2_size, 339);
         assert_eq!(svg2_flags, 0);
@@ -738,7 +738,7 @@ mod test {
 
         let sig = GResourceData::signature();
         assert_eq!(sig, "(uuay)");
-        let owned = zvariant::OwnedValue::from(data);
+        let owned = zvariant::OwnedValue::try_from(data).unwrap();
         let data = GResourceData::try_from(owned).unwrap();
         let value: zvariant::Value = data.into();
         let _: GResourceData = value.try_into().unwrap();

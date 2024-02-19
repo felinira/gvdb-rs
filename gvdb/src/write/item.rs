@@ -168,14 +168,18 @@ mod test {
     #[test]
     fn derives() {
         let value1: zvariant::Value = "test".into();
-        let item1 = GvdbBuilderItemValue::Value(value1.clone());
+        let item1 = GvdbBuilderItemValue::Value(value1);
         println!("{:?}", item1);
     }
 
     #[test]
     fn item_value() {
         let value1: zvariant::Value = "test".into();
-        let item1 = GvdbBuilderItemValue::Value(value1.clone());
+        let item1 = GvdbBuilderItemValue::Value(
+            value1
+                .try_clone()
+                .expect("Value to not contain a file descriptor"),
+        );
         assert_eq!(item1.typ(), GvdbHashItemType::Value);
         assert_eq!(item1.value().unwrap(), &value1);
 
@@ -198,7 +202,7 @@ mod test {
     #[test]
     fn builder_item() {
         let value1: zvariant::Value = "test".into();
-        let item1 = GvdbBuilderItemValue::Value(value1.clone());
+        let item1 = GvdbBuilderItemValue::Value(value1);
         let item = GvdbBuilderItem::new("test", 0, item1);
         println!("{:?}", item);
 
