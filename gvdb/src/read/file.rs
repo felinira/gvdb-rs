@@ -10,13 +10,13 @@ use std::mem::size_of;
 use std::path::Path;
 
 #[derive(Debug)]
-pub(crate) enum GvdbData {
-    Cow(Cow<'static, [u8]>),
+pub(crate) enum GvdbData<'a> {
+    Cow(Cow<'a, [u8]>),
     #[cfg(feature = "mmap")]
     Mmap(memmap2::Mmap),
 }
 
-impl AsRef<[u8]> for GvdbData {
+impl AsRef<[u8]> for GvdbData<'_> {
     fn as_ref(&self) -> &[u8] {
         match self {
             GvdbData::Cow(cow) => cow.as_ref(),
@@ -86,7 +86,7 @@ impl AsRef<[u8]> for GvdbData {
 /// }
 /// ```
 pub struct GvdbFile {
-    pub(crate) data: GvdbData,
+    pub(crate) data: GvdbData<'static>,
     pub(crate) byteswapped: bool,
 }
 
