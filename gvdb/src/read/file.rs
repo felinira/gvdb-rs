@@ -85,12 +85,12 @@ impl AsRef<[u8]> for GvdbData<'_> {
 ///     assert_eq!(int_value, 42);
 /// }
 /// ```
-pub struct GvdbFile {
-    pub(crate) data: GvdbData<'static>,
+pub struct GvdbFile<'a> {
+    pub(crate) data: GvdbData<'a>,
     pub(crate) byteswapped: bool,
 }
 
-impl GvdbFile {
+impl<'a> GvdbFile<'a> {
     /// Get the GVDB file header. Will err with GvdbError::DataOffset if the header doesn't fit
     pub(crate) fn get_header(&self) -> GvdbReaderResult<GvdbHeader> {
         let header_data = self
@@ -151,7 +151,7 @@ impl GvdbFile {
     }
 
     /// Interpret a slice of bytes as a GVDB file
-    pub fn from_bytes(bytes: Cow<'static, [u8]>) -> GvdbReaderResult<GvdbFile> {
+    pub fn from_bytes(bytes: Cow<'static, [u8]>) -> GvdbReaderResult<GvdbFile<'a>> {
         let mut this = Self {
             data: GvdbData::Cow(bytes),
             byteswapped: false,
@@ -216,7 +216,7 @@ impl GvdbFile {
     }
 }
 
-impl std::fmt::Debug for GvdbFile {
+impl std::fmt::Debug for GvdbFile<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Ok(hash_table) = self.hash_table() {
             f.debug_struct("GvdbFile")
@@ -314,7 +314,7 @@ mod test {
         }
     }
 
-    fn create_minimal_file() -> GvdbFile {
+    fn create_minimal_file() -> GvdbFile<'static> {
         let header = GvdbHeader::new_le(0, GvdbPointer::new(0, 0));
         let data = transmute_one_to_bytes(&header).to_vec();
         assert_bytes_eq(
