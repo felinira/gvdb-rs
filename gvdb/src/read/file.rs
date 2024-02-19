@@ -48,17 +48,12 @@ impl AsRef<[u8]> for GvdbData<'_> {
 ///     content: Vec<u8>
 /// }
 ///
-/// let value = table
-///     .get_value("/gvdb/rs/test/online-symbolic.svg")
+/// let svg: SvgData = table
+///     .get("/gvdb/rs/test/online-symbolic.svg")
 ///     .unwrap();
-/// let structure = zvariant::Structure::try_from(value).unwrap();
-/// let svg = structure.fields();
-/// let svg1_size = u32::try_from(&svg[0]).unwrap();
-/// let svg1_flags = u32::try_from(&svg[1]).unwrap();
-/// let svg1_content = <Vec<u8>>::try_from(svg[2].try_clone().unwrap()).unwrap();
-/// let svg1_str = std::str::from_utf8(&svg1_content[0..svg1_content.len() - 1]).unwrap();
+/// let svg_str = std::str::from_utf8(&svg.content).unwrap();
 ///
-/// println!("{}", svg1_str);
+/// println!("{}", svg_str);
 /// ```
 ///
 /// Query the root hash table

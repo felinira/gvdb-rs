@@ -222,18 +222,16 @@ pub fn assert_is_file_3(file: &GvdbFile) {
     ];
     assert_eq!(names, reference_names);
 
-    #[derive(zvariant::OwnedValue)]
+    #[derive(Clone, zvariant::Type, serde::Deserialize)]
     struct GResourceData {
         size: u32,
         flags: u32,
         content: Vec<u8>,
     }
 
-    let svg1: GResourceData = table.get("/gvdb/rs/test/online-symbolic.svg").unwrap();
-
-    // Convert back and forth to prove that works
-    let svg1_owned_value = zvariant::OwnedValue::try_from(svg1).unwrap();
-    let svg1 = GResourceData::try_from(svg1_owned_value).unwrap();
+    let svg1: GResourceData = table
+        .get::<GResourceData>("/gvdb/rs/test/online-symbolic.svg")
+        .unwrap();
 
     assert_eq!(svg1.size, 1390);
     assert_eq!(svg1.flags, 0);

@@ -84,24 +84,24 @@ pub fn main() {
     let file = GvdbFile::from_file(&path).unwrap();
     let table = file.hash_table().unwrap();
 
-    #[derive(zvariant::OwnedValue)]
+    #[derive(serde::Deserialize, zvariant::Type)]
     struct GResourceData {
         size: u32,
         flags: u32,
         content: Vec<u8>,
     }
 
-    let svg1: GResourceData = table.get("/gvdb/rs/test/online-symbolic.svg").unwrap();
+    let svg: GResourceData = table.get("/gvdb/rs/test/online-symbolic.svg").unwrap();
 
-    assert_eq!(svg1.size, 1390);
-    assert_eq!(svg1.flags, 0);
-    assert_eq!(svg1.size as usize, svg1.content.len() - 1);
+    assert_eq!(svg.size, 1390);
+    assert_eq!(svg.flags, 0);
+    assert_eq!(svg.size as usize, svg.content.len() - 1);
 
     // Ensure the last byte is zero because of zero-padding defined in the format
-    assert_eq!(svg1.content[svg1.content.len() - 1], 0);
-    let svg1_str = std::str::from_utf8(&svg1.content[0..svg1.content.len() - 1]).unwrap();
+    assert_eq!(svg.content[svg.content.len() - 1], 0);
+    let svg_str = std::str::from_utf8(&svg.content[0..svg.content.len() - 1]).unwrap();
 
-    println!("{}", svg1_str);
+    println!("{}", svg_str);
 }
 ```
 
