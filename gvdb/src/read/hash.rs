@@ -126,6 +126,7 @@ impl<'a, 'file> GvdbHashTable<'a, 'file> {
         Ok(transmute_one(bytes)?)
     }
 
+    /// A reference to the data section of this [`GvdbHashTable`]
     fn data(&self) -> GvdbReaderResult<&[u8]> {
         self.file.dereference(&self.pointer, 4)
     }
@@ -135,6 +136,7 @@ impl<'a, 'file> GvdbHashTable<'a, 'file> {
         self.header
     }
 
+    /// Retrieve a single [`u32`] at `offset`
     fn get_u32(&self, offset: usize) -> GvdbReaderResult<u32> {
         let bytes = self
             .data()?
@@ -191,28 +193,34 @@ impl<'a, 'file> GvdbHashTable<'a, 'file> {
         bloom_word & mask == mask
     }
 
+    /// The offset of the hash buckets section
     fn hash_buckets_offset(&self) -> usize {
         self.bloom_words_end()
     }
 
+    /// The location where the hash bucket section ends
     fn hash_buckets_end(&self) -> usize {
         self.hash_buckets_offset() + self.header.buckets_len()
     }
 
+    /// Return the hash value at `index`
     fn get_hash(&self, index: usize) -> GvdbReaderResult<u32> {
         let start = self.hash_buckets_offset() + index * size_of::<u32>();
         self.get_u32(start)
     }
 
+    /// The offset of the hash item section
     pub(crate) fn hash_items_offset(&self) -> usize {
         self.hash_buckets_end()
     }
 
+    /// The number of hash items
     fn n_hash_items(&self) -> usize {
         let len = self.hash_items_end() - self.hash_items_offset();
         len / size_of::<GvdbHashItem>()
     }
 
+    /// The location where the hash items section ends
     fn hash_items_end(&self) -> usize {
         self.pointer.size()
     }
@@ -278,6 +286,7 @@ impl<'a, 'file> GvdbHashTable<'a, 'file> {
         Ok(names)
     }
 
+    /// Recurses through parents and check whether `item` has the specified full path name
     fn check_name(&self, item: &GvdbHashItem, key: &str) -> bool {
         let this_key = match self.get_key(item) {
             Ok(this_key) => this_key,
