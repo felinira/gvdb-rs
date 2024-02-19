@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use crate::read::{GvdbFile, GvdbHashItemType, GvdbHashTable};
+use crate::read::{File, HashItemType, HashTable};
 use crate::write::{GvdbFileWriter, GvdbHashTableBuilder};
 use lazy_static::lazy_static;
 pub use matches::assert_matches;
@@ -131,7 +131,7 @@ pub fn assert_bytes_eq(a: &[u8], b: &[u8], context: &str) {
     }
 }
 
-pub fn byte_compare_gvdb_file(a: &GvdbFile, b: &GvdbFile) {
+pub fn byte_compare_gvdb_file(a: &File, b: &File) {
     assert_eq!(a.get_header().unwrap(), b.get_header().unwrap());
 
     let a_hash = a.hash_table().unwrap();
@@ -139,7 +139,7 @@ pub fn byte_compare_gvdb_file(a: &GvdbFile, b: &GvdbFile) {
     byte_compare_gvdb_hash_table(&a_hash, &b_hash);
 }
 
-fn byte_compare_file(file: &GvdbFile, reference_path: &Path) {
+fn byte_compare_file(file: &File, reference_path: &Path) {
     let mut reference_file = std::fs::File::open(reference_path).unwrap();
     let mut reference_data = Vec::new();
     reference_file.read_to_end(&mut reference_data).unwrap();
@@ -151,11 +151,11 @@ fn byte_compare_file(file: &GvdbFile, reference_path: &Path) {
     );
 }
 
-pub fn byte_compare_file_1(file: &GvdbFile) {
+pub fn byte_compare_file_1(file: &File) {
     byte_compare_file(file, &TEST_FILE_1);
 }
 
-pub fn assert_is_file_1(file: &GvdbFile) {
+pub fn assert_is_file_1(file: &File) {
     let table = file.hash_table().unwrap();
     let names = table.get_names().unwrap();
     assert_eq!(names.len(), 1);
@@ -173,11 +173,11 @@ pub fn assert_is_file_1(file: &GvdbFile) {
     assert_eq!(<&str>::try_from(&fields[2]), Ok("TEST_STRING_VALUE"));
 }
 
-pub fn byte_compare_file_2(file: &GvdbFile) {
+pub fn byte_compare_file_2(file: &File) {
     byte_compare_file(file, &TEST_FILE_2);
 }
 
-pub fn assert_is_file_2(file: &GvdbFile) {
+pub fn assert_is_file_2(file: &File) {
     let table = file.hash_table().unwrap();
     let names = table.get_names().unwrap();
     assert_eq!(names.len(), 2);
@@ -197,12 +197,12 @@ pub fn assert_is_file_2(file: &GvdbFile) {
     assert_eq!(u32::try_from(int_value), Ok(42));
 }
 
-pub fn byte_compare_file_3(file: &GvdbFile) {
-    let ref_root = GvdbFile::from_file(&TEST_FILE_3).unwrap();
+pub fn byte_compare_file_3(file: &File) {
+    let ref_root = File::from_file(&TEST_FILE_3).unwrap();
     byte_compare_gvdb_file(file, &ref_root);
 }
 
-pub fn assert_is_file_3(file: &GvdbFile) {
+pub fn assert_is_file_3(file: &File) {
     let table = file.hash_table().unwrap();
     let mut names = table.get_names().unwrap();
     names.sort();
@@ -295,17 +295,17 @@ pub fn assert_is_file_3(file: &GvdbFile) {
     );
 }
 
-pub(crate) fn new_empty_file() -> GvdbFile<'static> {
+pub(crate) fn new_empty_file() -> File<'static> {
     let writer = GvdbFileWriter::new();
     let table_builder = GvdbHashTableBuilder::new();
     let data = Vec::new();
     let mut cursor = Cursor::new(data);
     writer.write_with_table(table_builder, &mut cursor).unwrap();
 
-    GvdbFile::from_bytes(Cow::Owned(cursor.into_inner())).unwrap()
+    File::from_bytes(Cow::Owned(cursor.into_inner())).unwrap()
 }
 
-pub(crate) fn new_simple_file(big_endian: bool) -> GvdbFile<'static> {
+pub(crate) fn new_simple_file(big_endian: bool) -> File<'static> {
     let writer = if big_endian {
         GvdbFileWriter::for_big_endian()
     } else {
@@ -318,10 +318,10 @@ pub(crate) fn new_simple_file(big_endian: bool) -> GvdbFile<'static> {
     let mut cursor = Cursor::new(data);
     writer.write_with_table(table_builder, &mut cursor).unwrap();
 
-    GvdbFile::from_bytes(Cow::Owned(cursor.into_inner())).unwrap()
+    File::from_bytes(Cow::Owned(cursor.into_inner())).unwrap()
 }
 
-pub(crate) fn byte_compare_gvdb_hash_table(a: &GvdbHashTable, b: &GvdbHashTable) {
+pub(crate) fn byte_compare_gvdb_hash_table(a: &HashTable, b: &HashTable) {
     assert_eq!(a.get_header(), b.get_header());
 
     let mut keys_a = a.get_names().unwrap();
@@ -343,7 +343,7 @@ pub(crate) fn byte_compare_gvdb_hash_table(a: &GvdbHashTable, b: &GvdbHashTable)
         let data_b = b.file.dereference(item_b.value_ptr(), 1).unwrap();
 
         // We don't compare containers, only their length
-        if item_a.typ().unwrap() == GvdbHashItemType::Container {
+        if item_a.typ().unwrap() == HashItemType::Container {
             if data_a.len() != data_b.len() {
                 // The lengths should not be different. For context we will compare the data
                 assert_bytes_eq(

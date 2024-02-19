@@ -471,7 +471,7 @@ impl<'a> GResourceBuilder<'a> {
 mod test {
     use super::*;
     use crate::gresource::xml::GResourceXMLDocument;
-    use crate::read::GvdbFile;
+    use crate::read::File;
     use crate::test::{assert_is_file_3, byte_compare_file_3, GRESOURCE_DIR, GRESOURCE_XML};
     use matches::assert_matches;
     use std::ffi::OsStr;
@@ -548,7 +548,7 @@ mod test {
         let doc = GResourceXMLDocument::from_file(&GRESOURCE_XML).unwrap();
         let builder = GResourceBuilder::from_xml(doc).unwrap();
         let data = builder.build().unwrap();
-        let root = GvdbFile::from_bytes(Cow::Owned(data)).unwrap();
+        let root = File::from_bytes(Cow::Owned(data)).unwrap();
 
         assert_is_file_3(&root);
         byte_compare_file_3(&root);
@@ -559,7 +559,7 @@ mod test {
         let builder =
             GResourceBuilder::from_directory("/gvdb/rs/test", &GRESOURCE_DIR, true, true).unwrap();
         let data = builder.build().unwrap();
-        let root = GvdbFile::from_bytes(Cow::Owned(data)).unwrap();
+        let root = File::from_bytes(Cow::Owned(data)).unwrap();
 
         let table = root.hash_table().unwrap();
         let mut names = table.get_names().unwrap();

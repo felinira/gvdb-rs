@@ -1,4 +1,4 @@
-use crate::read::GvdbHashItemType;
+use crate::read::HashItemType;
 use crate::write::file::GvdbHashTableBuilder;
 use std::cell::{Cell, Ref, RefCell};
 use std::rc::Rc;
@@ -26,13 +26,13 @@ impl<'a> Default for GvdbBuilderItemValue<'a> {
 
 #[allow(dead_code)]
 impl<'a> GvdbBuilderItemValue<'a> {
-    pub fn typ(&self) -> GvdbHashItemType {
+    pub fn typ(&self) -> HashItemType {
         match self {
-            GvdbBuilderItemValue::Value(_) => GvdbHashItemType::Value,
+            GvdbBuilderItemValue::Value(_) => HashItemType::Value,
             #[cfg(feature = "glib")]
-            GvdbBuilderItemValue::GVariant(_) => GvdbHashItemType::Value,
-            GvdbBuilderItemValue::TableBuilder(_) => GvdbHashItemType::HashTable,
-            GvdbBuilderItemValue::Container(_) => GvdbHashItemType::Container,
+            GvdbBuilderItemValue::GVariant(_) => HashItemType::Value,
+            GvdbBuilderItemValue::TableBuilder(_) => HashItemType::HashTable,
+            GvdbBuilderItemValue::Container(_) => HashItemType::Container,
         }
     }
 
@@ -160,7 +160,7 @@ impl<'a> GvdbBuilderItem<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::read::GvdbHashItemType;
+    use crate::read::HashItemType;
     use crate::write::item::{GvdbBuilderItem, GvdbBuilderItemValue};
     use crate::write::GvdbHashTableBuilder;
     use matches::assert_matches;
@@ -180,7 +180,7 @@ mod test {
                 .try_clone()
                 .expect("Value to not contain a file descriptor"),
         );
-        assert_eq!(item1.typ(), GvdbHashItemType::Value);
+        assert_eq!(item1.typ(), HashItemType::Value);
         assert_eq!(item1.value().unwrap(), &value1);
 
         #[cfg(feature = "glib")]
@@ -188,13 +188,13 @@ mod test {
 
         let value2 = GvdbHashTableBuilder::new();
         let item2 = GvdbBuilderItemValue::from(value2);
-        assert_eq!(item2.typ(), GvdbHashItemType::HashTable);
+        assert_eq!(item2.typ(), HashItemType::HashTable);
         assert!(item2.table_builder().is_some());
         assert_matches!(item2.container(), None);
 
         let value3 = vec!["test".to_string(), "test2".to_string()];
         let item3 = GvdbBuilderItemValue::Container(value3.clone());
-        assert_eq!(item3.typ(), GvdbHashItemType::Container);
+        assert_eq!(item3.typ(), HashItemType::Container);
         assert_eq!(item3.container().unwrap(), &value3);
         assert_matches!(item3.table_builder(), None);
     }
@@ -213,7 +213,7 @@ mod test {
 
 #[cfg(all(feature = "glib", test))]
 mod test_glib {
-    use crate::read::GvdbHashItemType;
+    use crate::read::HashItemType;
     use crate::write::item::GvdbBuilderItemValue;
     use glib::prelude::*;
     use matches::assert_matches;
@@ -222,7 +222,7 @@ mod test_glib {
     fn item_value() {
         let value1 = "test".to_variant();
         let item1 = GvdbBuilderItemValue::from(value1.clone());
-        assert_eq!(item1.typ(), GvdbHashItemType::Value);
+        assert_eq!(item1.typ(), HashItemType::Value);
         assert_eq!(item1.gvariant().unwrap(), &value1);
         assert_matches!(item1.value(), None);
     }
