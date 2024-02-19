@@ -347,23 +347,24 @@ impl<'a, 'file> GvdbHashTable<'a, 'file> {
         Err(GvdbReaderError::KeyError(key.to_string()))
     }
 
-    /// Get the bytes for the value part of the [`GvdbHashItem`]
-    fn get_bytes_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<&[u8]> {
+    /// Get the bytes for the [`GvdbHashItem`] at `key`
+    fn get_bytes(&self, key: &str) -> GvdbReaderResult<&[u8]> {
+        let item = self.get_hash_item(key)?;
         let typ = item.typ()?;
         if typ == GvdbHashItemType::Value {
             Ok(self.file.dereference(item.value_ptr(), 8)?)
         } else {
             Err(GvdbReaderError::DataError(format!(
                 "Unable to parse item for key '{}' as GVariant: Expected type 'v', got type {}",
-                self.get_key(item)?,
+                self.get_key(&item)?,
                 typ
             )))
         }
     }
 
-    /// Get a zvariant::Value from the [`GvdbHashItem`]
-    fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<zvariant::Value> {
-        let data = self.get_bytes_for_item(item)?;
+    /// Get the item at key `key` and try to interpret it as a [`enum@zvariant::Value`]
+    pub fn get_value(&self, key: &str) -> GvdbReaderResult<zvariant::Value> {
+        let data = self.get_bytes(key)?;
 
         // Create a new zvariant context based our endianess and the byteswapped property
         let context =
@@ -384,28 +385,19 @@ impl<'a, 'file> GvdbHashTable<'a, 'file> {
         Ok(zvariant::Value::deserialize(&mut de)?)
     }
 
-    /// Get the data pointed at by [`GvdbHashItem`] and try to interpret it as [`GvdbHashTable`]
-    fn get_hash_table_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<GvdbHashTable> {
+    /// Get the item at key `key` and try to interpret it as a [`GvdbHashTable`]
+    pub fn get_hash_table(&self, key: &str) -> GvdbReaderResult<GvdbHashTable> {
+        let item = self.get_hash_item(key)?;
         let typ = item.typ()?;
         if typ == GvdbHashItemType::HashTable {
             GvdbHashTable::for_bytes(*item.value_ptr(), self.file)
         } else {
             Err(GvdbReaderError::DataError(format!(
                 "Unable to parse item for key '{}' as hash table: Expected type 'H', got type '{}'",
-                self.get_key(item)?,
+                self.get_key(&item)?,
                 typ
             )))
         }
-    }
-
-    /// Get the item at key `key` and try to interpret it as a [`GvdbHashTable`]
-    pub fn get_hash_table(&self, key: &str) -> GvdbReaderResult<GvdbHashTable> {
-        self.get_hash_table_for_item(&self.get_hash_item(key)?)
-    }
-
-    /// Get the item at key `key` and try to interpret it as a [`enum@zvariant::Value`]
-    pub fn get_value(&self, key: &str) -> GvdbReaderResult<zvariant::Value> {
-        self.get_value_for_item(&self.get_hash_item(key)?)
     }
 
     /// Get the item at key `key` and try to convert it from [`enum@zvariant::Value`] to T
@@ -413,18 +405,16 @@ impl<'a, 'file> GvdbHashTable<'a, 'file> {
     where
         T: TryFrom<zvariant::OwnedValue>,
     {
-        T::try_from(zvariant::OwnedValue::try_from(
-            self.get_value_for_item(&self.get_hash_item(key)?)?,
-        )?)
-        .map_err(|_| {
+        T::try_from(zvariant::OwnedValue::try_from(self.get_value(key)?)?).map_err(|_| {
             GvdbReaderError::DataError("Can't convert Value to specified type".to_string())
         })
     }
 
     /// Get a glib::Variant from the [`GvdbHashItem`]
     #[cfg(feature = "glib")]
-    fn get_gvariant_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<glib::Variant> {
-        let data = self.get_bytes_for_item(item)?;
+    /// Get the item at key `key` and try to interpret it as a [`struct@glib::Variant`]
+    pub fn get_gvariant(&self, key: &str) -> GvdbReaderResult<glib::Variant> {
+        let data = self.get_bytes(key)?;
         let variant = glib::Variant::from_data_with_type(data, glib::VariantTy::VARIANT);
 
         if self.file.byteswapped {
@@ -432,12 +422,6 @@ impl<'a, 'file> GvdbHashTable<'a, 'file> {
         } else {
             Ok(variant)
         }
-    }
-
-    #[cfg(feature = "glib")]
-    /// Get the item at key `key` and try to interpret it as a [`struct@glib::Variant`]
-    pub fn get_gvariant(&self, key: &str) -> GvdbReaderResult<glib::Variant> {
-        self.get_gvariant_for_item(&self.get_hash_item(key)?)
     }
 }
 
@@ -458,12 +442,12 @@ impl std::fmt::Debug for GvdbHashTable<'_, '_> {
                                             Ok(Box::new(item) as Box<dyn std::fmt::Debug>)
                                         }
                                         Ok(super::GvdbHashItemType::HashTable) => {
-                                            self.get_hash_table_for_item(&item).map(|table| {
+                                            self.get_hash_table(name).map(|table| {
                                                 Box::new(table) as Box<dyn std::fmt::Debug>
                                             })
                                         }
                                         Ok(super::GvdbHashItemType::Value) => {
-                                            self.get_value_for_item(&item).map(|value| {
+                                            self.get_value(name).map(|value| {
                                                 Box::new(value) as Box<dyn std::fmt::Debug>
                                             })
                                         }
@@ -536,7 +520,7 @@ pub(crate) mod test {
             let table = file.hash_table().unwrap();
             let item = table.get_hash_item("test").unwrap();
             assert_ne!(item.value_ptr(), &GvdbPointer::NULL);
-            let value: String = table.get_value_for_item(&item).unwrap().try_into().unwrap();
+            let value: String = table.get_value("test").unwrap().try_into().unwrap();
             assert_eq!(value, "test");
 
             let item_fail = table.get_hash_item("fail").unwrap_err();
