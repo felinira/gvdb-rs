@@ -297,7 +297,7 @@ pub fn assert_is_file_3(file: &GvdbFile) {
     );
 }
 
-pub(crate) fn new_empty_file() -> GvdbFile {
+pub(crate) fn new_empty_file() -> GvdbFile<'static> {
     let writer = GvdbFileWriter::new();
     let table_builder = GvdbHashTableBuilder::new();
     let data = Vec::new();
@@ -307,7 +307,7 @@ pub(crate) fn new_empty_file() -> GvdbFile {
     GvdbFile::from_bytes(Cow::Owned(cursor.into_inner())).unwrap()
 }
 
-pub(crate) fn new_simple_file(big_endian: bool) -> GvdbFile {
+pub(crate) fn new_simple_file(big_endian: bool) -> GvdbFile<'static> {
     let writer = if big_endian {
         GvdbFileWriter::for_big_endian()
     } else {
