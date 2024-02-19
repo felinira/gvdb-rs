@@ -1,16 +1,13 @@
 use crate::read::error::{GvdbReaderError, GvdbReaderResult};
-use crate::read::hash_item::{GvdbHashItem, GvdbHashItemType};
 use crate::read::header::GvdbHeader;
 use crate::read::pointer::GvdbPointer;
 use crate::read::GvdbHashTable;
 use safe_transmute::transmute_one_pedantic;
-use serde::Deserialize;
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::Read;
 use std::mem::size_of;
 use std::path::Path;
-use zvariant::{gvariant, Type};
 
 #[derive(Debug)]
 pub(crate) enum GvdbData {
@@ -207,41 +204,6 @@ impl GvdbFile {
         Ok(this)
     }
 
-    /// gvdb_table_item_get_key
-    pub(crate) fn get_key(&self, item: &GvdbHashItem) -> GvdbReaderResult<String> {
-        let data = self.dereference(&item.key_ptr(), 1)?;
-        Ok(String::from_utf8(data.to_vec())?)
-    }
-
-    fn get_bytes_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<&[u8]> {
-        let typ = item.typ()?;
-        if typ == GvdbHashItemType::Value {
-            Ok(self.dereference(item.value_ptr(), 8)?)
-        } else {
-            Err(GvdbReaderError::DataError(format!(
-                "Unable to parse item for key '{}' as GVariant: Expected type 'v', got type {}",
-                self.get_key(item)?,
-                typ
-            )))
-        }
-    }
-
-    /// Get a glib::Variant from the [`GvdbHashItem`]
-    #[cfg(feature = "glib")]
-    pub(crate) fn get_gvariant_for_item(
-        &self,
-        item: &GvdbHashItem,
-    ) -> GvdbReaderResult<glib::Variant> {
-        let data = self.get_bytes_for_item(item)?;
-        let variant = glib::Variant::from_data_with_type(data, glib::VariantTy::VARIANT);
-
-        if self.byteswapped {
-            Ok(variant.byteswap())
-        } else {
-            Ok(variant)
-        }
-    }
-
     /// Determine the endianess to use for zvariant
     pub(crate) fn zvariant_endianess(&self) -> zvariant::Endian {
         if cfg!(target_endian = "little") && !self.byteswapped
@@ -250,47 +212,6 @@ impl GvdbFile {
             zvariant::LE
         } else {
             zvariant::BE
-        }
-    }
-
-    /// Get a zvariant::Value from the [`GvdbHashItem`]
-    pub(crate) fn get_value_for_item(
-        &self,
-        item: &GvdbHashItem,
-    ) -> GvdbReaderResult<zvariant::Value> {
-        let data = self.get_bytes_for_item(item)?;
-
-        // Create a new zvariant context based our endianess and the byteswapped property
-        let context = zvariant::serialized::Context::new_gvariant(self.zvariant_endianess(), 0);
-
-        // On non-unix systems this function lacks the FD argument
-        #[cfg(unix)]
-        let mut de: gvariant::Deserializer<_> = gvariant::Deserializer::new(
-            data,
-            None::<&[zvariant::Fd]>,
-            zvariant::Value::signature(),
-            context,
-        )?;
-        #[cfg(not(unix))]
-        let mut de: gvariant::Deserializer<()> =
-            gvariant::Deserializer::new(data, zvariant::Value::signature(), context)?;
-
-        Ok(zvariant::Value::deserialize(&mut de)?)
-    }
-
-    pub(crate) fn get_hash_table_for_item(
-        &self,
-        item: &GvdbHashItem,
-    ) -> GvdbReaderResult<GvdbHashTable> {
-        let typ = item.typ()?;
-        if typ == GvdbHashItemType::HashTable {
-            GvdbHashTable::for_bytes(self.dereference(item.value_ptr(), 4)?, self)
-        } else {
-            Err(GvdbReaderError::DataError(format!(
-                "Unable to parse item for key '{}' as hash table: Expected type 'H', got type '{}'",
-                self.get_key(item)?,
-                typ
-            )))
         }
     }
 }
