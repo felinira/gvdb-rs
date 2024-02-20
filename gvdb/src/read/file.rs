@@ -120,7 +120,7 @@ impl<'a> File<'a> {
     fn read_header(&mut self) -> Result<()> {
         let header = self.get_header()?;
         if !header.header_valid() {
-            return Err(Error::DataError(
+            return Err(Error::Data(
                 "Invalid GVDB header. Is this a GVDB file?".to_string(),
             ));
         }
@@ -128,7 +128,7 @@ impl<'a> File<'a> {
         self.byteswapped = header.is_byteswap()?;
 
         if header.version() != 0 {
-            return Err(Error::DataError(format!(
+            return Err(Error::Data(format!(
                 "Unknown GVDB file format version: {}",
                 header.version()
             )));
@@ -264,7 +264,7 @@ mod test {
         let mut data = transmute_one_to_bytes(&header).to_vec();
 
         data[0] = 0;
-        assert_matches!(File::from_bytes(Cow::Owned(data)), Err(Error::DataError(_)));
+        assert_matches!(File::from_bytes(Cow::Owned(data)), Err(Error::Data(_)));
     }
 
     #[test]
@@ -272,7 +272,7 @@ mod test {
         let header = Header::new_le(1, Pointer::new(0, 0));
         let data = transmute_one_to_bytes(&header).to_vec();
 
-        assert_matches!(File::from_bytes(Cow::Owned(data)), Err(Error::DataError(_)));
+        assert_matches!(File::from_bytes(Cow::Owned(data)), Err(Error::Data(_)));
     }
 
     #[test]
@@ -332,7 +332,7 @@ mod test {
 
         let file = File::from_bytes(Cow::Owned(data)).unwrap();
         let err = file.hash_table().unwrap_err();
-        assert_matches!(err, Error::DataError(_));
+        assert_matches!(err, Error::Data(_));
         assert!(format!("{}", err).contains("Not enough bytes to fit hash table"));
     }
 
@@ -351,7 +351,7 @@ mod test {
 
         let file = File::from_bytes(Cow::Owned(data)).unwrap();
         let err = file.hash_table().unwrap_err();
-        assert_matches!(err, Error::DataError(_));
+        assert_matches!(err, Error::Data(_));
         assert!(format!("{}", err).contains("Remaining size invalid"));
     }
 
@@ -378,7 +378,7 @@ mod test {
 
         let file = File::from_bytes(Cow::Owned(data)).unwrap();
         let err = file.hash_table().unwrap().get_names().unwrap_err();
-        assert_matches!(err, Error::DataError(_));
+        assert_matches!(err, Error::Data(_));
         assert!(format!("{}", err).contains("Parent with invalid offset"));
         assert!(format!("{}", err).contains("10"));
     }
@@ -406,7 +406,7 @@ mod test {
 
         let file = File::from_bytes(Cow::Owned(data)).unwrap();
         let err = file.hash_table().unwrap().get_names().unwrap_err();
-        assert_matches!(err, Error::DataError(_));
+        assert_matches!(err, Error::Data(_));
         assert!(format!("{}", err).contains("loop"));
     }
 
@@ -458,7 +458,7 @@ mod test {
 
         // A table isn't a value
         let table_res = table.get_value("table");
-        assert_matches!(table_res, Err(Error::DataError(_)));
+        assert_matches!(table_res, Err(Error::Data(_)));
     }
 
     #[test]
@@ -466,7 +466,7 @@ mod test {
         let file = File::from_file(&TEST_FILE_2).unwrap();
         let table = file.hash_table().unwrap();
         let res = table.get_hash_table("string");
-        assert_matches!(res, Err(Error::DataError(_)));
+        assert_matches!(res, Err(Error::Data(_)));
     }
 
     #[test]
