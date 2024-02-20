@@ -436,7 +436,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
         Ok(value.0)
     }
 
-    /// Get a glib::Variant from the [`HashItem`]
+    /// Get the data at key `key` as a [`struct@glib::Variant`]
     #[cfg(feature = "glib")]
     /// Get the item at key `key` and try to interpret it as a [`struct@glib::Variant`]
     pub fn get_gvariant(&self, key: &str) -> Result<glib::Variant> {

@@ -176,7 +176,7 @@ impl<'a> File<'a> {
     /// reload the file yourself when any modification occurs.
     #[cfg(feature = "mmap")]
     pub unsafe fn from_file_mmap(filename: &Path) -> Result<Self> {
-        let file = File::open(filename).map_err(Error::from_io_with_filename(filename))?;
+        let file = std::fs::File::open(filename).map_err(Error::from_io_with_filename(filename))?;
         let mmap = memmap2::Mmap::map(&file).map_err(Error::from_io_with_filename(filename))?;
 
         let mut this = Self {

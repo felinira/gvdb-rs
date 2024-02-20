@@ -46,8 +46,8 @@ fn quote_bytes(bytes: &[u8]) -> proc_macro2::TokenStream {
 
 fn include_gresource_from_xml_with_filename(filename: &str) -> proc_macro2::TokenStream {
     let path = PathBuf::from(filename);
-    let xml = gvdb::gresource::GResourceXMLDocument::from_file(&path).unwrap();
-    let builder = gvdb::gresource::GResourceBuilder::from_xml(xml).unwrap();
+    let xml = gvdb::gresource::XmlManifest::from_file(&path).unwrap();
+    let builder = gvdb::gresource::BundleBuilder::from_xml(xml).unwrap();
     let data = builder.build().unwrap();
 
     quote_bytes(&data)
@@ -89,7 +89,7 @@ pub fn include_gresource_from_xml(input: proc_macro::TokenStream) -> proc_macro:
 fn include_gresource_from_dir_str(prefix: &str, directory: &str) -> proc_macro2::TokenStream {
     let path = PathBuf::from(directory);
     let builder =
-        gvdb::gresource::GResourceBuilder::from_directory(prefix, &path, true, true).unwrap();
+        gvdb::gresource::BundleBuilder::from_directory(prefix, &path, true, true).unwrap();
     let data = builder.build().unwrap();
 
     quote_bytes(&data)

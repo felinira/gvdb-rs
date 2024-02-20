@@ -31,15 +31,15 @@ Requires the `gresource` feature to be enabled.
 mod gresource {
     use std::borrow::Cow;
     use std::path::PathBuf;
-    use gvdb::gresource::GResourceBuilder;
-    use gvdb::gresource::GResourceXMLDocument;
+    use gvdb::gresource::BundleBuilder;
+    use gvdb::gresource::XmlManifest;
     use gvdb::read::File;
 
     const GRESOURCE_XML: &str = "test-data/gresource/test3.gresource.xml";
 
     fn create_gresource() {
-        let doc = GResourceXMLDocument::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
-        let builder = GResourceBuilder::from_xml(doc).unwrap();
+        let doc = XmlManifest::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
+        let builder = BundleBuilder::from_xml(doc).unwrap();
         let data = builder.build().unwrap();
         
         // To immediately read this data again, we can create a file reader from the data
