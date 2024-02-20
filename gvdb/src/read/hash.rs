@@ -106,14 +106,14 @@ impl<'a, 'file> HashTable<'a, 'file> {
         let required_len = header_len + bloom_words_len + hash_buckets_len + hash_items_len;
 
         if required_len > data.len() {
-            Err(Error::DataError(format!(
+            Err(Error::Data(format!(
                 "Not enough bytes to fit hash table: Expected at least {} bytes, got {}",
                 required_len,
                 data.len()
             )))
         } else if hash_items_len % size_of::<HashItem>() != 0 {
             // Wrong data length
-            Err(Error::DataError(format!(
+            Err(Error::Data(format!(
                 "Remaining size invalid: Expected a multiple of {}, got {}",
                 size_of::<HashItem>(),
                 data.len()
@@ -268,7 +268,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
                         let _ = std::mem::replace(&mut names[index], Some(full_name));
                         inserted += 1;
                     } else if parent > count {
-                        return Err(Error::DataError(format!(
+                        return Err(Error::Data(format!(
                             "Parent with invalid offset encountered: {}",
                             parent
                         )));
@@ -279,7 +279,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
             if last_inserted == inserted {
                 // No insertion took place this round, there must be a parent loop
                 // We fail instead of infinitely looping
-                return Err(Error::DataError(
+                return Err(Error::Data(
                     "Error finding all parent items. The file appears to have a loop".to_string(),
                 ));
             }
@@ -366,7 +366,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
         if typ == HashItemType::Value {
             Ok(self.file.dereference(item.value_ptr(), 8)?)
         } else {
-            Err(Error::DataError(format!(
+            Err(Error::Data(format!(
                 "Unable to parse item for key '{}' as GVariant: Expected type 'v', got type {}",
                 self.get_key(&item)?,
                 typ
@@ -381,7 +381,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
         if typ == HashItemType::HashTable {
             HashTable::for_bytes(*item.value_ptr(), self.file)
         } else {
-            Err(Error::DataError(format!(
+            Err(Error::Data(format!(
                 "Unable to parse item for key '{}' as hash table: Expected type 'H', got type '{}'",
                 self.get_key(&item)?,
                 typ
@@ -425,7 +425,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
     {
         let mut de = self.deserializer_for_key(key)?;
         let value = zvariant::DeserializeValue::deserialize(&mut de).map_err(|err| {
-            Error::DataError(format!(
+            Error::Data(format!(
                 "Error deserializing value for key \"{}\" as gvariant type \"{}\": {}",
                 key,
                 T::signature(),
@@ -566,7 +566,7 @@ pub(crate) mod test {
             assert_eq!(&res, "test");
 
             let res = table.get::<i32>("test");
-            assert_matches!(res, Err(Error::DataError(_)));
+            assert_matches!(res, Err(Error::Data(_)));
         }
     }
 

@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::string::FromUtf8Error;
 
 /// An error that can occur during GVDB file reading
+#[non_exhaustive]
 #[derive(Debug)]
 pub enum Error {
     /// Error converting a string to UTF-8
@@ -25,7 +26,7 @@ pub enum Error {
     InvalidData,
 
     /// Like InvalidData but with context information in the provided string
-    DataError(String),
+    Data(String),
 
     /// The item with the specified key does not exist in the hash table
     KeyError(String),
@@ -63,20 +64,18 @@ impl<S, T> From<safe_transmute::Error<'_, S, T>> for Error {
         match err {
             safe_transmute::Error::Guard(guard_err) => {
                 if guard_err.actual > guard_err.required {
-                    Self::DataError(format!(
+                    Self::Data(format!(
                         "Found {} unexpected trailing bytes at the end while reading data",
                         guard_err.actual - guard_err.required
                     ))
                 } else {
-                    Self::DataError(format!(
+                    Self::Data(format!(
                         "Missing {} bytes to read data",
                         guard_err.required - guard_err.actual
                     ))
                 }
             }
-            safe_transmute::Error::Unaligned(..) => {
-                Self::DataError("Unaligned data read".to_string())
-            }
+            safe_transmute::Error::Unaligned(..) => Self::Data("Unaligned data read".to_string()),
             _ => Self::InvalidData,
         }
     }
@@ -114,7 +113,7 @@ impl Display for Error {
                     "Unexpected data. Most likely reason is a corrupted GVDB file"
                 )
             }
-            Error::DataError(msg) => {
+            Error::Data(msg) => {
                 write!(
                     f,
                     "A data inconsistency error occured while reading gvdb file: {}",
@@ -160,7 +159,7 @@ mod test {
         assert_matches!(err, Error::DataOffset);
         assert!(format!("{}", err).contains("data offset"));
 
-        let err = Error::DataError("my data error".to_string());
+        let err = Error::Data("my data error".to_string());
         assert!(format!("{}", err).contains("my data error"));
 
         let err = Error::KeyError("test".to_string());
@@ -174,7 +173,7 @@ mod test {
         bytes.extend_from_slice(b"fail");
         let res = transmute_one_pedantic::<Header>(&bytes);
         let err = Error::from(res.unwrap_err());
-        assert_matches!(err, Error::DataError(_));
+        assert_matches!(err, Error::Data(_));
         assert!(format!("{}", err).contains("unexpected trailing bytes"));
 
         let to_transmute = Header::new(false, 0, Pointer::NULL);
@@ -182,7 +181,7 @@ mod test {
         bytes.remove(bytes.len() - 1);
         let res = transmute_one_pedantic::<Header>(&bytes);
         let err = Error::from(res.unwrap_err());
-        assert_matches!(err, Error::DataError(_));
+        assert_matches!(err, Error::Data(_));
         assert!(format!("{}", err).contains("Missing 1 bytes"));
 
         let to_transmute = Header::new(false, 0, Pointer::NULL);
@@ -190,7 +189,7 @@ mod test {
         bytes.extend_from_slice(transmute_one_to_bytes(&to_transmute));
         let res = transmute_one_pedantic::<Header>(&bytes[7..]);
         let err = Error::from(res.unwrap_err());
-        assert_matches!(err, Error::DataError(_));
+        assert_matches!(err, Error::Data(_));
         assert!(format!("{}", err).contains("Unaligned"));
 
         let bytes = vec![0u8; 5];
