@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::num::TryFromIntError;
 use std::path::{Path, PathBuf};
+use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
 /// An error that can occur during GVDB file reading
@@ -8,7 +9,7 @@ use std::string::FromUtf8Error;
 #[derive(Debug)]
 pub enum Error {
     /// Error converting a string to UTF-8
-    Utf8(FromUtf8Error),
+    Utf8(Utf8Error),
 
     /// Generic I/O error. Path contains an optional filename if applicable
     Io(std::io::Error, Option<PathBuf>),
@@ -40,6 +41,12 @@ impl std::error::Error for Error {}
 
 impl From<FromUtf8Error> for Error {
     fn from(err: FromUtf8Error) -> Self {
+        Self::Utf8(err.utf8_error())
+    }
+}
+
+impl From<Utf8Error> for Error {
+    fn from(err: Utf8Error) -> Self {
         Self::Utf8(err)
     }
 }
