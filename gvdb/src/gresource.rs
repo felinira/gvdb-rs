@@ -1,9 +1,5 @@
-mod builder;
-mod error;
+mod bundle;
 mod xml;
 
-pub use self::xml::{GResourceXMLDocument, PreprocessOptions};
-pub use builder::{GResourceBuilder, GResourceFileData};
-pub use error::{
-    GResourceBuilderError, GResourceBuilderResult, GResourceXMLError, GResourceXMLResult,
-};
+pub use bundle::{BuilderError, BuilderResult, BundleBuilder, FileData};
+pub use xml::{PreprocessOptions, XmlManifest, XmlManifestError, XmlManifestResult};

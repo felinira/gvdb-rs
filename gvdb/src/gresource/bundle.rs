@@ -1,4 +1,7 @@
-use crate::gresource::error::{GResourceBuilderError, GResourceBuilderResult};
+mod error;
+
+pub use error::*;
+
 use crate::gresource::xml::PreprocessOptions;
 use crate::write::{FileWriter, HashTableBuilder};
 use flate2::write::ZlibEncoder;
@@ -19,17 +22,17 @@ static COMPRESS_EXTENSIONS_DEFAULT: &[&str] = &[".ui", ".css"];
 ///
 /// ```
 /// # use std::path::PathBuf;
-/// use gvdb::gresource::{PreprocessOptions, GResourceFileData};
+/// use gvdb::gresource::{PreprocessOptions, FileData};
 ///
 /// let mut key = "/my/app/id/icons/scalable/actions/send-symbolic.svg".to_string();
 /// let mut filename = PathBuf::from("test-data/gresource/icons/scalable/actions/send-symbolic.svg");
 ///
 /// let preprocess_options = PreprocessOptions::empty();
 /// let file_data =
-///     GResourceFileData::from_file(key, &filename, true, &preprocess_options).unwrap();
+///     FileData::from_file(key, &filename, true, &preprocess_options).unwrap();
 /// ```
 #[derive(Debug)]
-pub struct GResourceFileData<'a> {
+pub struct FileData<'a> {
     key: String,
     data: Cow<'a, [u8]>,
     flags: u32,
@@ -39,7 +42,7 @@ pub struct GResourceFileData<'a> {
     size: u32,
 }
 
-impl<'a> GResourceFileData<'a> {
+impl<'a> FileData<'a> {
     /// Create a new `GResourceFileData` from raw bytes
     ///
     /// The `path` parameter is used for error output, and should be set to a valid filesystem path
@@ -51,7 +54,7 @@ impl<'a> GResourceFileData<'a> {
     /// ```
     /// # use std::borrow::Cow;
     /// use std::path::PathBuf;
-    /// use gvdb::gresource::{GResourceFileData, PreprocessOptions};
+    /// use gvdb::gresource::{FileData, PreprocessOptions};
     ///
     /// let mut key = "/my/app/id/style.css".to_string();
     /// let mut filename = PathBuf::from("path/to/style.css");
@@ -59,7 +62,7 @@ impl<'a> GResourceFileData<'a> {
     /// let preprocess_options = PreprocessOptions::empty();
     /// let data: Vec<u8> = vec![1, 2, 3, 4];
     /// let file_data =
-    ///     GResourceFileData::new(key, Cow::Owned(data), None, true, &preprocess_options).unwrap();
+    ///     FileData::new(key, Cow::Owned(data), None, true, &preprocess_options).unwrap();
     /// ```
     pub fn new(
         key: String,
@@ -67,7 +70,7 @@ impl<'a> GResourceFileData<'a> {
         path: Option<PathBuf>,
         compressed: bool,
         preprocess: &PreprocessOptions,
-    ) -> GResourceBuilderResult<Self> {
+    ) -> BuilderResult<Self> {
         let mut flags = 0;
         let mut data = Self::preprocess(data, preprocess, path.clone())?;
         let size = data.len() as u32;
@@ -94,31 +97,28 @@ impl<'a> GResourceFileData<'a> {
     ///
     /// ```
     /// # use std::path::PathBuf;
-    /// use gvdb::gresource::{GResourceFileData, PreprocessOptions};
+    /// use gvdb::gresource::{FileData, PreprocessOptions};
     ///
     /// let mut key = "/my/app/id/icons/scalable/actions/send-symbolic.svg".to_string();
     /// let mut filename = PathBuf::from("test-data/gresource/icons/scalable/actions/send-symbolic.svg");
     ///
     /// let preprocess_options = PreprocessOptions::empty();
     /// let file_data =
-    ///     GResourceFileData::from_file(key, &filename, true, &preprocess_options).unwrap();
+    ///     FileData::from_file(key, &filename, true, &preprocess_options).unwrap();
     /// ```
     pub fn from_file(
         key: String,
         file_path: &Path,
         compressed: bool,
         preprocess: &PreprocessOptions,
-    ) -> GResourceBuilderResult<Self> {
-        let mut open_file = std::fs::File::open(file_path).map_err(
-            GResourceBuilderError::from_io_with_filename(Some(file_path)),
-        )?;
+    ) -> BuilderResult<Self> {
+        let mut open_file = std::fs::File::open(file_path)
+            .map_err(BuilderError::from_io_with_filename(Some(file_path)))?;
         let mut data = Vec::new();
         open_file
             .read_to_end(&mut data)
-            .map_err(GResourceBuilderError::from_io_with_filename(Some(
-                file_path,
-            )))?;
-        GResourceFileData::new(
+            .map_err(BuilderError::from_io_with_filename(Some(file_path)))?;
+        FileData::new(
             key,
             Cow::Owned(data),
             Some(file_path.to_path_buf()),
@@ -127,15 +127,11 @@ impl<'a> GResourceFileData<'a> {
         )
     }
 
-    fn xml_stripblanks(
-        data: Cow<'a, [u8]>,
-        path: Option<PathBuf>,
-    ) -> GResourceBuilderResult<Cow<'a, [u8]>> {
+    fn xml_stripblanks(data: Cow<'a, [u8]>, path: Option<PathBuf>) -> BuilderResult<Cow<'a, [u8]>> {
         let output = Vec::new();
 
         let mut reader = quick_xml::Reader::from_str(
-            std::str::from_utf8(&data)
-                .map_err(|err| GResourceBuilderError::Utf8(err, path.clone()))?,
+            std::str::from_utf8(&data).map_err(|err| BuilderError::Utf8(err, path.clone()))?,
         );
         reader.trim_text(true);
 
@@ -144,12 +140,12 @@ impl<'a> GResourceFileData<'a> {
         loop {
             match reader
                 .read_event()
-                .map_err(|err| GResourceBuilderError::Xml(err, path.clone()))?
+                .map_err(|err| BuilderError::Xml(err, path.clone()))?
             {
                 quick_xml::events::Event::Eof => break,
                 event => writer
                     .write_event(event)
-                    .map_err(|err| GResourceBuilderError::Xml(err, path.clone()))?,
+                    .map_err(|err| BuilderError::Xml(err, path.clone()))?,
             }
         }
 
@@ -159,12 +155,12 @@ impl<'a> GResourceFileData<'a> {
     fn json_stripblanks(
         data: Cow<'a, [u8]>,
         path: Option<PathBuf>,
-    ) -> GResourceBuilderResult<Cow<'a, [u8]>> {
-        let string = std::str::from_utf8(&data)
-            .map_err(|err| GResourceBuilderError::Utf8(err, path.clone()))?;
+    ) -> BuilderResult<Cow<'a, [u8]>> {
+        let string =
+            std::str::from_utf8(&data).map_err(|err| BuilderError::Utf8(err, path.clone()))?;
 
-        let json: serde_json::Value = serde_json::from_str(string)
-            .map_err(|err| GResourceBuilderError::Json(err, path.clone()))?;
+        let json: serde_json::Value =
+            serde_json::from_str(string).map_err(|err| BuilderError::Json(err, path.clone()))?;
 
         let mut output = json.to_string().as_bytes().to_vec();
         output.push(b'\n');
@@ -176,7 +172,7 @@ impl<'a> GResourceFileData<'a> {
         mut data: Cow<'a, [u8]>,
         options: &PreprocessOptions,
         path: Option<PathBuf>,
-    ) -> GResourceBuilderResult<Cow<'a, [u8]>> {
+    ) -> BuilderResult<Cow<'a, [u8]>> {
         if options.xml_stripblanks {
             data = Self::xml_stripblanks(data, path.clone())?;
         }
@@ -186,7 +182,7 @@ impl<'a> GResourceFileData<'a> {
         }
 
         if options.to_pixdata {
-            return Err(GResourceBuilderError::Unimplemented(
+            return Err(BuilderError::Unimplemented(
                 "to-pixdata is deprecated since gdk-pixbuf 2.32 and not supported by gvdb-rs"
                     .to_string(),
             ));
@@ -195,17 +191,16 @@ impl<'a> GResourceFileData<'a> {
         Ok(data)
     }
 
-    fn compress(
-        data: Cow<'a, [u8]>,
-        path: Option<PathBuf>,
-    ) -> GResourceBuilderResult<Cow<'a, [u8]>> {
+    fn compress(data: Cow<'a, [u8]>, path: Option<PathBuf>) -> BuilderResult<Cow<'a, [u8]>> {
         let mut encoder = ZlibEncoder::new(Vec::new(), flate2::Compression::best());
         encoder
             .write_all(&data)
-            .map_err(GResourceBuilderError::from_io_with_filename(path.clone()))?;
-        Ok(Cow::Owned(encoder.finish().map_err(
-            GResourceBuilderError::from_io_with_filename(path),
-        )?))
+            .map_err(BuilderError::from_io_with_filename(path.clone()))?;
+        Ok(Cow::Owned(
+            encoder
+                .finish()
+                .map_err(BuilderError::from_io_with_filename(path))?,
+        ))
     }
 
     /// Return the `key` of this `FileData`
@@ -221,7 +216,7 @@ impl<'a> GResourceFileData<'a> {
 /// The size is the *uncompressed* size and can be used for verification purposes.
 /// The flags only indicate whether a file is compressed or not. (Compressed = 1)
 #[derive(zvariant::Type, zvariant::Value, zvariant::OwnedValue)]
-pub struct GResourceData {
+pub struct Data {
     size: u32,
     flags: u32,
     data: Vec<u8>,
@@ -231,32 +226,32 @@ pub struct GResourceData {
 ///
 /// # Example
 ///
-/// Create a GResource XML file with [`GResourceXMLDocument`][crate::gresource::GResourceXMLDocument] and
-/// [`GResourceBuilder`](crate::gresource::GResourceBuilder)
+/// Create a GResource XML file with [`XmlManifest`][crate::gresource::XmlManifest] and
+/// [`BundleBuilder`](crate::gresource::BundleBuilder)
 /// ```
 /// use std::borrow::Cow;
 /// use std::path::PathBuf;
-/// use gvdb::gresource::GResourceBuilder;
-/// use gvdb::gresource::GResourceXMLDocument;
+/// use gvdb::gresource::BundleBuilder;
+/// use gvdb::gresource::XmlManifest;
 /// use gvdb::read::File;
 ///
 /// const GRESOURCE_XML: &str = "test/data/gresource/test3.gresource.xml";
 ///
 /// fn create_gresource() {
-///     let doc = GResourceXMLDocument::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
-///     let builder = GResourceBuilder::from_xml(doc).unwrap();
+///     let doc = XmlManifest::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
+///     let builder = BundleBuilder::from_xml(doc).unwrap();
 ///     let data = builder.build().unwrap();
 ///     let root = File::from_bytes(Cow::Owned(data)).unwrap();
 /// }
 /// ```
 #[derive(Debug)]
-pub struct GResourceBuilder<'a> {
-    files: Vec<GResourceFileData<'a>>,
+pub struct BundleBuilder<'a> {
+    files: Vec<FileData<'a>>,
 }
 
-impl<'a> GResourceBuilder<'a> {
+impl<'a> BundleBuilder<'a> {
     /// Create this builder from a GResource XML file
-    pub fn from_xml(xml: super::xml::GResourceXMLDocument) -> GResourceBuilderResult<Self> {
+    pub fn from_xml(xml: super::xml::XmlManifest) -> BuilderResult<Self> {
         let mut files = Vec::new();
 
         for gresource in &xml.gresources {
@@ -275,12 +270,8 @@ impl<'a> GResourceBuilder<'a> {
                 let mut filename = xml.dir.clone();
                 filename.push(PathBuf::from(&file.filename));
 
-                let file_data = GResourceFileData::from_file(
-                    key,
-                    &filename,
-                    file.compressed,
-                    &file.preprocess,
-                )?;
+                let file_data =
+                    FileData::from_file(key, &filename, file.compressed, &file.preprocess)?;
                 files.push(file_data);
             }
         }
@@ -328,7 +319,7 @@ impl<'a> GResourceBuilder<'a> {
         directory: &Path,
         strip_blanks: bool,
         compress: bool,
-    ) -> GResourceBuilderResult<Self> {
+    ) -> BuilderResult<Self> {
         let compress_extensions = if compress {
             COMPRESS_EXTENSIONS_DEFAULT
         } else {
@@ -359,7 +350,7 @@ impl<'a> GResourceBuilder<'a> {
         strip_blanks: bool,
         compress_extensions: &[&str],
         skipped_file_names: &[&str],
-    ) -> GResourceBuilderResult<Self> {
+    ) -> BuilderResult<Self> {
         let mut prefix = prefix.to_string();
         if !prefix.ends_with('/') {
             prefix.push('/');
@@ -373,19 +364,16 @@ impl<'a> GResourceBuilder<'a> {
                 Err(err) => {
                     let path = err.path().map(|p| p.to_path_buf());
                     return if err.io_error().is_some() {
-                        Err(GResourceBuilderError::Io(
-                            err.into_io_error().unwrap(),
-                            path,
-                        ))
+                        Err(BuilderError::Io(err.into_io_error().unwrap(), path))
                     } else {
-                        Err(GResourceBuilderError::Generic(err.to_string()))
+                        Err(BuilderError::Generic(err.to_string()))
                     };
                 }
             };
 
             if entry.path().is_file() {
                 let Some(filename) = entry.file_name().to_str() else {
-                    return Err(GResourceBuilderError::Generic(format!(
+                    return Err(BuilderError::Generic(format!(
                         "Filename '{}' contains invalid UTF-8 characters",
                         entry.file_name().to_string_lossy()
                     )));
@@ -408,13 +396,11 @@ impl<'a> GResourceBuilder<'a> {
 
                 let file_abs_path = entry.path();
                 let Ok(file_path_relative) = file_abs_path.strip_prefix(directory) else {
-                    return Err(GResourceBuilderError::Generic(
-                        "Strip prefix error".to_string(),
-                    ));
+                    return Err(BuilderError::Generic("Strip prefix error".to_string()));
                 };
 
                 let Some(file_path_str_relative) = file_path_relative.to_str() else {
-                    return Err(GResourceBuilderError::Generic(format!(
+                    return Err(BuilderError::Generic(format!(
                         "Filename '{}' contains invalid UTF-8 characters",
                         file_path_relative.display()
                     )));
@@ -432,8 +418,7 @@ impl<'a> GResourceBuilder<'a> {
                 };
 
                 let key = format!("{}{}", prefix, file_path_str_relative);
-                let file_data =
-                    GResourceFileData::from_file(key, file_abs_path, compress_this, &options)?;
+                let file_data = FileData::from_file(key, file_abs_path, compress_this, &options)?;
                 files.push(file_data);
             }
         }
@@ -444,17 +429,17 @@ impl<'a> GResourceBuilder<'a> {
     /// Create a new Builder from a `Vec<FileData>`.
     ///
     /// This is the most flexible way to create a GResource file, but also the most hands-on.
-    pub fn from_file_data(files: Vec<GResourceFileData<'a>>) -> Self {
+    pub fn from_file_data(files: Vec<FileData<'a>>) -> Self {
         Self { files }
     }
 
     /// Build the binary GResource data
-    pub fn build(self) -> GResourceBuilderResult<Vec<u8>> {
+    pub fn build(self) -> BuilderResult<Vec<u8>> {
         let builder = FileWriter::new();
         let mut table_builder = HashTableBuilder::new();
 
         for file_data in self.files.into_iter() {
-            let data = GResourceData {
+            let data = Data {
                 size: file_data.size,
                 flags: file_data.flags,
                 data: file_data.data.to_vec(),
@@ -470,7 +455,7 @@ impl<'a> GResourceBuilder<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::gresource::xml::GResourceXMLDocument;
+    use crate::gresource::xml::XmlManifest;
     use crate::read::File;
     use crate::test::{assert_is_file_3, byte_compare_file_3, GRESOURCE_DIR, GRESOURCE_XML};
     use matches::assert_matches;
@@ -479,8 +464,8 @@ mod test {
 
     #[test]
     fn file_data() {
-        let doc = GResourceXMLDocument::from_file(&GRESOURCE_XML).unwrap();
-        let builder = GResourceBuilder::from_xml(doc).unwrap();
+        let doc = XmlManifest::from_file(&GRESOURCE_XML).unwrap();
+        let builder = BundleBuilder::from_xml(doc).unwrap();
 
         for file in builder.files {
             assert!(file.key().starts_with("/gvdb/rs/test"));
@@ -502,7 +487,7 @@ mod test {
     #[test]
     fn from_dir_file_data() {
         for preprocess in [true, false] {
-            let builder = GResourceBuilder::from_directory(
+            let builder = BundleBuilder::from_directory(
                 "/gvdb/rs/test",
                 &GRESOURCE_DIR,
                 preprocess,
@@ -531,7 +516,7 @@ mod test {
 
     #[test]
     fn from_dir_invalid() {
-        let res = GResourceBuilder::from_directory(
+        let res = BundleBuilder::from_directory(
             "/gvdb/rs/test",
             &PathBuf::from("INVALID_DIR"),
             false,
@@ -540,13 +525,13 @@ mod test {
 
         assert!(res.is_err());
         let err = res.unwrap_err();
-        assert_matches!(err, GResourceBuilderError::Io(..));
+        assert_matches!(err, BuilderError::Io(..));
     }
 
     #[test]
     fn test_file_3() {
-        let doc = GResourceXMLDocument::from_file(&GRESOURCE_XML).unwrap();
-        let builder = GResourceBuilder::from_xml(doc).unwrap();
+        let doc = XmlManifest::from_file(&GRESOURCE_XML).unwrap();
+        let builder = BundleBuilder::from_xml(doc).unwrap();
         let data = builder.build().unwrap();
         let root = File::from_bytes(Cow::Owned(data)).unwrap();
 
@@ -557,7 +542,7 @@ mod test {
     #[test]
     fn test_file_from_dir() {
         let builder =
-            GResourceBuilder::from_directory("/gvdb/rs/test", &GRESOURCE_DIR, true, true).unwrap();
+            BundleBuilder::from_directory("/gvdb/rs/test", &GRESOURCE_DIR, true, true).unwrap();
         let data = builder.build().unwrap();
         let root = File::from_bytes(Cow::Owned(data)).unwrap();
 
@@ -608,14 +593,14 @@ mod test {
         dir.push(invalid_utf8);
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::File::create(dir.join("test.xml")).unwrap();
-        let res = GResourceBuilder::from_directory("test", &dir.parent().unwrap(), false, false);
+        let res = BundleBuilder::from_directory("test", &dir.parent().unwrap(), false, false);
         let _ = std::fs::remove_file(dir.join("test.xml"));
         let _ = std::fs::remove_dir(&dir);
         std::fs::remove_dir(dir.parent().unwrap()).unwrap();
 
         let err = res.unwrap_err();
         println!("{}", err);
-        assert_matches!(err, GResourceBuilderError::Generic(_));
+        assert_matches!(err, BuilderError::Generic(_));
         assert!(format!("{}", err).contains("UTF-8"));
     }
 
@@ -628,20 +613,20 @@ mod test {
         let mut file = std::fs::File::create(dir.join("test.json")).unwrap();
         let _ = file.write(invalid_utf8.as_bytes());
 
-        let res = GResourceBuilder::from_directory("test", &dir, true, true);
+        let res = BundleBuilder::from_directory("test", &dir, true, true);
         let _ = std::fs::remove_file(dir.join("test.json"));
         let _ = std::fs::remove_dir(&dir);
 
         let err = res.unwrap_err();
         println!("{}", err);
-        assert_matches!(err, GResourceBuilderError::Utf8(..));
+        assert_matches!(err, BuilderError::Utf8(..));
         assert!(format!("{}", err).contains("UTF-8"));
     }
 
     #[test]
     fn test_from_file_data() {
         let path = GRESOURCE_DIR.join("json").join("test.json");
-        let file_data = GResourceFileData::from_file(
+        let file_data = FileData::from_file(
             "test.json".to_string(),
             &path,
             false,
@@ -650,7 +635,7 @@ mod test {
         .unwrap();
         println!("{:?}", file_data);
 
-        let builder = GResourceBuilder::from_file_data(vec![file_data]);
+        let builder = BundleBuilder::from_file_data(vec![file_data]);
         println!("{:?}", builder);
         let _ = builder.build().unwrap();
     }
@@ -660,9 +645,8 @@ mod test {
         let path = GRESOURCE_DIR.join("json").join("test.json");
         let mut options = PreprocessOptions::empty();
         options.to_pixdata = true;
-        let err = GResourceFileData::from_file("test.json".to_string(), &path, false, &options)
-            .unwrap_err();
-        assert_matches!(err, GResourceBuilderError::Unimplemented(_));
+        let err = FileData::from_file("test.json".to_string(), &path, false, &options).unwrap_err();
+        assert_matches!(err, BuilderError::Unimplemented(_));
         assert!(format!("{}", err).contains("to-pixdata is deprecated"));
     }
 
@@ -670,7 +654,7 @@ mod test {
     fn xml_stripblanks() {
         for path in [Some(PathBuf::from("test")), None] {
             let xml = "<invalid";
-            let err = GResourceFileData::new(
+            let err = FileData::new(
                 "test".to_string(),
                 Cow::Borrowed(xml.as_bytes()),
                 path,
@@ -679,7 +663,7 @@ mod test {
             )
             .unwrap_err();
 
-            assert_matches!(err, GResourceBuilderError::Xml(_, _));
+            assert_matches!(err, BuilderError::Xml(_, _));
             assert!(format!("{}", err).contains("Error processing XML data"));
             assert!(format!("{:?}", err).contains("Unexpected EOF"));
         }
@@ -689,7 +673,7 @@ mod test {
     fn json_stripblanks() {
         for path in [Some(PathBuf::from("test")), None] {
             let invalid_utf8 = [0xC3, 0x28];
-            let err = GResourceFileData::new(
+            let err = FileData::new(
                 "test".to_string(),
                 Cow::Borrowed(&invalid_utf8),
                 path.clone(),
@@ -698,11 +682,11 @@ mod test {
             )
             .unwrap_err();
 
-            assert_matches!(err, GResourceBuilderError::Utf8(..));
+            assert_matches!(err, BuilderError::Utf8(..));
             assert!(format!("{:?}", err).contains("UTF-8"));
 
             let invalid_json = r#"{ "test": : }"#.as_bytes();
-            let err = GResourceFileData::new(
+            let err = FileData::new(
                 "test".to_string(),
                 Cow::Borrowed(invalid_json),
                 path,
@@ -711,12 +695,12 @@ mod test {
             )
             .unwrap_err();
 
-            assert_matches!(err, GResourceBuilderError::Json(..));
+            assert_matches!(err, BuilderError::Json(..));
             assert!(format!("{:?}", err).contains("expected value at line"));
         }
 
         let valid_json = r#"{ "test": "test" }"#.as_bytes();
-        let data = GResourceFileData::new(
+        let data = FileData::new(
             "test".to_string(),
             Cow::Borrowed(valid_json),
             None,
@@ -731,18 +715,18 @@ mod test {
 
     #[test]
     fn derives_data() {
-        let data = GResourceData {
+        let data = Data {
             size: 3,
             flags: 0,
             data: vec![1, 2, 3],
         };
 
-        let sig = GResourceData::signature();
+        let sig = Data::signature();
         assert_eq!(sig, "(uuay)");
         let owned = zvariant::OwnedValue::try_from(data).unwrap();
-        let data = GResourceData::try_from(owned).unwrap();
+        let data = Data::try_from(owned).unwrap();
         let value: zvariant::Value = data.into();
-        let _: GResourceData = value.try_into().unwrap();
+        let _: Data = value.try_into().unwrap();
     }
 
     #[test]
@@ -756,21 +740,17 @@ mod test {
         std::fs::create_dir_all(PathBuf::from(&temp_path)).unwrap();
         let _ = std::fs::File::create(&invalid_path).unwrap();
 
-        let res = GResourceBuilder::from_directory(
-            "test",
-            &PathBuf::from(temp_path.clone()),
-            false,
-            false,
-        );
+        let res =
+            BundleBuilder::from_directory("test", &PathBuf::from(temp_path.clone()), false, false);
 
         let _ = std::fs::remove_file(invalid_path);
         std::fs::remove_dir(temp_path).unwrap();
 
         let err = res.unwrap_err();
-        assert_matches!(err, GResourceBuilderError::Generic(_));
+        assert_matches!(err, BuilderError::Generic(_));
         assert!(err.to_string().contains("UTF-8"));
 
-        assert_matches!(err, GResourceBuilderError::Generic(_));
+        assert_matches!(err, BuilderError::Generic(_));
         assert!(err.to_string().contains("UTF-8"));
     }
 }
