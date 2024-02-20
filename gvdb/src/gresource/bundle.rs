@@ -544,7 +544,7 @@ mod test {
         let root = File::from_bytes(Cow::Owned(data)).unwrap();
 
         let table = root.hash_table().unwrap();
-        let mut names = table.get_names().unwrap();
+        let mut names = table.keys().unwrap();
         names.sort();
         let reference_names = vec![
             "/",

@@ -62,7 +62,7 @@ impl AsRef<[u8]> for Data<'_> {
 ///
 /// fn query_hash_table(file: File) {
 ///     let table = file.hash_table().unwrap();
-///     let names = table.get_names().unwrap();
+///     let names = table.keys().unwrap();
 ///     assert_eq!(names.len(), 2);
 ///     assert_eq!(names[0], "string");
 ///     assert_eq!(names[1], "table");
@@ -71,7 +71,7 @@ impl AsRef<[u8]> for Data<'_> {
 ///     assert_eq!(str_value, "test string");
 ///
 ///     let sub_table = table.get_hash_table("table").unwrap();
-///     let sub_table_names = sub_table.get_names().unwrap();
+///     let sub_table_names = sub_table.keys().unwrap();
 ///     assert_eq!(sub_table_names.len(), 1);
 ///     assert_eq!(sub_table_names[0], "int");
 ///
@@ -377,7 +377,7 @@ mod test {
         println!("{:?}", File::from_bytes(Cow::Owned(data.clone())).unwrap());
 
         let file = File::from_bytes(Cow::Owned(data)).unwrap();
-        let err = file.hash_table().unwrap().get_names().unwrap_err();
+        let err = file.hash_table().unwrap().keys().unwrap_err();
         assert_matches!(err, Error::Data(_));
         assert!(format!("{}", err).contains("Parent with invalid offset"));
         assert!(format!("{}", err).contains("10"));
@@ -405,7 +405,7 @@ mod test {
         println!("{:?}", File::from_bytes(Cow::Owned(data.clone())).unwrap());
 
         let file = File::from_bytes(Cow::Owned(data)).unwrap();
-        let err = file.hash_table().unwrap().get_names().unwrap_err();
+        let err = file.hash_table().unwrap().keys().unwrap_err();
         assert_matches!(err, Error::Data(_));
         assert!(format!("{}", err).contains("loop"));
     }
@@ -479,7 +479,7 @@ mod test {
         // Ensure the hash table only borrows the file immutably
         let table = file.hash_table().unwrap();
         let table2 = file.hash_table().unwrap();
-        table2.get_names().unwrap();
-        table.get_names().unwrap();
+        table2.keys().unwrap();
+        table.keys().unwrap();
     }
 }

@@ -38,6 +38,7 @@ The minimum supported rust version of this crate is 1.75.
   - `for_bytes` has been made private
   - `get_header` has been removed
   - `get_hash_item` has been made private
+  - `get_names` has been renamed to `keys`
 - `GvdbReaderError` is renamed to `Error`
   - `DataError` is renamed to `Error::Data`
   - `KeyError` is renamed to `Error::KeyNotFound`
