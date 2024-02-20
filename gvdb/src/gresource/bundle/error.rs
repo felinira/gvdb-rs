@@ -1,11 +1,11 @@
-use crate::write::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::path::PathBuf;
 
 /// Error type for creating a GResource XML file
+#[non_exhaustive]
 pub enum BuilderError {
     /// An internal error occurred during creation of the GVDB file
-    Gvdb(Error),
+    Gvdb(crate::write::Error),
 
     /// I/O error
     Io(std::io::Error, Option<PathBuf>),
@@ -19,11 +19,11 @@ pub enum BuilderError {
     /// This error can occur when using json-stripblanks and the provided JSON file is invalid
     Json(serde_json::Error, Option<PathBuf>),
 
+    /// Error when canonicalizing a path from an absolute to a relative path
+    StripPrefix(std::path::StripPrefixError, PathBuf),
+
     /// This feature is not implemented in gvdb-rs
     Unimplemented(String),
-
-    /// A generic error with a text description
-    Generic(String),
 }
 
 impl BuilderError {
@@ -40,8 +40,8 @@ impl BuilderError {
 
 impl std::error::Error for BuilderError {}
 
-impl From<Error> for BuilderError {
-    fn from(err: Error) -> Self {
+impl From<crate::write::Error> for BuilderError {
+    fn from(err: crate::write::Error) -> Self {
         Self::Gvdb(err)
     }
 }
@@ -98,8 +98,12 @@ impl Display for BuilderError {
             BuilderError::Gvdb(err) => {
                 write!(f, "Error while creating GVDB file: {:?}", err)
             }
-            BuilderError::Generic(err) => {
-                write!(f, "Error while creating GResource file: {}", err)
+            BuilderError::StripPrefix(err, path) => {
+                write!(
+                    f,
+                    "Error when canonicalizing path '{:?}' from an absolute to a relative path: {}",
+                    path, err
+                )
             }
         }
     }
@@ -128,7 +132,7 @@ mod test {
         let err = BuilderError::from_io_with_filename(Some("test"))(io_res.unwrap_err());
         assert!(format!("{}", err).contains("test"));
 
-        let writer_error = Error::Consistency("test".to_string());
+        let writer_error = crate::write::Error::Consistency("test".to_string());
         let err = BuilderError::from(writer_error);
         assert!(format!("{}", err).contains("test"));
 
