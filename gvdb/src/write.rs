@@ -3,5 +3,5 @@ mod file;
 mod hash;
 mod item;
 
-pub use error::{GvdbBuilderResult, GvdbWriterError};
-pub use file::{GvdbFileWriter, GvdbHashTableBuilder};
+pub use error::{Error, Result};
+pub use file::{FileWriter, HashTableBuilder};

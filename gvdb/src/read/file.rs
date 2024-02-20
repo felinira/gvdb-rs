@@ -227,7 +227,7 @@ mod test {
 
     use crate::read::{Error, HashItem, Header, Pointer};
     use crate::test::*;
-    use crate::write::{GvdbFileWriter, GvdbHashTableBuilder};
+    use crate::write::{FileWriter, HashTableBuilder};
     use matches::assert_matches;
     #[allow(unused_imports)]
     use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
@@ -315,8 +315,8 @@ mod test {
 
     #[test]
     fn broken_hash_table() {
-        let writer = GvdbFileWriter::new();
-        let mut table = GvdbHashTableBuilder::new();
+        let writer = FileWriter::new();
+        let mut table = HashTableBuilder::new();
         table.insert_string("test", "test").unwrap();
         let mut data = writer.write_to_vec_with_table(table).unwrap();
 
@@ -338,8 +338,8 @@ mod test {
 
     #[test]
     fn broken_hash_table2() {
-        let writer = GvdbFileWriter::new();
-        let mut table = GvdbHashTableBuilder::new();
+        let writer = FileWriter::new();
+        let mut table = HashTableBuilder::new();
         table.insert_string("test", "test").unwrap();
         let mut data = writer.write_to_vec_with_table(table).unwrap();
 
@@ -357,8 +357,8 @@ mod test {
 
     #[test]
     fn parent_invalid_offset() {
-        let writer = GvdbFileWriter::new();
-        let mut table = GvdbHashTableBuilder::new();
+        let writer = FileWriter::new();
+        let mut table = HashTableBuilder::new();
         table.insert_string("parent/test", "test").unwrap();
         let mut data = writer.write_to_vec_with_table(table).unwrap();
 
@@ -385,8 +385,8 @@ mod test {
 
     #[test]
     fn parent_loop() {
-        let writer = GvdbFileWriter::new();
-        let mut table = GvdbHashTableBuilder::new();
+        let writer = FileWriter::new();
+        let mut table = HashTableBuilder::new();
         table.insert_string("parent/test", "test").unwrap();
         let mut data = writer.write_to_vec_with_table(table).unwrap();
 

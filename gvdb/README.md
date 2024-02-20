@@ -33,7 +33,7 @@ mod gresource {
     use std::path::PathBuf;
     use gvdb::gresource::GResourceBuilder;
     use gvdb::gresource::GResourceXMLDocument;
-    use gvdb::read::GvdbFile;
+    use gvdb::read::File;
 
     const GRESOURCE_XML: &str = "test-data/gresource/test3.gresource.xml";
 
@@ -43,23 +43,23 @@ mod gresource {
         let data = builder.build().unwrap();
         
         // To immediately read this data again, we can create a file reader from the data
-        let root = GvdbFile::from_bytes(Cow::Owned(data)).unwrap();
+        let root = File::from_bytes(Cow::Owned(data)).unwrap();
     }
 }
 ```
 
-Create a simple GVDB file with `GvdbFileWriter`
+Create a simple GVDB file with `FileWriter`
 
 ```rust
-use gvdb::write::{GvdbFileWriter, GvdbHashTableBuilder};
+use gvdb::write::{FileWriter, HashTableBuilder};
 
 fn create_gvdb_file() {
-    let mut file_writer = GvdbFileWriter::new();
-    let mut table_builder = GvdbHashTableBuilder::new();
+    let mut file_writer = FileWriter::new();
+    let mut table_builder = HashTableBuilder::new();
     table_builder
            .insert_string("string", "test string")
            .unwrap();
-    let mut table_builder_2 = GvdbHashTableBuilder::new();
+    let mut table_builder_2 = HashTableBuilder::new();
     table_builder_2
         .insert("int", 42u32)
         .unwrap();
@@ -76,12 +76,12 @@ fn create_gvdb_file() {
 The stored data at `/gvdb/rs/test/online-symbolic.svg` corresponds to the `(uuay)` GVariant type signature.
 
 ```rust
-use gvdb::read::GvdbFile;
+use gvdb::read::File;
 use std::path::PathBuf;
 
 pub fn main() {
     let path = PathBuf::from("test-data/test3.gresource");
-    let file = GvdbFile::from_file(&path).unwrap();
+    let file = File::from_file(&path).unwrap();
     let table = file.hash_table().unwrap();
 
     #[derive(serde::Deserialize, zvariant::Type)]

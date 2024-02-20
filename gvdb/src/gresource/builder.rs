@@ -1,6 +1,6 @@
 use crate::gresource::error::{GResourceBuilderError, GResourceBuilderResult};
 use crate::gresource::xml::PreprocessOptions;
-use crate::write::{GvdbFileWriter, GvdbHashTableBuilder};
+use crate::write::{FileWriter, HashTableBuilder};
 use flate2::write::ZlibEncoder;
 use std::borrow::Cow;
 use std::io::{Read, Write};
@@ -238,7 +238,7 @@ pub struct GResourceData {
 /// use std::path::PathBuf;
 /// use gvdb::gresource::GResourceBuilder;
 /// use gvdb::gresource::GResourceXMLDocument;
-/// use gvdb::read::GvdbFile;
+/// use gvdb::read::File;
 ///
 /// const GRESOURCE_XML: &str = "test/data/gresource/test3.gresource.xml";
 ///
@@ -246,7 +246,7 @@ pub struct GResourceData {
 ///     let doc = GResourceXMLDocument::from_file(&PathBuf::from(GRESOURCE_XML)).unwrap();
 ///     let builder = GResourceBuilder::from_xml(doc).unwrap();
 ///     let data = builder.build().unwrap();
-///     let root = GvdbFile::from_bytes(Cow::Owned(data)).unwrap();
+///     let root = File::from_bytes(Cow::Owned(data)).unwrap();
 /// }
 /// ```
 #[derive(Debug)]
@@ -450,8 +450,8 @@ impl<'a> GResourceBuilder<'a> {
 
     /// Build the binary GResource data
     pub fn build(self) -> GResourceBuilderResult<Vec<u8>> {
-        let builder = GvdbFileWriter::new();
-        let mut table_builder = GvdbHashTableBuilder::new();
+        let builder = FileWriter::new();
+        let mut table_builder = HashTableBuilder::new();
 
         for file_data in self.files.into_iter() {
             let data = GResourceData {

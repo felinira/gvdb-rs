@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use crate::read::{File, HashItemType, HashTable};
-use crate::write::{GvdbFileWriter, GvdbHashTableBuilder};
+use crate::write::{FileWriter, HashTableBuilder};
 use lazy_static::lazy_static;
 pub use matches::assert_matches;
 pub use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
@@ -296,8 +296,8 @@ pub fn assert_is_file_3(file: &File) {
 }
 
 pub(crate) fn new_empty_file() -> File<'static> {
-    let writer = GvdbFileWriter::new();
-    let table_builder = GvdbHashTableBuilder::new();
+    let writer = FileWriter::new();
+    let table_builder = HashTableBuilder::new();
     let data = Vec::new();
     let mut cursor = Cursor::new(data);
     writer.write_with_table(table_builder, &mut cursor).unwrap();
@@ -307,12 +307,12 @@ pub(crate) fn new_empty_file() -> File<'static> {
 
 pub(crate) fn new_simple_file(big_endian: bool) -> File<'static> {
     let writer = if big_endian {
-        GvdbFileWriter::for_big_endian()
+        FileWriter::for_big_endian()
     } else {
-        GvdbFileWriter::new()
+        FileWriter::new()
     };
 
-    let mut table_builder = GvdbHashTableBuilder::new();
+    let mut table_builder = HashTableBuilder::new();
     table_builder.insert("test", "test").unwrap();
     let data = Vec::new();
     let mut cursor = Cursor::new(data);
