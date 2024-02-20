@@ -5,15 +5,15 @@
 //!
 //! ## Examples
 //!
-//! Load a GResource file from disk with [`GvdbFile`](crate::read::GvdbFile)
+//! Load a GResource file from disk with [`File`](crate::read::File)
 //!
 //! ```
 //! use std::path::PathBuf;
-//! use gvdb::read::GvdbFile;
+//! use gvdb::read::File;
 //!
 //! pub fn read_gresource_file() {
 //!     let path = PathBuf::from("test-data/test3.gresource");
-//!     let file = GvdbFile::from_file(&path).unwrap();
+//!     let file = File::from_file(&path).unwrap();
 //!     let table = file.hash_table().unwrap();
 //!
 //!     #[derive(serde::Deserialize, zvariant::Type)]
@@ -32,19 +32,19 @@
 //! }
 //! ```
 //!
-//! Create a simple GVDB file with [`GvdbFileWriter`](crate::write::GvdbFileWriter)
+//! Create a simple GVDB file with [`FileWriter`](crate::write::FileWriter)
 //!
 //! ```
-//! use gvdb::write::{GvdbFileWriter, GvdbHashTableBuilder};
+//! use gvdb::write::{FileWriter, HashTableBuilder};
 //!
 //! fn create_gvdb_file() {
-//!     let mut file_writer = GvdbFileWriter::new();
-//!     let mut table_builder = GvdbHashTableBuilder::new();
+//!     let mut file_writer = FileWriter::new();
+//!     let mut table_builder = HashTableBuilder::new();
 //!     table_builder
 //!            .insert_string("string", "test string")
 //!            .unwrap();
 //!
-//!     let mut table_builder_2 = GvdbHashTableBuilder::new();
+//!     let mut table_builder_2 = HashTableBuilder::new();
 //!     table_builder_2
 //!         .insert("int", 42u32)
 //!         .unwrap();
@@ -94,12 +94,12 @@ pub mod gresource;
 
 /// Read GVDB files from a file or from a byte slice
 ///
-/// See the documentation of [`GvdbFile`](crate::read::GvdbFile) to get started
+/// See the documentation of [`File`](crate::read::File) to get started
 pub mod read;
 
 /// Create GVDB files
 ///
-/// See the documentation of [`GvdbFileWriter`](crate::write::GvdbFileWriter) to get started
+/// See the documentation of [`FileWriter`](crate::write::FileWriter) to get started
 pub mod write;
 
 #[cfg(test)]

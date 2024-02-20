@@ -1,4 +1,4 @@
-use crate::write::GvdbWriterError;
+use crate::write::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::path::{Path, PathBuf};
 
@@ -70,7 +70,7 @@ pub type GResourceXMLResult<T> = Result<T, GResourceXMLError>;
 /// Error type for creating a GResource XML file
 pub enum GResourceBuilderError {
     /// An internal error occurred during creation of the GVDB file
-    Gvdb(GvdbWriterError),
+    Gvdb(Error),
 
     /// I/O error
     Io(std::io::Error, Option<PathBuf>),
@@ -105,8 +105,8 @@ impl GResourceBuilderError {
 
 impl std::error::Error for GResourceBuilderError {}
 
-impl From<GvdbWriterError> for GResourceBuilderError {
-    fn from(err: GvdbWriterError) -> Self {
+impl From<Error> for GResourceBuilderError {
+    fn from(err: Error) -> Self {
         Self::Gvdb(err)
     }
 }
@@ -182,7 +182,7 @@ pub type GResourceBuilderResult<T> = Result<T, GResourceBuilderError>;
 #[cfg(test)]
 mod test {
     use crate::gresource::{GResourceBuilderError, GResourceXMLError};
-    use crate::write::GvdbWriterError;
+    use crate::write::Error;
     use std::path::PathBuf;
 
     #[test]
@@ -199,7 +199,7 @@ mod test {
         let err = GResourceBuilderError::from_io_with_filename(Some("test"))(io_res.unwrap_err());
         assert!(format!("{}", err).contains("test"));
 
-        let writer_error = GvdbWriterError::Consistency("test".to_string());
+        let writer_error = Error::Consistency("test".to_string());
         let err = GResourceBuilderError::from(writer_error);
         assert!(format!("{}", err).contains("test"));
 
