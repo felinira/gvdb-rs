@@ -322,7 +322,7 @@ pub(crate) fn new_simple_file(big_endian: bool) -> File<'static> {
 }
 
 pub(crate) fn byte_compare_gvdb_hash_table(a: &HashTable, b: &HashTable) {
-    assert_eq!(a.get_header(), b.get_header());
+    assert_eq!(a.header, b.header);
 
     let mut keys_a = a.get_names().unwrap();
     let mut keys_b = b.get_names().unwrap();
