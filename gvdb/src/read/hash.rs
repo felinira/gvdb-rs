@@ -237,7 +237,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
     }
 
     /// Gets a list of keys contained in the hash table.
-    pub fn get_names(&self) -> Result<Vec<String>> {
+    pub fn keys(&self) -> Result<Vec<String>> {
         let count = self.n_hash_items();
         let mut names: Vec<Option<String>> = vec![None; count];
 
@@ -252,12 +252,12 @@ impl<'a, 'file> HashTable<'a, 'file> {
                     // Only process items not already processed
                     if parent == 0xffffffff {
                         // root item
-                        let name = self.get_key(&item)?;
+                        let name = self.key_for_item(&item)?;
                         let _ = std::mem::replace(&mut names[index], Some(name.to_string()));
                         inserted += 1;
                     } else if parent < count && names[parent].is_some() {
                         // We already came across this item
-                        let name = self.get_key(&item)?;
+                        let name = self.key_for_item(&item)?;
                         let parent_name = names.get(parent).unwrap().as_ref().unwrap();
                         let full_name = parent_name.to_string() + name;
                         let _ = std::mem::replace(&mut names[index], Some(full_name));
@@ -285,8 +285,8 @@ impl<'a, 'file> HashTable<'a, 'file> {
     }
 
     /// Recurses through parents and check whether `item` has the specified full path name
-    fn check_name(&self, item: &HashItem, key: &str) -> bool {
-        let this_key = match self.get_key(item) {
+    fn check_key(&self, item: &HashItem, key: &str) -> bool {
+        let this_key = match self.key_for_item(item) {
             Ok(this_key) => this_key,
             Err(_) => return false,
         };
@@ -307,14 +307,14 @@ impl<'a, 'file> HashTable<'a, 'file> {
             };
 
             let parent_key_len = key.len() - this_key.len();
-            return self.check_name(&parent_item, &key[0..parent_key_len]);
+            return self.check_key(&parent_item, &key[0..parent_key_len]);
         }
 
         false
     }
 
     /// Return the string that corresponds to the key part of the [`HashItem`].
-    fn get_key(&self, item: &HashItem) -> Result<&str> {
+    fn key_for_item(&self, item: &HashItem) -> Result<&str> {
         let data = self.file.dereference(&item.key_ptr(), 1)?;
         Ok(std::str::from_utf8(data)?)
     }
@@ -344,7 +344,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
 
         while itemno < lastno {
             let item = self.get_hash_item_for_index(itemno)?;
-            if hash_value == item.hash_value() && self.check_name(&item, key) {
+            if hash_value == item.hash_value() && self.check_key(&item, key) {
                 return Ok(item);
             }
 
@@ -363,7 +363,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
         } else {
             Err(Error::Data(format!(
                 "Unable to parse item for key '{}' as GVariant: Expected type 'v', got type {}",
-                self.get_key(&item)?,
+                self.key_for_item(&item)?,
                 typ
             )))
         }
@@ -378,7 +378,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
         } else {
             Err(Error::Data(format!(
                 "Unable to parse item for key '{}' as hash table: Expected type 'H', got type '{}'",
-                self.get_key(&item)?,
+                self.key_for_item(&item)?,
                 typ
             )))
         }
@@ -451,7 +451,7 @@ impl std::fmt::Debug for HashTable<'_, '_> {
             .field("header", &self.header)
             .field(
                 "map",
-                &self.get_names().map(|res| {
+                &self.keys().map(|res| {
                     res.iter()
                         .map(|name| {
                             let item = self.get_hash_item(name);
@@ -611,7 +611,7 @@ pub(crate) mod test {
         let file = File::from_file(&TEST_FILE_2).unwrap();
         let table = file.hash_table().unwrap();
         let item = table.get_hash_item("string").unwrap();
-        assert_eq!(table.check_name(&item, "string"), true);
+        assert_eq!(table.check_key(&item, "string"), true);
     }
 
     #[test]
@@ -619,7 +619,7 @@ pub(crate) mod test {
         let file = File::from_file(&TEST_FILE_2).unwrap();
         let table = file.hash_table().unwrap();
         let item = table.get_hash_item("string").unwrap();
-        assert_eq!(table.check_name(&item, "fail"), false);
+        assert_eq!(table.check_key(&item, "fail"), false);
     }
 
     #[test]
@@ -630,7 +630,7 @@ pub(crate) mod test {
 
         // Get an item from the sub-hash table and call check_names on the root
         let item = table.get_hash_item("int").unwrap();
-        assert_eq!(table.check_name(&item, "table"), false);
+        assert_eq!(table.check_key(&item, "table"), false);
     }
 
     #[test]
@@ -650,7 +650,7 @@ pub(crate) mod test {
             item.value_ptr().clone(),
         );
 
-        assert_eq!(table.check_name(&broken_item, "table"), false);
+        assert_eq!(table.check_key(&broken_item, "table"), false);
     }
 
     #[test]
@@ -671,7 +671,7 @@ pub(crate) mod test {
         );
 
         assert_eq!(
-            table.check_name(&broken_item, "/gvdb/rs/test/online-symbolic.svg"),
+            table.check_key(&broken_item, "/gvdb/rs/test/online-symbolic.svg"),
             false
         );
     }
