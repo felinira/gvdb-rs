@@ -239,7 +239,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
     /// Gets a list of keys contained in the hash table.
     pub fn get_names(&self) -> Result<Vec<String>> {
         let count = self.n_hash_items();
-        let mut names = vec![None; count];
+        let mut names: Vec<Option<String>> = vec![None; count];
 
         let mut inserted = 0;
         while inserted < count {
@@ -253,13 +253,13 @@ impl<'a, 'file> HashTable<'a, 'file> {
                     if parent == 0xffffffff {
                         // root item
                         let name = self.get_key(&item)?;
-                        let _ = std::mem::replace(&mut names[index], Some(name));
+                        let _ = std::mem::replace(&mut names[index], Some(name.to_string()));
                         inserted += 1;
                     } else if parent < count && names[parent].is_some() {
                         // We already came across this item
                         let name = self.get_key(&item)?;
                         let parent_name = names.get(parent).unwrap().as_ref().unwrap();
-                        let full_name = parent_name.to_string() + &name;
+                        let full_name = parent_name.to_string() + name;
                         let _ = std::mem::replace(&mut names[index], Some(full_name));
                         inserted += 1;
                     } else if parent > count {
@@ -314,9 +314,9 @@ impl<'a, 'file> HashTable<'a, 'file> {
     }
 
     /// Return the string that corresponds to the key part of the [`HashItem`].
-    fn get_key(&self, item: &HashItem) -> Result<String> {
+    fn get_key(&self, item: &HashItem) -> Result<&str> {
         let data = self.file.dereference(&item.key_ptr(), 1)?;
-        Ok(String::from_utf8(data.to_vec())?)
+        Ok(std::str::from_utf8(data)?)
     }
 
     /// Gets the item at key `key`.

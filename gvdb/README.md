@@ -24,8 +24,8 @@ The minimum supported rust version of this crate is 1.75.
 - `GResourceFileData` is renamed to `FileData`
 - `GResourceXMLDocument` is renamed to `XmlManifest`
 - `GResourceBuilderError` is renamed to `BuilderError`
-  - `BuilderError::StripPrefix` is added
-  - `BuilderError::Generic` is removed
+  - `StripPrefix` is added
+  - `Generic` is removed
   - The type is marked `non_exhaustive`
 - `GResourceBuilderResult<T>` is renamed to `BuilderResult<T>`
 - `GResourceXMLError` is renamed to `XmlManifestError`
@@ -39,9 +39,10 @@ The minimum supported rust version of this crate is 1.75.
   - `get_header` has been removed
   - `get_hash_item` has been made private
 - `GvdbReaderError` is renamed to `Error`
-  - `GvdbReaderError::DataError` is renamed to `Error::Data`
-  - `GvdbReaderError::KeyError` is renamed to `Error::KeyNotFound`
-  - `GvdbReaderError::InvalidData` is removed and all instances replaced with more specific errors as `Error::Data(String)`
+  - `DataError` is renamed to `Error::Data`
+  - `KeyError` is renamed to `Error::KeyNotFound`
+  - `InvalidData` is removed and all instances replaced with more specific errors as `Error::Data(String)`
+  - `Utf8` now uses `std::str::Utf8Error` instead of `std::string::FromUtf8Error`
   - The type is marked `non_exhaustive`
 - `GvdbReaderResult<T>` is renamed to `Result<T>`
 
