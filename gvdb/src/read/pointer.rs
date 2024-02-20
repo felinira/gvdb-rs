@@ -6,7 +6,8 @@ pub struct Pointer {
 }
 
 impl Pointer {
-    pub const NULL: Self = Self { start: 0, end: 0 };
+    #[allow(unused)]
+    pub(crate) const NULL: Self = Self { start: 0, end: 0 };
 
     pub fn new(start: usize, end: usize) -> Self {
         Self {

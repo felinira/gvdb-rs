@@ -80,13 +80,13 @@ impl Debug for HashHeader {
 pub struct HashTable<'a, 'file> {
     pub(crate) file: &'a File<'file>,
     pointer: Pointer,
-    header: HashHeader,
+    pub(crate) header: HashHeader,
 }
 
 impl<'a, 'file> HashTable<'a, 'file> {
     /// Interpret a chunk of bytes as a HashTable. The table_ptr should point to the hash table.
     /// Data has to be the complete GVDB file, as hash table items are stored somewhere else.
-    pub fn for_bytes(pointer: Pointer, root: &'a File<'file>) -> Result<Self> {
+    pub(crate) fn for_bytes(pointer: Pointer, root: &'a File<'file>) -> Result<Self> {
         let data = root.dereference(&pointer, 4)?;
         let header = Self::hash_header(data)?;
 
@@ -135,11 +135,6 @@ impl<'a, 'file> HashTable<'a, 'file> {
     /// A reference to the data section of this [`HashTable`]
     fn data(&self) -> Result<&[u8]> {
         self.file.dereference(&self.pointer, 4)
-    }
-
-    /// Returns the header for this hash table
-    pub fn get_header(&self) -> HashHeader {
-        self.header
     }
 
     /// Retrieve a single [`u32`] at `offset`
@@ -241,7 +236,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
         Ok(transmute_one_pedantic(data)?)
     }
 
-    /// Gets a list of keys contained in the hash table
+    /// Gets a list of keys contained in the hash table.
     pub fn get_names(&self) -> Result<Vec<String>> {
         let count = self.n_hash_items();
         let mut names = vec![None; count];
@@ -318,14 +313,14 @@ impl<'a, 'file> HashTable<'a, 'file> {
         false
     }
 
-    /// Return the string that corresponds to the key part of the [`HashItem`]
+    /// Return the string that corresponds to the key part of the [`HashItem`].
     fn get_key(&self, item: &HashItem) -> Result<String> {
         let data = self.file.dereference(&item.key_ptr(), 1)?;
         Ok(String::from_utf8(data.to_vec())?)
     }
 
-    /// Gets the item at key `key`
-    pub fn get_hash_item(&self, key: &str) -> Result<HashItem> {
+    /// Gets the item at key `key`.
+    pub(crate) fn get_hash_item(&self, key: &str) -> Result<HashItem> {
         if self.header.n_buckets() == 0 || self.n_hash_items() == 0 {
             return Err(Error::KeyNotFound(key.to_string()));
         }
@@ -359,7 +354,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
         Err(Error::KeyNotFound(key.to_string()))
     }
 
-    /// Get the bytes for the [`HashItem`] at `key`
+    /// Get the bytes for the [`HashItem`] at `key`.
     fn get_bytes(&self, key: &str) -> Result<&[u8]> {
         let item = self.get_hash_item(key)?;
         let typ = item.typ()?;
@@ -374,7 +369,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
         }
     }
 
-    /// Get the item at key `key` and try to interpret it as a [`HashTable`]
+    /// Returns the nested [`HashTable`] at `key`, if one is found.
     pub fn get_hash_table(&self, key: &str) -> Result<HashTable> {
         let item = self.get_hash_item(key)?;
         let typ = item.typ()?;
@@ -408,17 +403,17 @@ impl<'a, 'file> HashTable<'a, 'file> {
         Ok(de)
     }
 
-    /// Get the data at key `key` as a [`enum@zvariant::Value`]
+    /// Returns the data for `key` as a [`enum@zvariant::Value`].
     ///
-    /// Unless you need to inspect the value at runtime, it is recommended to use [`HashTable::get`]
+    /// Unless you need to inspect the value at runtime, it is recommended to use [`HashTable::get`].
     pub fn get_value(&self, key: &str) -> Result<zvariant::Value> {
         let mut de = self.deserializer_for_key(key)?;
         Ok(zvariant::Value::deserialize(&mut de)?)
     }
 
-    /// Get the data at key `key` and try to deserialize a [`enum@zvariant::Value`]
+    /// Returns the data for `key` and try to deserialize a [`enum@zvariant::Value`].
     ///
-    /// Then try to extract an underlying `T`
+    /// Then try to extract an underlying `T`.
     pub fn get<'d, T>(&'d self, key: &str) -> Result<T>
     where
         T: zvariant::Type + serde::Deserialize<'d> + 'd,
@@ -436,9 +431,8 @@ impl<'a, 'file> HashTable<'a, 'file> {
         Ok(value.0)
     }
 
-    /// Get the data at key `key` as a [`struct@glib::Variant`]
     #[cfg(feature = "glib")]
-    /// Get the item at key `key` and try to interpret it as a [`struct@glib::Variant`]
+    /// Returns the data for `key` as a [`struct@glib::Variant`].
     pub fn get_gvariant(&self, key: &str) -> Result<glib::Variant> {
         let data = self.get_bytes(key)?;
         let variant = glib::Variant::from_data_with_type(data, glib::VariantTy::VARIANT);
@@ -514,12 +508,12 @@ pub(crate) mod test {
     fn get_header() {
         let file = new_empty_file();
         let table = file.hash_table().unwrap();
-        let header = table.get_header();
+        let header = table.header;
         assert_eq!(header.n_buckets(), 0);
 
         let file = new_simple_file(false);
         let table = file.hash_table().unwrap();
-        let header = table.get_header();
+        let header = table.header;
         assert_eq!(header.n_buckets(), 1);
         println!("{:?}", table);
     }
@@ -528,7 +522,7 @@ pub(crate) mod test {
     fn bloom_words() {
         let file = new_empty_file();
         let table = file.hash_table().unwrap();
-        let header = table.get_header();
+        let header = table.header;
         assert_eq!(header.n_bloom_words(), 0);
         assert_eq!(header.bloom_words_len(), 0);
         assert_eq!(table.bloom_words().unwrap(), None);
@@ -699,7 +693,7 @@ mod test_glib {
             assert_eq!(&res, &"test".to_variant());
 
             let fail = table.get_gvariant("fail").unwrap_err();
-            assert_matches!(fail, Error::KeyError(_));
+            assert_matches!(fail, Error::KeyNotFound(_));
         }
     }
 }

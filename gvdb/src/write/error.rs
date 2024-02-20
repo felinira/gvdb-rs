@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::path::PathBuf;
 
-/// Error type for [`FileWriter`]`
+/// Error type for [`FileWriter`][crate::write::FileWriter]
 #[non_exhaustive]
 pub enum Error {
     /// Generic I/O error. Path contains an optional filename if applicable
