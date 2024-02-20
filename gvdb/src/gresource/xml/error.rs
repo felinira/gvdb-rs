@@ -1,4 +1,5 @@
 /// Error when parsing a GResource XML file
+#[non_exhaustive]
 pub enum XmlManifestError {
     /// An error occured during parsing of the XML file
     Serde(quick_xml::de::DeError, Option<std::path::PathBuf>),

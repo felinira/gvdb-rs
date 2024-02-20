@@ -363,20 +363,14 @@ impl<'a> BundleBuilder<'a> {
                 Ok(entry) => entry,
                 Err(err) => {
                     let path = err.path().map(|p| p.to_path_buf());
-                    return if err.io_error().is_some() {
-                        Err(BuilderError::Io(err.into_io_error().unwrap(), path))
-                    } else {
-                        Err(BuilderError::Generic(err.to_string()))
-                    };
+                    Err(BuilderError::Io(err.into(), path))?
                 }
             };
 
             if entry.path().is_file() {
-                let Some(filename) = entry.file_name().to_str() else {
-                    return Err(BuilderError::Generic(format!(
-                        "Filename '{}' contains invalid UTF-8 characters",
-                        entry.file_name().to_string_lossy()
-                    )));
+                let filename: &str = match entry.file_name().try_into() {
+                    Ok(name) => name,
+                    Err(err) => return Err(BuilderError::Utf8(err, Some(entry.path().to_owned()))),
                 };
 
                 for name in skipped_file_names {
@@ -395,15 +389,18 @@ impl<'a> BundleBuilder<'a> {
                 }
 
                 let file_abs_path = entry.path();
-                let Ok(file_path_relative) = file_abs_path.strip_prefix(directory) else {
-                    return Err(BuilderError::Generic("Strip prefix error".to_string()));
+                let file_path_relative = match file_abs_path.strip_prefix(directory) {
+                    Ok(path) => path,
+                    Err(err) => {
+                        return Err(BuilderError::StripPrefix(err, file_abs_path.to_owned()))
+                    }
                 };
 
-                let Some(file_path_str_relative) = file_path_relative.to_str() else {
-                    return Err(BuilderError::Generic(format!(
-                        "Filename '{}' contains invalid UTF-8 characters",
-                        file_path_relative.display()
-                    )));
+                let file_path_str_relative: &str = match file_path_relative.as_os_str().try_into() {
+                    Ok(name) => name,
+                    Err(err) => {
+                        return Err(BuilderError::Utf8(err, Some(file_path_relative.to_owned())))
+                    }
                 };
 
                 let options = if strip_blanks && file_path_str_relative.ends_with(".json") {
@@ -600,7 +597,7 @@ mod test {
 
         let err = res.unwrap_err();
         println!("{}", err);
-        assert_matches!(err, BuilderError::Generic(_));
+        assert_matches!(err, BuilderError::Utf8(_, _));
         assert!(format!("{}", err).contains("UTF-8"));
     }
 
@@ -747,10 +744,10 @@ mod test {
         std::fs::remove_dir(temp_path).unwrap();
 
         let err = res.unwrap_err();
-        assert_matches!(err, BuilderError::Generic(_));
+        assert_matches!(err, BuilderError::Utf8(_, _));
         assert!(err.to_string().contains("UTF-8"));
 
-        assert_matches!(err, BuilderError::Generic(_));
+        assert_matches!(err, BuilderError::Utf8(_, _));
         assert!(err.to_string().contains("UTF-8"));
     }
 }
