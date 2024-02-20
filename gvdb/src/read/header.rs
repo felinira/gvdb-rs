@@ -64,7 +64,10 @@ impl Header {
         {
             Ok(true)
         } else {
-            Err(Error::InvalidData)
+            Err(Error::Data(format!(
+                "Invalid GVDB header signature: {:?}. Is this a GVariant database file?",
+                self.signature
+            )))
         }
     }
 

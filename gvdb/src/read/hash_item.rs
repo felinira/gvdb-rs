@@ -32,7 +32,7 @@ impl TryFrom<u8> for HashItemType {
         } else if chr == 'L' {
             Ok(HashItemType::Container)
         } else {
-            Err(Error::InvalidData)
+            Err(Error::Data(format!("Invalid HashItemType: '{}'", chr)))
         }
     }
 }
@@ -158,8 +158,8 @@ mod test {
         assert_matches!(HashItemType::try_from(b'v'), Ok(HashItemType::Value));
         assert_matches!(HashItemType::try_from(b'H'), Ok(HashItemType::HashTable));
         assert_matches!(HashItemType::try_from(b'L'), Ok(HashItemType::Container));
-        assert_matches!(HashItemType::try_from(b'x'), Err(Error::InvalidData));
-        assert_matches!(HashItemType::try_from(b'?'), Err(Error::InvalidData));
+        assert_matches!(HashItemType::try_from(b'x'), Err(Error::Data(_)));
+        assert_matches!(HashItemType::try_from(b'?'), Err(Error::Data(_)));
     }
 
     #[test]
