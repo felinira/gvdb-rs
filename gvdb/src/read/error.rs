@@ -22,9 +22,6 @@ pub enum Error {
     /// Tried to read unaligned data
     DataAlignment,
 
-    /// Unexpected data
-    InvalidData,
-
     /// Like InvalidData but with context information in the provided string
     Data(String),
 
@@ -61,22 +58,28 @@ impl From<TryFromIntError> for Error {
 
 impl<S, T> From<safe_transmute::Error<'_, S, T>> for Error {
     fn from(err: safe_transmute::Error<S, T>) -> Self {
+        let name = std::any::type_name::<T>();
+
         match err {
             safe_transmute::Error::Guard(guard_err) => {
                 if guard_err.actual > guard_err.required {
                     Self::Data(format!(
-                        "Found {} unexpected trailing bytes at the end while reading data",
-                        guard_err.actual - guard_err.required
+                        "Found {} unexpected trailing bytes at the end while reading {}",
+                        guard_err.actual - guard_err.required,
+                        name
                     ))
                 } else {
                     Self::Data(format!(
-                        "Missing {} bytes to read data",
-                        guard_err.required - guard_err.actual
+                        "Missing {} bytes to read {}",
+                        guard_err.required - guard_err.actual,
+                        name
                     ))
                 }
             }
-            safe_transmute::Error::Unaligned(..) => Self::Data("Unaligned data read".to_string()),
-            _ => Self::InvalidData,
+            safe_transmute::Error::Unaligned(..) => {
+                Self::Data(format!("Unaligned data read for {}", name))
+            }
+            _ => Self::Data(format!("Error transmuting data as {}", name)),
         }
     }
 }
@@ -107,12 +110,6 @@ impl Display for Error {
                     "Tried to read unaligned data. Most likely reason is a corrupted GVDB file"
                 )
             }
-            Error::InvalidData => {
-                write!(
-                    f,
-                    "Unexpected data. Most likely reason is a corrupted GVDB file"
-                )
-            }
             Error::Data(msg) => {
                 write!(
                     f,
@@ -136,13 +133,6 @@ mod test {
     use matches::assert_matches;
     use safe_transmute::{transmute_one_pedantic, transmute_one_to_bytes, transmute_vec};
     use std::num::TryFromIntError;
-
-    #[test]
-    fn derives() {
-        let err = Error::InvalidData;
-        assert!(format!("{:?}", err).contains("InvalidData"));
-        assert!(format!("{}", err).contains("Unexpected data"));
-    }
 
     #[test]
     fn from() {
@@ -195,6 +185,7 @@ mod test {
         let bytes = vec![0u8; 5];
         let res = transmute_vec::<u8, Header>(bytes);
         let err = Error::from(res.unwrap_err());
-        assert_matches!(err, Error::InvalidData);
+        assert_matches!(err, Error::Data(_));
+        assert!(format!("{}", err).contains("transmuting data as gvdb::read::header::Header"));
     }
 }
