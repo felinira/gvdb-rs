@@ -29,7 +29,7 @@ pub enum Error {
     Data(String),
 
     /// The item with the specified key does not exist in the hash table
-    KeyError(String),
+    KeyNotFound(String),
 }
 
 impl Error {
@@ -120,7 +120,7 @@ impl Display for Error {
                     msg
                 )
             }
-            Error::KeyError(key) => {
+            Error::KeyNotFound(key) => {
                 write!(f, "The item with the key '{}' does not exist", key)
             }
         }
@@ -162,7 +162,7 @@ mod test {
         let err = Error::Data("my data error".to_string());
         assert!(format!("{}", err).contains("my data error"));
 
-        let err = Error::KeyError("test".to_string());
+        let err = Error::KeyNotFound("test".to_string());
         assert!(format!("{}", err).contains("test"));
 
         let err = Error::from(zvariant::Error::Message("test".to_string()));
