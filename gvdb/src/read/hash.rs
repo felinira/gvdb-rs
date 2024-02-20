@@ -327,12 +327,12 @@ impl<'a, 'file> HashTable<'a, 'file> {
     /// Gets the item at key `key`
     pub fn get_hash_item(&self, key: &str) -> Result<HashItem> {
         if self.header.n_buckets() == 0 || self.n_hash_items() == 0 {
-            return Err(Error::KeyError(key.to_string()));
+            return Err(Error::KeyNotFound(key.to_string()));
         }
 
         let hash_value = djb_hash(key);
         if !self.bloom_filter(hash_value) {
-            return Err(Error::KeyError(key.to_string()));
+            return Err(Error::KeyNotFound(key.to_string()));
         }
 
         let bucket = hash_value % self.header.n_buckets();
@@ -356,7 +356,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
             itemno += 1;
         }
 
-        Err(Error::KeyError(key.to_string()))
+        Err(Error::KeyNotFound(key.to_string()))
     }
 
     /// Get the bytes for the [`HashItem`] at `key`
@@ -539,7 +539,7 @@ pub(crate) mod test {
         let file = new_empty_file();
         let table = file.hash_table().unwrap();
         let res = table.get_hash_item("test");
-        assert_matches!(res, Err(Error::KeyError(_)));
+        assert_matches!(res, Err(Error::KeyNotFound(_)));
 
         for endianess in [true, false] {
             let file = new_simple_file(endianess);
@@ -550,10 +550,10 @@ pub(crate) mod test {
             assert_eq!(value, "test");
 
             let item_fail = table.get_hash_item("fail").unwrap_err();
-            assert_matches!(item_fail, Error::KeyError(_));
+            assert_matches!(item_fail, Error::KeyNotFound(_));
 
             let res_item = table.get_hash_item("test_fail");
-            assert_matches!(res_item, Err(Error::KeyError(_)));
+            assert_matches!(res_item, Err(Error::KeyNotFound(_)));
         }
     }
 
@@ -599,7 +599,7 @@ pub(crate) mod test {
             assert_eq!(&res, &zvariant::Value::from("test"));
 
             let fail = table.get_value("fail").unwrap_err();
-            assert_matches!(fail, Error::KeyError(_));
+            assert_matches!(fail, Error::KeyNotFound(_));
         }
     }
 
@@ -609,7 +609,7 @@ pub(crate) mod test {
         let table = file.hash_table().unwrap();
         let table = table.get_hash_table("table").unwrap();
         let fail = table.get_hash_table("fail").unwrap_err();
-        assert_matches!(fail, Error::KeyError(_));
+        assert_matches!(fail, Error::KeyNotFound(_));
     }
 
     #[test]
