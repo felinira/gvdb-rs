@@ -12,35 +12,46 @@ The minimum supported rust version of this crate is 1.75.
 
 ### 0.7
 
-- Most types have been renamed to remove redundant prefixes and be more consistent with the rest of the Rust ecosystem. The previouse names has been kept but marked as deprecated. These aliases will be removed in a future release.
+- Most types have been renamed to remove redundant prefixes and be more consistent with the rest of the Rust ecosystem. The previous names have been added as deprecated type aliases where possible. These aliases will be removed in a future release.
 - The reader types have gained a few lifetimes. As a result, the reader does not have to borrow the data statically anymore.
 - An accidentally added `repr(C)` was removed from `gvdb::read::HashTable`
 
-#### Renamed public types
+#### Changed public types
 
 ##### `gvdb::gresource`
 
-- `GResourceBuilder` to `BundleBuilder`
-- `GResourceFileData` to `FileData`
-- `GResourceXMLDocument` to `XmlManifest`
-- `GResourceBuilderError` to `BuilderError`
-- `GResourceBuilderResult<T>` to `BuilderResult<T>`
-- `GResourceXMLError` to `XmlManifestError`
-- `GResourceXMLResult<T>` to `XmlManifestResult<T>`
+- `GResourceBuilder` is renamed to `BundleBuilder`
+- `GResourceFileData` is renamed to `FileData`
+- `GResourceXMLDocument` is renamed to `XmlManifest`
+- `GResourceBuilderError` is renamed to `BuilderError`
+  - `BuilderError::StripPrefix` is added
+  - `BuilderError::Generic` is removed
+  - The type is marked `non_exhaustive`
+- `GResourceBuilderResult<T>` is renamed to `BuilderResult<T>`
+- `GResourceXMLError` is renamed to `XmlManifestError`
+- `GResourceXMLResult<T>` is renamed to `XmlManifestResult<T>`
 
 ##### `gvdb::read`
 
-- `GvdbFile` to `File`
-- `GvdbHashTable` to `HashTable`
-- `GvdbReaderError` to `Error`
-- `GvdbReaderResult<T>` to `Result<T>`
+- `GvdbFile` is renamed to `File`
+- `GvdbHashTable` is renamed to `HashTable`
+  - `for_bytes` has been made private
+  - `get_header` has been removed
+  - `get_hash_item` has been made private
+- `GvdbReaderError` is renamed to `Error`
+  - `GvdbReaderError::DataError` is renamed to `Error::Data`
+  - `GvdbReaderError::KeyError` is renamed to `Error::KeyNotFound`
+  - `GvdbReaderError::InvalidData` is removed and all instances replaced with more specific errors as `Error::Data(String)`
+  - The type is marked `non_exhaustive`
+- `GvdbReaderResult<T>` is renamed to `Result<T>`
 
 ##### `gvdb::write`
 
-- `GvdbFileWriter` to `FileWriter`
-- `GvdbHashTableBuilder` to `HashTableBuilder`
-- `GvdbWriterError` to `Error`
-- `GvdbBuilderResult<T>` to `Result<T>`
+- `GvdbFileWriter` is renamed to `FileWriter`
+- `GvdbHashTableBuilder` is renamed to `HashTableBuilder`
+- `GvdbWriterError` is renamed to `Error`
+  - The type is marked `non_exhaustive`
+- `GvdbBuilderResult<T>` is renamed to `Result<T>`
 
 ### 0.6
 
