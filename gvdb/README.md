@@ -10,6 +10,38 @@ The minimum supported rust version of this crate is 1.75.
 
 ## Breaking changes
 
+### 0.7
+
+- Most types have been renamed to remove redundant prefixes and be more consistent with the rest of the Rust ecosystem. The previouse names has been kept but marked as deprecated. These aliases will be removed in a future release.
+- The reader types have gained a few lifetimes. As a result, the reader does not have to borrow the data statically anymore.
+- An accidentally added `repr(C)` was removed from `gvdb::read::HashTable`
+
+#### Renamed public types
+
+##### `gvdb::gresource`
+
+- `GResourceBuilder` to `BundleBuilder`
+- `GResourceFileData` to `FileData`
+- `GResourceXMLDocument` to `XmlManifest`
+- `GResourceBuilderError` to `BuilderError`
+- `GResourceBuilderResult<T>` to `BuilderResult<T>`
+- `GResourceXMLError` to `XmlManifestError`
+- `GResourceXMLResult<T>` to `XmlManifestResult<T>`
+
+##### `gvdb::read`
+
+- `GvdbFile` to `File`
+- `GvdbHashTable` to `HashTable`
+- `GvdbReaderError` to `Error`
+- `GvdbReaderResult<T>` to `Result<T>`
+
+##### `gvdb::write`
+
+- `GvdbFileWriter` to `FileWriter`
+- `GvdbHashTableBuilder` to `HashTableBuilder`
+- `GvdbWriterError` to `Error`
+- `GvdbBuilderResult<T>` to `Result<T>`
+
 ### 0.6
 
 This crate now uses zvariant 4.0 and glib 0.19. The MSRV has been increased accordingly.
