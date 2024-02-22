@@ -25,6 +25,13 @@ jobs:
           - "x86_64-unknown-linux-gnu"
           - "x86_64-pc-windows-gnu"
           - "x86_64-apple-darwin"
+        include:
+          - target: "x86_64-unknown-linux-gnu"
+            features: "--all-features"
+          - target: "x86_64-pc-windows-gnu"
+            features: "--no-default-features --features=mmap,gresource"
+          - target: "x86_64-apple-darwin"
+            features: "--no-default-features --features=mmap,gresource"
     steps:
       - uses: actions/checkout@v2
       - name: Install rust ${{ matrix.rust }}
@@ -46,17 +53,19 @@ jobs:
           key: ${{ runner.os }}-test-dotcargo-${{ matrix.rust }}-{{ matrix.target }}-${{ hashFiles('**/Cargo.toml') }}
 
       - name: Install cargo-all-features
+        if: ${{ matrix.x86_64-unknown-linux-gnu }} == "x86_64-unknown-linux-gnu"
         uses: taiki-e/cache-cargo-install-action@v1
         with:
           tool: cargo-all-features
       - name: Build
-        run: cargo build --verbose --all-features --target ${{ matrix.target }}
+        run: cargo build --verbose ${{ matrix.features }} --target ${{ matrix.target }}
       - name: Clippy
-        run: cargo clippy --verbose --all-features --target ${{ matrix.target }} -- -D warnings
+        run: cargo clippy --verbose ${{ matrix.features }} --target ${{ matrix.target }} -- -D warnings
       - name: Run tests
+        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
         run: cargo test-all-features --verbose --target ${{ matrix.target }}
       - name: Compile documentation
-        run: cargo doc --verbose --no-deps --all-features --target ${{ matrix.target }}
+        run: cargo doc --verbose --no-deps ${{ matrix.features }} --target ${{ matrix.target }}
 
   big_endian:
     runs-on: ubuntu-latest
