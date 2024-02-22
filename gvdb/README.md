@@ -10,6 +10,10 @@ The minimum supported rust version of this crate is 1.75.
 
 ## Breaking changes
 
+### 0.6
+
+This crate now uses zvariant 4.0 and glib 0.19. The MSRV has been increased accordingly.
+
 ### 0.5
 
 Added the `mmap` feature, disabled by default.
