@@ -1,6 +1,7 @@
 mod error;
 
 pub use error::*;
+use flate2::read::ZlibDecoder;
 
 use crate::gresource::xml::PreprocessOptions;
 use crate::write::{FileWriter, HashTableBuilder};
@@ -214,12 +215,35 @@ impl<'a> FileData<'a> {
 /// This is the format in which all GResource files are stored in the GVDB file.
 ///
 /// The size is the *uncompressed* size and can be used for verification purposes.
-/// The flags only indicate whether a file is compressed or not. (Compressed = 1)
-#[derive(zvariant::Type, zvariant::Value, zvariant::OwnedValue)]
+/// The flags only indicate whether a file is compressed or not. (Compressed = 1).
+///
+/// This corresponds to the `(uuay)` GVariant type.
+#[derive(
+    serde::Serialize, serde::Deserialize, zvariant::Type, zvariant::Value, zvariant::OwnedValue,
+)]
 pub struct Data {
-    size: u32,
-    flags: u32,
-    data: Vec<u8>,
+    pub size: u32,
+    pub flags: u32,
+    pub data: Vec<u8>,
+}
+
+impl Data {
+    fn decompress(&self) -> BuilderResult<Vec<u8>> {
+        let mut decoder = ZlibDecoder::new(std::io::Cursor::new(&self.data));
+        let mut buf = Vec::new();
+        decoder
+            .read_to_end(&mut buf)
+            .map_err(|err| BuilderError::Io(err, None))?;
+        Ok(buf)
+    }
+
+    pub fn data(&self) -> BuilderResult<Cow<[u8]>> {
+        if self.flags & FLAG_COMPRESSED != 0 {
+            Ok(Cow::Owned(self.decompress()?))
+        } else {
+            Ok(Cow::Borrowed(&self.data))
+        }
+    }
 }
 
 /// Create a GResource binary file
