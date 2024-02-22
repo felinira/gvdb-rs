@@ -265,14 +265,15 @@ impl GvdbFile {
 
         // On non-unix systems this function lacks the FD argument
         #[cfg(unix)]
-        let mut de = gvariant::Deserializer::new(
+        let mut de: gvariant::Deserializer<_> = gvariant::Deserializer::new(
             data,
             None::<&[zvariant::Fd]>,
             zvariant::Value::signature(),
             context,
         )?;
         #[cfg(not(unix))]
-        let mut de = gvariant::Deserializer::new(&data, zvariant::Value::signature(), context)?;
+        let mut de: gvariant::Deserializer<()> =
+            gvariant::Deserializer::new(data, zvariant::Value::signature(), context)?;
 
         Ok(zvariant::Value::deserialize(&mut de)?)
     }
