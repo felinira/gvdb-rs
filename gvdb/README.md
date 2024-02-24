@@ -12,6 +12,8 @@ The minimum supported rust version of this crate is 1.75.
 
 ### 0.7
 
+- The project is now made available under the MIT OR Apache-2.0 licenses
+  - Previous releases remain licensed soley under the MIT license
 - Most types have been renamed to remove redundant prefixes and be more consistent with the rest of the Rust ecosystem. The previous names have been added as deprecated type aliases where possible. These aliases will be removed in a future release.
 - The reader types have gained a few lifetimes. As a result, the reader does not have to borrow the data statically anymore.
 - An accidentally added `repr(C)` was removed from `gvdb::read::HashTable`
@@ -152,6 +154,6 @@ pub fn main() {
 
 ## License
 
-`gvdb` and `gvdb-macros` are available under the MIT license. See the [LICENSE.md](./LICENSE.md) file for more info.
+`gvdb` and `gvdb-macros` are available under the MIT OR Apache-2.0 license. See the [LICENSES](./LICENSES) folder for the complete license text.
 
-SVG icon files included in `test-data/gresource/icons/` are available under the CC0 license and redistributed from [Icon Development Kit](https://gitlab.gnome.org/Teams/Design/icon-development-kit). See the [LICENSE.Icons.md](./LICENSE.Icons.md) and file for more info.
+SVG icon files included in `test-data/gresource/icons/` are available under the CC0-1.0 license and redistributed from [Icon Development Kit](https://gitlab.gnome.org/Teams/Design/icon-development-kit). See [CC0-1.0.txt](./LICENSES/CC0-1.0.txt) and file for complete license text.
