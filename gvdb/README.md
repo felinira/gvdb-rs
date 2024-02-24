@@ -17,6 +17,7 @@ The minimum supported rust version of this crate is 1.75.
 - Most types have been renamed to remove redundant prefixes and be more consistent with the rest of the Rust ecosystem. The previous names have been added as deprecated type aliases where possible. These aliases will be removed in a future release.
 - The reader types have gained a few lifetimes. As a result, the reader does not have to borrow the data statically anymore.
 - An accidentally added `repr(C)` was removed from `gvdb::read::HashTable`
+- gresource: Add '.license' to the file extensions that are skipped by default
 
 #### Changed public types
 

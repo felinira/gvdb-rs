@@ -13,7 +13,8 @@ use walkdir::WalkDir;
 
 const FLAG_COMPRESSED: u32 = 1 << 0;
 
-static SKIPPED_FILE_NAMES_DEFAULT: &[&str] = &["meson.build", "gresource.xml", ".gitignore"];
+static SKIPPED_FILE_EXTENSIONS_DEFAULT: &[&str] =
+    &["meson.build", "gresource.xml", ".gitignore", ".license"];
 static COMPRESS_EXTENSIONS_DEFAULT: &[&str] = &[".ui", ".css"];
 
 /// A container for a GResource data object
@@ -331,7 +332,7 @@ impl<'a> BundleBuilder<'a> {
             directory,
             strip_blanks,
             compress_extensions,
-            SKIPPED_FILE_NAMES_DEFAULT,
+            SKIPPED_FILE_EXTENSIONS_DEFAULT,
         )
     }
 
@@ -341,7 +342,7 @@ impl<'a> BundleBuilder<'a> {
     ///
     /// All files that end with these strings will get compressed
     ///
-    /// ## `skipped_file_names`
+    /// ## `skipped_file_extensions`
     ///
     /// Skip all files that end with this string
     pub fn from_directory_with_extensions(
@@ -349,7 +350,7 @@ impl<'a> BundleBuilder<'a> {
         directory: &Path,
         strip_blanks: bool,
         compress_extensions: &[&str],
-        skipped_file_names: &[&str],
+        skipped_file_extensions: &[&str],
     ) -> BuilderResult<Self> {
         let mut prefix = prefix.to_string();
         if !prefix.ends_with('/') {
@@ -373,7 +374,7 @@ impl<'a> BundleBuilder<'a> {
                     Err(err) => return Err(BuilderError::Utf8(err, Some(entry.path().to_owned()))),
                 };
 
-                for name in skipped_file_names {
+                for name in skipped_file_extensions {
                     if filename.ends_with(name) {
                         continue 'outer;
                     }
