@@ -1,14 +1,15 @@
 [package]
 name = "gvdb"
 version = "0.6.1"
-edition = "2021"
-description = "Read and write GLib GVariant database files"
-repository = "https://github.com/felinira/gvdb-rs"
-license = "MIT"
-keywords = ["gvdb", "glib", "gresource", "compile-resources"]
-categories = ["gui", "data-structures", "encoding"]
+description = "Implementation of the glib gvdb file format"
 exclude = ["test/c"]
-rust-version = "1.75"
+
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true

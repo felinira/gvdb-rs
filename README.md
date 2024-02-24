@@ -21,6 +21,6 @@ The macros are `include_gresource_from_xml!()` and `include_gresource_from_dir!(
 
 ## License
 
-`gvdb` and `gvdb-macros` are available under the MIT license. See the [LICENSE.md](./LICENSE.md) file for more info.
+`gvdb` and `gvdb-macros` are available under the MIT OR Apache-2.0 license. See the [LICENSES](./LICENSES) folder for the complete license text.
 
-SVG icon files included in `test-data/gresource/icons/` are available under the CC0 license and redistributed from [Icon Development Kit](https://gitlab.gnome.org/Teams/Design/icon-development-kit). See the [LICENSE.Icons.md](./LICENSE.Icons.md) and file for more info.
+SVG icon files included in `test-data/gresource/icons/` are available under the CC0-1.0 license and redistributed from [Icon Development Kit](https://gitlab.gnome.org/Teams/Design/icon-development-kit). See [CC0-1.0.txt](./LICENSES/CC0-1.0.txt) and file for complete license text.
