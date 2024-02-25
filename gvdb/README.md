@@ -8,64 +8,6 @@ This is an implementation of the glib GVariant database file format in Rust. It 
 
 The minimum supported rust version of this crate is 1.75.
 
-## Breaking changes
-
-### 0.7
-
-- The project is now made available under the MIT OR Apache-2.0 licenses
-  - Previous releases remain licensed soley under the MIT license
-- Most types have been renamed to remove redundant prefixes and be more consistent with the rest of the Rust ecosystem. The previous names have been added as deprecated type aliases where possible. These aliases will be removed in a future release.
-- The reader types have gained a few lifetimes. As a result, the reader does not have to borrow the data statically anymore.
-- An accidentally added `repr(C)` was removed from `gvdb::read::HashTable`
-- gresource: Add '.license' to the file extensions that are skipped by default
-
-#### Changed public types
-
-##### `gvdb::gresource`
-
-- `GResourceBuilder` is renamed to `BundleBuilder`
-- `GResourceFileData` is renamed to `FileData`
-- `GResourceXMLDocument` is renamed to `XmlManifest`
-- `GResourceBuilderError` is renamed to `BuilderError`
-  - `StripPrefix` is added
-  - `Generic` is removed
-  - The type is marked `non_exhaustive`
-- `GResourceBuilderResult<T>` is renamed to `BuilderResult<T>`
-- `GResourceXMLError` is renamed to `XmlManifestError`
-- `GResourceXMLResult<T>` is renamed to `XmlManifestResult<T>`
-
-##### `gvdb::read`
-
-- `GvdbFile` is renamed to `File`
-- `GvdbHashTable` is renamed to `HashTable`
-  - `for_bytes` has been made private
-  - `get_header` has been removed
-  - `get_hash_item` has been made private
-  - `get_names` has been renamed to `keys`
-- `GvdbReaderError` is renamed to `Error`
-  - `DataError` is renamed to `Error::Data`
-  - `KeyError` is renamed to `Error::KeyNotFound`
-  - `InvalidData` is removed and all instances replaced with more specific errors as `Error::Data(String)`
-  - `Utf8` now uses `std::str::Utf8Error` instead of `std::string::FromUtf8Error`
-  - The type is marked `non_exhaustive`
-- `GvdbReaderResult<T>` is renamed to `Result<T>`
-
-##### `gvdb::write`
-
-- `GvdbFileWriter` is renamed to `FileWriter`
-- `GvdbHashTableBuilder` is renamed to `HashTableBuilder`
-- `GvdbWriterError` is renamed to `Error`
-  - The type is marked `non_exhaustive`
-- `GvdbBuilderResult<T>` is renamed to `Result<T>`
-
-### 0.6
-
-This crate now uses zvariant 4.0 and glib 0.19. The MSRV has been increased accordingly.
-
-### 0.5
-
-Added the `mmap` feature, disabled by default.
-
 ## Example
 
 ### Create a GResource file
