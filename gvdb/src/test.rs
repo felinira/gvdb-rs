@@ -15,6 +15,7 @@ lazy_static! {
     pub(crate) static ref TEST_FILE_1: PathBuf = TEST_FILE_DIR.join("test1.gvdb");
     pub(crate) static ref TEST_FILE_2: PathBuf = TEST_FILE_DIR.join("test2.gvdb");
     pub(crate) static ref TEST_FILE_3: PathBuf = TEST_FILE_DIR.join("test3.gresource");
+    pub(crate) static ref TEST_FILE_4: PathBuf = TEST_FILE_DIR.join("test4.gvdb");
     pub(crate) static ref GRESOURCE_DIR: PathBuf = TEST_FILE_DIR.join("gresource");
     pub(crate) static ref GRESOURCE_XML: PathBuf = GRESOURCE_DIR.join("test3.gresource.xml");
 }
@@ -295,6 +296,11 @@ pub fn assert_is_file_3(file: &File) {
     );
 }
 
+pub fn byte_compare_file_4(file: &File) {
+    let ref_root = File::from_file(&TEST_FILE_4).unwrap();
+    byte_compare_gvdb_file(file, &ref_root);
+}
+
 pub(crate) fn new_empty_file() -> File<'static> {
     let writer = FileWriter::new();
     let table_builder = HashTableBuilder::new();
@@ -334,11 +340,6 @@ pub(crate) fn byte_compare_gvdb_hash_table(a: &HashTable, b: &HashTable) {
         let item_a = a.get_hash_item(&key).unwrap();
         let item_b = b.get_hash_item(&key).unwrap();
 
-        assert_eq!(item_a.hash_value(), item_b.hash_value());
-        assert_eq!(item_a.key_size(), item_b.key_size());
-        assert_eq!(item_a.typ().unwrap(), item_b.typ().unwrap());
-        assert_eq!(item_a.value_ptr().size(), item_b.value_ptr().size());
-
         let data_a = a.file.dereference(item_a.value_ptr(), 1).unwrap();
         let data_b = b.file.dereference(item_b.value_ptr(), 1).unwrap();
 
@@ -359,6 +360,11 @@ pub(crate) fn byte_compare_gvdb_hash_table(a: &HashTable, b: &HashTable) {
                 &format!("Comparing items with key '{}'", key),
             );
         }
+
+        assert_eq!(item_a.hash_value(), item_b.hash_value());
+        assert_eq!(item_a.key_size(), item_b.key_size());
+        assert_eq!(item_a.typ().unwrap(), item_b.typ().unwrap());
+        assert_eq!(item_a.value_ptr().size(), item_b.value_ptr().size());
     }
 }
 

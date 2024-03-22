@@ -573,7 +573,10 @@ impl Default for FileWriter {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::read::{File, HashItemType};
+    use crate::{
+        read::{File, HashItemType},
+        test::byte_compare_file_4,
+    };
     use matches::assert_matches;
     use std::borrow::Cow;
     use std::io::Cursor;
@@ -696,6 +699,26 @@ mod test {
 
         assert_is_file_2(&root);
         byte_compare_file_2(&root);
+    }
+
+    #[test]
+    fn file_builder_file_4() {
+        let mut writer = FileWriter::new();
+        let mut table_builder = HashTableBuilder::new();
+
+        let mut dict = HashMap::<&str, zvariant::Value>::new();
+        dict.insert("key1", "value1".into());
+        dict.insert("key2", 2u32.into());
+        let value = ("arg0", dict);
+
+        table_builder.insert("struct", value).unwrap();
+        let root_index = writer.add_table_builder(table_builder).unwrap().0;
+        let bytes = writer.serialize_to_vec(root_index).unwrap();
+        let root = File::from_bytes(Cow::Owned(bytes)).unwrap();
+
+        println!("{:?}", root);
+
+        byte_compare_file_4(&root);
     }
 
     #[test]
@@ -830,10 +853,13 @@ mod test {
 
 #[cfg(all(feature = "glib", test))]
 mod test_glib {
+    use crate::read::File;
+    use crate::test::byte_compare_file_4;
     use crate::write::hash::SimpleHashTable;
     use crate::write::item::HashValue;
     use crate::write::{FileWriter, HashTableBuilder};
     use glib::prelude::*;
+    use std::borrow::Cow;
 
     #[test]
     fn simple_hash_table() {
@@ -871,5 +897,25 @@ mod test_glib {
             let writer = FileWriter::with_byteswap(byteswap);
             let _ = writer.write_to_vec_with_table(table).unwrap();
         }
+    }
+
+    #[test]
+    fn file_builder_file_4_glib() {
+        let mut writer = FileWriter::new();
+        let mut table_builder = HashTableBuilder::new();
+
+        let map = glib::VariantDict::new(None);
+        map.insert("key1", "value1");
+        map.insert("key2", 2u32);
+        let value = ("arg0", map).to_variant();
+
+        table_builder.insert_gvariant("struct", value).unwrap();
+        let root_index = writer.add_table_builder(table_builder).unwrap().0;
+        let bytes = writer.serialize_to_vec(root_index).unwrap();
+        let root = File::from_bytes(Cow::Owned(bytes)).unwrap();
+
+        println!("{:?}", root);
+
+        byte_compare_file_4(&root);
     }
 }
