@@ -6,6 +6,7 @@
 #define TEST_PATH "../../../test-data/"
 #define TEST_FILE_1 TEST_PATH "test1.gvdb"
 #define TEST_FILE_2 TEST_PATH "test2.gvdb"
+#define TEST_FILE_4 TEST_PATH "test4.gvdb"
 
 /**
  * Pretty prints a gvdb table structure
@@ -105,9 +106,47 @@ void read_test_file_2() {
     dump_gvdb_table(table, 0);
 }
 
+/**
+ * The data stored in this file is equivalent to the following dict:
+ * {
+ *     "struct": ('arg0', {'key1': <'value1'>, 'key2': <uint32 2>})
+ * }
+ *
+ * The struct entry is a gvariant of type '(sa{sv})'
+ *
+ * Test file 4 is little endian
+ */
+void create_test_file_4() {
+    printf("Creating test file 4\n");
+    GHashTable *root = gvdb_hash_table_new(NULL, NULL);
+
+    GvdbItem *item = gvdb_hash_table_insert(root, "struct");
+
+    // Dict
+    GVariantBuilder *dict_builder = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
+    g_variant_builder_add(dict_builder, "{sv}", "key1", g_variant_new_string("value1"));
+    g_variant_builder_add(dict_builder, "{sv}", "key2", g_variant_new_uint32(2));
+
+    // Struct
+    GVariant *struct_value = g_variant_new_parsed("('arg0', {'key1': <'value1'>, 'key2': <uint32 2>})");
+
+    gvdb_item_set_value(item, struct_value);
+
+    GError *error = NULL;
+    gvdb_table_write_contents(root, TEST_FILE_4, G_BYTE_ORDER != G_LITTLE_ENDIAN, &error);
+}
+
+void read_test_file_4() {
+    GError *error = NULL;
+    GvdbTable *table = gvdb_table_new(TEST_FILE_4, FALSE, &error);
+    dump_gvdb_table(table, 0);
+}
+
 int main(int argc, char *argv[]) {
     create_test_file_1();
     read_test_file_1();
     create_test_file_2();
     read_test_file_2();
+    create_test_file_4();
+    read_test_file_4();
 }
