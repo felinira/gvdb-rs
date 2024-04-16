@@ -583,6 +583,54 @@ mod test {
     }
 
     #[test]
+    /// Make sure from_dir reproducibly creates an identical file
+    fn test_from_dir_reproducible_build() {
+        let mut last_data = None;
+
+        use rand::prelude::*;
+        fn copy_random_order(from: &Path, to: &Path) {
+            let mut rng = rand::thread_rng();
+            let mut files: Vec<std::fs::DirEntry> = std::fs::read_dir(from)
+                .unwrap()
+                .into_iter()
+                .map(|d| d.unwrap())
+                .collect();
+            files.shuffle(&mut rng);
+
+            for entry in files.iter() {
+                let destination = to.join(entry.file_name());
+                println!("copy file: {:?} to: {:?}", entry, destination);
+                let file_type = entry.file_type().unwrap();
+                if file_type.is_file() {
+                    std::fs::copy(entry.path(), &destination).unwrap();
+                } else if file_type.is_dir() {
+                    std::fs::create_dir(&destination).unwrap();
+                    copy_random_order(&entry.path(), &destination);
+                }
+            }
+        }
+
+        for _ in 0..10 {
+            // Create a new directory with inodes in random order
+            let test_dir = tempfile::tempdir().unwrap();
+
+            // Randomize order of root files and copy to test dir
+            copy_random_order(&GRESOURCE_DIR, test_dir.path());
+
+            let builder =
+                BundleBuilder::from_directory("/gvdb/rs/test", test_dir.path(), true, true)
+                    .unwrap();
+            let data = builder.build().unwrap();
+
+            if let Some(last_data) = last_data {
+                assert_eq!(last_data, data);
+            }
+
+            last_data = Some(data);
+        }
+    }
+
+    #[test]
     #[cfg(unix)]
     fn test_from_dir_invalid() {
         use std::os::unix::ffi::OsStrExt;
