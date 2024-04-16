@@ -131,7 +131,7 @@ impl<'a> HashTableBuilder<'a> {
     /// let value = 123u32;
     /// table_builder.insert("variant_123", value);
     /// ```
-    pub fn insert<T: ?Sized>(&mut self, key: &(impl ToString + ?Sized), value: T) -> Result<()>
+    pub fn insert<T>(&mut self, key: &(impl ToString + ?Sized), value: T) -> Result<()>
     where
         T: Into<zvariant::Value<'a>>,
     {
