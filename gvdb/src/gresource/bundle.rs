@@ -210,6 +210,28 @@ impl<'a> FileData<'a> {
     }
 }
 
+/// We define equality as key equality only. The resulting file can only have one file for each key.
+impl<'a> std::cmp::PartialEq for FileData<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
+impl<'a> std::cmp::Eq for FileData<'a> {}
+
+/// We define ordering as key ordering only. The resulting file can only have one file for each key.
+impl<'a> std::cmp::PartialOrd for FileData<'a> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<'a> std::cmp::Ord for FileData<'a> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.key.cmp(&other.key)
+    }
+}
+
 /// GResource data value
 ///
 /// This is the format in which all GResource files are stored in the GVDB file.
@@ -420,6 +442,9 @@ impl<'a> BundleBuilder<'a> {
                 files.push(file_data);
             }
         }
+
+        // Make sure the files are sorted in a reproducible way to ensure reproducible builds
+        files.sort();
 
         Ok(Self { files })
     }
