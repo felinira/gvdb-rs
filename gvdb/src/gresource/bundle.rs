@@ -490,7 +490,7 @@ mod test {
         let doc = XmlManifest::from_file(&GRESOURCE_XML).unwrap();
         let builder = BundleBuilder::from_xml(doc).unwrap();
 
-        for file in builder.files {
+        for file in &builder.files {
             assert!(file.key().starts_with("/gvdb/rs/test"));
 
             assert!(
@@ -503,7 +503,16 @@ mod test {
                 .contains(&&*file.key()),
                 "Unknown file with key: {}",
                 file.key()
-            )
+            );
+
+            // Make sure the Eq implementation works as expected
+            for file2 in &builder.files {
+                if std::ptr::eq(file as *const FileData, file2 as *const FileData) {
+                    assert_eq!(file, file2);
+                } else {
+                    assert_ne!(file, file2);
+                }
+            }
         }
     }
 
