@@ -854,7 +854,7 @@ mod test {
 #[cfg(all(feature = "glib", test))]
 mod test_glib {
     use crate::read::File;
-    use crate::test::byte_compare_file_4;
+    use crate::test::{assert_gvariant_eq, byte_compare_file_4};
     use crate::write::hash::SimpleHashTable;
     use crate::write::item::HashValue;
     use crate::write::{FileWriter, HashTableBuilder};
@@ -917,5 +917,22 @@ mod test_glib {
         println!("{:?}", root);
 
         byte_compare_file_4(&root);
+    }
+
+    #[test]
+    /// Regression test for https://github.com/dbus2/zbus/issues/868
+    fn gvariant_vs_zvariant() {
+        let mut map_glib = std::collections::HashMap::<&str, &str>::new();
+        map_glib.insert("k", "v");
+        let variant_glib = glib::Variant::from_variant(&map_glib.to_variant()).normal_form();
+        let data_glib = variant_glib.data();
+
+        let mut map_zvariant = std::collections::HashMap::<&str, &str>::new();
+        map_zvariant.insert("k", "v");
+        let ctxt = zvariant::serialized::Context::new_gvariant(zvariant::LE, 0);
+
+        let data_zvariant = zvariant::to_bytes(ctxt, &zvariant::Value::new(map_zvariant)).unwrap();
+
+        assert_gvariant_eq(data_glib, &data_zvariant, "gvariant vs zvariant");
     }
 }
