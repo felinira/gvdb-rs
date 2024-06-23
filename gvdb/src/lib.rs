@@ -80,6 +80,7 @@
 //! GResource file creation.
 
 #![warn(missing_docs)]
+#![allow(unknown_lints, clippy::assigning_clones)]
 #![doc = include_str!("../README.md")]
 
 extern crate core;
