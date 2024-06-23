@@ -89,6 +89,7 @@ fn write_byte_rows(
     Ok(())
 }
 
+#[track_caller]
 pub fn assert_bytes_eq(a: &[u8], b: &[u8], context: &str) {
     const WIDTH: usize = 16;
     const EXTRA_ROWS_TOP: usize = 8;
