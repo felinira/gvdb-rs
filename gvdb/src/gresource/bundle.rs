@@ -134,7 +134,7 @@ impl<'a> FileData<'a> {
         let mut reader = quick_xml::Reader::from_str(
             std::str::from_utf8(&data).map_err(|err| BuilderError::Utf8(err, path.clone()))?,
         );
-        reader.trim_text(true);
+        reader.config_mut().trim_text(true);
 
         let mut writer = quick_xml::Writer::new(std::io::Cursor::new(output));
 
@@ -745,7 +745,6 @@ mod test {
 
             assert_matches!(err, BuilderError::Xml(_, _));
             assert!(format!("{}", err).contains("Error processing XML data"));
-            assert!(format!("{:?}", err).contains("Unexpected EOF"));
         }
     }
 

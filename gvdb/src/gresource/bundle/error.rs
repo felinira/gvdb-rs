@@ -137,11 +137,14 @@ mod test {
         assert!(format!("{}", err).contains("test"));
 
         let err = BuilderError::Xml(
-            quick_xml::Error::TextNotFound,
+            quick_xml::Error::Syntax(quick_xml::errors::SyntaxError::UnclosedTag),
             Some(PathBuf::from("test_file")),
         );
         assert!(format!("{}", err).contains("test_file"));
-        let err = BuilderError::Xml(quick_xml::Error::TextNotFound, None);
+        let err = BuilderError::Xml(
+            quick_xml::Error::Syntax(quick_xml::errors::SyntaxError::UnclosedTag),
+            None,
+        );
         assert!(format!("{}", err).contains("XML"));
     }
 }
