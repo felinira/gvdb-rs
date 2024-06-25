@@ -2,13 +2,16 @@
 
 use crate::read::{File, HashItemType, HashTable};
 use crate::write::{FileWriter, HashTableBuilder};
+use glib::value::ToValue;
 use lazy_static::lazy_static;
 pub use matches::assert_matches;
 pub use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
+use serde::Deserialize;
 use std::borrow::Cow;
 use std::cmp::{max, min};
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Read, Write};
 use std::path::{Path, PathBuf};
+use zvariant::DynamicType;
 
 lazy_static! {
     pub(crate) static ref TEST_FILE_DIR: PathBuf = PathBuf::from("test-data");
@@ -47,7 +50,8 @@ fn write_byte_row(
     write!(f, "  ")?;
 
     for byte in bytes {
-        if byte.is_ascii_alphanumeric() || byte.is_ascii_whitespace() {
+        if byte.is_ascii_alphanumeric() || byte.is_ascii_whitespace() || byte.is_ascii_punctuation()
+        {
             write!(f, "{}", *byte as char)?;
         } else {
             write!(f, ".")?;
@@ -89,6 +93,38 @@ fn write_byte_rows(
     Ok(())
 }
 
+pub fn assert_gvariant_eq(a: &[u8], b: &[u8], context: &str) {
+    // Decode gvariant using glib, and diff using print()
+    let a_var = glib::Variant::from_data::<glib::Variant, _>(a);
+    let b_var = glib::Variant::from_data::<glib::Variant, _>(b);
+
+    let a_str = a_var.print(true);
+    let b_str = b_var.print(true);
+
+    if a_str != b_str {
+        let mut bytes_a: Vec<u8> = Vec::new();
+        write_byte_rows(&mut bytes_a, 0, 0, usize::MAX, 16, a);
+
+        let mut bytes_b: Vec<u8> = Vec::new();
+        write_byte_rows(&mut bytes_b, 0, 0, usize::MAX, 16, b);
+
+        assert_eq!(
+            format!(
+                "{}\n{}",
+                a_var.print(true).as_str(),
+                std::str::from_utf8(&bytes_a).unwrap()
+            ),
+            format!(
+                "{}\n{}",
+                b_var.print(true).as_str(),
+                std::str::from_utf8(&bytes_b).unwrap()
+            ),
+            "{}",
+            context
+        );
+    }
+}
+
 #[track_caller]
 pub fn assert_bytes_eq(a: &[u8], b: &[u8], context: &str) {
     const WIDTH: usize = 16;
@@ -126,18 +162,18 @@ pub fn assert_bytes_eq(a: &[u8], b: &[u8], context: &str) {
             .unwrap();
             let str_b = String::from_utf8(b_bytes_buf).unwrap();
 
-            eprintln!("{}", context);
-            assert_str_eq!(str_a, str_b);
+            assert_str_eq!(str_a, str_b, "{}", context);
         }
     }
 }
 
-pub fn byte_compare_gvdb_file(a: &File, b: &File) {
+#[track_caller]
+pub fn byte_compare_gvdb_file(a: &File, b: &File, context: &str) {
     assert_eq!(a.get_header().unwrap(), b.get_header().unwrap());
 
     let a_hash = a.hash_table().unwrap();
     let b_hash = b.hash_table().unwrap();
-    byte_compare_gvdb_hash_table(&a_hash, &b_hash);
+    byte_compare_gvdb_hash_table(&a_hash, &b_hash, context);
 }
 
 fn byte_compare_file(file: &File, reference_path: &Path) {
@@ -200,7 +236,7 @@ pub fn assert_is_file_2(file: &File) {
 
 pub fn byte_compare_file_3(file: &File) {
     let ref_root = File::from_file(&TEST_FILE_3).unwrap();
-    byte_compare_gvdb_file(file, &ref_root);
+    byte_compare_gvdb_file(&ref_root, file, "Comparing file 3");
 }
 
 pub fn assert_is_file_3(file: &File) {
@@ -322,7 +358,8 @@ pub(crate) fn new_simple_file(big_endian: bool) -> File<'static> {
     File::from_bytes(Cow::Owned(cursor.into_inner())).unwrap()
 }
 
-pub(crate) fn byte_compare_gvdb_hash_table(a: &HashTable, b: &HashTable) {
+#[track_caller]
+pub(crate) fn byte_compare_gvdb_hash_table(a: &HashTable, b: &HashTable, context: &str) {
     assert_eq!(a.header, b.header);
 
     let mut keys_a = a.keys().unwrap();
@@ -343,22 +380,35 @@ pub(crate) fn byte_compare_gvdb_hash_table(a: &HashTable, b: &HashTable) {
         let data_a = a.file.dereference(item_a.value_ptr(), 1).unwrap();
         let data_b = b.file.dereference(item_b.value_ptr(), 1).unwrap();
 
-        // We don't compare containers, only their length
-        if item_a.typ().unwrap() == HashItemType::Container {
-            if data_a.len() != data_b.len() {
-                // The lengths should not be different. For context we will compare the data
+        match item_a.typ().unwrap() {
+            HashItemType::Value => {
+                assert_gvariant_eq(
+                    data_a,
+                    data_b,
+                    &format!("Comparing gvariant values with key '{}'", key),
+                );
                 assert_bytes_eq(
                     data_a,
                     data_b,
-                    &format!("Containers with key '{}' have different lengths", key),
+                    &format!("Comparing values with key '{}'", key),
                 );
             }
-        } else {
-            assert_bytes_eq(
-                data_a,
-                data_b,
-                &format!("Comparing items with key '{}'", key),
-            );
+            HashItemType::HashTable => byte_compare_gvdb_hash_table(
+                &a.get_hash_table(&key).expect(context),
+                &b.get_hash_table(&key).expect(context),
+                &format!("{context}: Comparing hash tables with key '{key}'"),
+            ),
+            HashItemType::Container => {
+                // We don't compare containers, only their length
+                if data_a.len() != data_b.len() {
+                    // The lengths should not be different. For context we will compare the data
+                    assert_bytes_eq(
+                        data_a,
+                        data_b,
+                        &format!("Containers with key '{}' have different lengths", key),
+                    );
+                }
+            }
         }
     }
 }
