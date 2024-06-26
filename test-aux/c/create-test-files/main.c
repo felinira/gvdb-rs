@@ -42,7 +42,7 @@ void dump_gvdb_table(GvdbTable *table, int indent) {
 /**
  * The data stored in this file is equivalent to the following dict:
  * {
- *     "root_key": (1234, 98765, "TEST_STRING_VALUE"),
+ *     "root_key": (uint32 1234, uint32 98765, 'TEST_STRING_VALUE'),
  * }
  *
  * Test file 1 is little endian
@@ -52,15 +52,9 @@ void create_test_file_1() {
     GHashTable *table = gvdb_hash_table_new(NULL, NULL);
 
     GvdbItem *item = gvdb_hash_table_insert(table, "root_key");
-    //gvdb_item_set_parent(item, table);
-    GVariantBuilder builder;
-    g_variant_builder_init(&builder, G_VARIANT_TYPE("(uus)"));
-    g_variant_builder_add(&builder, "u", 1234);
-    g_variant_builder_add(&builder, "u", 98765);
-    GVariant *v_data = g_variant_new_string("TEST_STRING_VALUE");
-    g_variant_builder_add_value(&builder, v_data);
+    GVariant *data = g_variant_new_parsed("(uint32 1234, uint32 98765, 'TEST_STRING_VALUE')");
 
-    gvdb_item_set_value(item, g_variant_builder_end(&builder));
+    gvdb_item_set_value(item, data);
 
     GError *error = NULL;
 
@@ -78,7 +72,7 @@ void read_test_file_1() {
  * {
  *     "string": "test string",
  *     "table": {
- *         "int": 42,
+ *         "int": uint32 42,
  *     }
  * }
  *
