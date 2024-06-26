@@ -294,10 +294,10 @@ mod test {
 
         let mut values: HashSet<i32> = (0..20).collect();
         for bucket in 0..table.n_buckets() {
-            let mut iter = table.iter_bucket(bucket);
-            while let Some(next) = iter.next() {
+            let iter = table.iter_bucket(bucket);
+            for next in iter {
                 let num: i32 = next.value().borrow().value().unwrap().try_into().unwrap();
-                assert_eq!(values.remove(&num), true);
+                assert!(values.remove(&num));
             }
         }
     }

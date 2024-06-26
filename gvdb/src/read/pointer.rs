@@ -45,7 +45,7 @@ mod test {
     #[test]
     fn derives() {
         let pointer = Pointer::new(0, 2);
-        let pointer2 = pointer.clone();
+        let pointer2 = pointer;
         println!("{:?}", pointer2);
     }
 

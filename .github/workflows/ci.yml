@@ -60,6 +60,9 @@ jobs:
         run: cargo build --verbose ${{ matrix.features }} --target ${{ matrix.target }}
       - name: Clippy
         run: cargo clippy --verbose ${{ matrix.features }} --target ${{ matrix.target }} -- -D warnings
+      - name: Clippy Tests
+        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
+        run: cargo clippy --tests --verbose ${{ matrix.features }} --target ${{ matrix.target }} -- -D warnings
       - name: Run tests
         if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
         run: cargo test-all-features --verbose --target ${{ matrix.target }}

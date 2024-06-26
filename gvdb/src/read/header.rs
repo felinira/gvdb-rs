@@ -92,22 +92,22 @@ mod test {
     #[test]
     fn derives() {
         let header = Header::new(false, 0, Pointer::NULL);
-        let header2 = header.clone();
+        let header2 = header;
         println!("{:?}", header2);
     }
 
     #[test]
     fn header_serialize() {
         let header = Header::new(false, 123, Pointer::NULL);
-        assert_eq!(header.is_byteswap().unwrap(), false);
+        assert!(!header.is_byteswap().unwrap());
         let data = transmute_one_to_bytes(&header);
-        let parsed_header: Header = transmute_one_pedantic(data.as_ref()).unwrap();
-        assert_eq!(parsed_header.is_byteswap().unwrap(), false);
+        let parsed_header: Header = transmute_one_pedantic(data).unwrap();
+        assert!(!parsed_header.is_byteswap().unwrap());
 
         let header = Header::new(true, 0, Pointer::NULL);
-        assert_eq!(header.is_byteswap().unwrap(), true);
+        assert!(header.is_byteswap().unwrap());
         let data = transmute_one_to_bytes(&header);
-        let parsed_header: Header = transmute_one_pedantic(data.as_ref()).unwrap();
-        assert_eq!(parsed_header.is_byteswap().unwrap(), true);
+        let parsed_header: Header = transmute_one_pedantic(data).unwrap();
+        assert!(parsed_header.is_byteswap().unwrap());
     }
 }

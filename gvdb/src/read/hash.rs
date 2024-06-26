@@ -495,7 +495,7 @@ pub(crate) mod test {
     #[test]
     fn debug() {
         let header = HashHeader::new(0, 0, 0);
-        let header2 = header.clone();
+        let header2 = header;
         println!("{:?}", header2);
 
         let file = new_empty_file();
@@ -556,7 +556,7 @@ pub(crate) mod test {
         for endianess in [true, false] {
             let file = new_simple_file(endianess);
             let table = file.hash_table().unwrap();
-            let res: String = table.get::<String>("test").unwrap().into();
+            let res: String = table.get::<String>("test").unwrap();
             assert_eq!(&res, "test");
 
             let res = table.get::<i32>("test");
@@ -647,7 +647,7 @@ pub(crate) mod test {
             item.parent(),
             key_ptr,
             item.typ().unwrap(),
-            item.value_ptr().clone(),
+            *item.value_ptr(),
         );
 
         assert_eq!(table.check_key(&broken_item, "table"), false);
@@ -667,7 +667,7 @@ pub(crate) mod test {
             50,
             item.key_ptr(),
             item.typ().unwrap(),
-            item.value_ptr().clone(),
+            *item.value_ptr(),
         );
 
         assert_eq!(
