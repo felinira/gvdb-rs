@@ -149,7 +149,7 @@ mod test {
         println!("{}, {:?}", typ, typ);
 
         let item = HashItem::new(0, 0, Pointer::NULL, HashItemType::Value, Pointer::NULL);
-        let item2 = item.clone();
+        let item2 = item;
         println!("{:?}", item2);
     }
 

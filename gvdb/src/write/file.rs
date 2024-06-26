@@ -711,8 +711,8 @@ mod test {
             }
 
             let data = file_builder.write_to_vec_with_table(table_builder).unwrap();
-            if last_data.is_some() {
-                assert_bytes_eq(&last_data.unwrap(), &data, "Reproducible builds");
+            if let Some(last_data) = last_data {
+                assert_bytes_eq(&last_data, &data, "Reproducible builds");
             }
 
             last_data = Some(data);

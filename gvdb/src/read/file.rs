@@ -328,7 +328,7 @@ mod test {
         // The root pointer end is always at position sizeof(u32 * 5).
         // As this is little endian, we can just modify the first byte.
         let root_ptr_end = size_of::<u32>() * 5;
-        data[root_ptr_end] = data[root_ptr_end] - 25;
+        data[root_ptr_end] -= 25;
 
         let file = File::from_bytes(Cow::Owned(data)).unwrap();
         let err = file.hash_table().unwrap_err();
@@ -347,7 +347,7 @@ mod test {
         // The root pointer end is always at position sizeof(u32 * 5).
         // As this is little endian, we can just modify the first byte.
         let root_ptr_end = size_of::<u32>() * 5;
-        data[root_ptr_end] = data[root_ptr_end] - 23;
+        data[root_ptr_end] -= 23;
 
         let file = File::from_bytes(Cow::Owned(data)).unwrap();
         let err = file.hash_table().unwrap_err();

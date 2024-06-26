@@ -494,13 +494,11 @@ mod test {
             assert!(file.key().starts_with("/gvdb/rs/test"));
 
             assert!(
-                vec![
-                    "/gvdb/rs/test/online-symbolic.svg",
+                ["/gvdb/rs/test/online-symbolic.svg",
                     "/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg",
                     "/gvdb/rs/test/json/test.json",
-                    "/gvdb/rs/test/test.css",
-                ]
-                .contains(&&*file.key()),
+                    "/gvdb/rs/test/test.css"]
+                .contains(&file.key()),
                 "Unknown file with key: {}",
                 file.key()
             );
@@ -531,14 +529,12 @@ mod test {
                 assert!(file.key().starts_with("/gvdb/rs/test"));
 
                 assert!(
-                    vec![
-                        "/gvdb/rs/test/icons/scalable/actions/online-symbolic.svg",
+                    ["/gvdb/rs/test/icons/scalable/actions/online-symbolic.svg",
                         "/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg",
                         "/gvdb/rs/test/json/test.json",
                         "/gvdb/rs/test/test.css",
-                        "/gvdb/rs/test/test3.gresource.xml",
-                    ]
-                    .contains(&&*file.key()),
+                        "/gvdb/rs/test/test3.gresource.xml"]
+                    .contains(&file.key()),
                     "Unknown file with key: {}",
                     file.key()
                 );
@@ -626,7 +622,6 @@ mod test {
             let mut rng = rand::thread_rng();
             let mut files: Vec<std::fs::DirEntry> = std::fs::read_dir(from)
                 .unwrap()
-                .into_iter()
                 .map(|d| d.unwrap())
                 .collect();
             files.shuffle(&mut rng);
@@ -673,7 +668,7 @@ mod test {
         dir.push(invalid_utf8);
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::File::create(dir.join("test.xml")).unwrap();
-        let res = BundleBuilder::from_directory("test", &dir.parent().unwrap(), false, false);
+        let res = BundleBuilder::from_directory("test", dir.parent().unwrap(), false, false);
         let _ = std::fs::remove_file(dir.join("test.xml"));
         let _ = std::fs::remove_dir(&dir);
         std::fs::remove_dir(dir.parent().unwrap()).unwrap();
@@ -819,8 +814,7 @@ mod test {
         std::fs::create_dir_all(PathBuf::from(&temp_path)).unwrap();
         let _ = std::fs::File::create(&invalid_path).unwrap();
 
-        let res =
-            BundleBuilder::from_directory("test", &PathBuf::from(temp_path.clone()), false, false);
+        let res = BundleBuilder::from_directory("test", &temp_path, false, false);
 
         let _ = std::fs::remove_file(invalid_path);
         std::fs::remove_dir(temp_path).unwrap();
