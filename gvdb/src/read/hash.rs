@@ -19,7 +19,17 @@ type GVariantDeserializer<'de, 'sig, 'f> =
 #[cfg(not(unix))]
 type GVariantDeserializer<'de, 'sig, 'f> = zvariant::gvariant::Deserializer<'de, 'sig, 'f, ()>;
 
-/// The header of a GVDB hash table
+/// The header of a GVDB hash table.
+///
+/// ```text
+/// +-------+-----------------------+
+/// | Bytes | Field                 |
+/// +-------+-----------------------+
+/// |     4 | number of bloom words |
+/// +-------+-----------------------+
+/// |     4 | number of buckets     |
+/// +-------+-----------------------+
+/// ```
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct HashHeader {
@@ -75,7 +85,19 @@ impl Debug for HashHeader {
 
 /// A hash table inside a GVDB file
 ///
-///
+/// ```text
+/// +-------+---------------------------+
+/// | Bytes | Field                     |
+/// +-------+---------------------------+
+/// |     4 | number of bloom words (b) |
+/// +-------+---------------------------+
+/// |     4 | number of buckets (n)     |
+/// +-------+---------------------------+
+/// | b * 4 | bloom words               |
+/// +-------+---------------------------+
+/// | n * 4 | buckets                   |
+/// +-------+---------------------------+
+/// ```
 #[derive(Clone)]
 pub struct HashTable<'a, 'file> {
     pub(crate) file: &'a File<'file>,
@@ -384,10 +406,11 @@ impl<'a, 'file> HashTable<'a, 'file> {
         }
     }
 
+    /// Create a zvariant deserializer for the specified key.
     fn deserializer_for_key(&self, key: &str) -> Result<GVariantDeserializer> {
         let data = self.get_bytes(key)?;
 
-        // Create a new zvariant context based our endianess and the byteswapped property
+        // Create a new zvariant context based on our endianess and the byteswapped property
         let context =
             zvariant::serialized::Context::new_gvariant(self.file.zvariant_endianess(), 0);
 
