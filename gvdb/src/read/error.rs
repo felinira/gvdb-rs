@@ -23,7 +23,7 @@ pub enum Error {
     /// Tried to read unaligned data
     DataAlignment,
 
-    /// Like InvalidData but with context information in the provided string
+    /// Read invalid data with context information in the provided string
     Data(String),
 
     /// The item with the specified key does not exist in the hash table

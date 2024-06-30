@@ -9,6 +9,41 @@ const GVDB_SIGNATURE0: u32 = 1918981703;
 // "iant"
 const GVDB_SIGNATURE1: u32 = 1953390953;
 
+/// A GVDB file header.
+///
+/// ```text
+/// +-------+--------------+
+/// | Bytes | Field        |
+/// +-------+--------------+
+/// |     8 | signature    |
+/// +-------+--------------+
+/// |     4 | version      |
+/// +-------+--------------+
+/// |     4 | options      |
+/// +-------+--------------+
+/// |     8 | root pointer |
+/// +-------+--------------+
+/// ```
+///
+/// ## Signature
+///
+/// The signature will look like the ASCII string `GVariant` for little endian
+/// and `raVGtnai` for big endian files.
+///
+/// This is what you get when reading two u32, swapping the endianness, and interpreting them as a string.
+///
+/// ## Version
+///
+/// Version is always 0.
+///
+/// ## Options
+///
+/// There are no known options, this u32 is always 0.
+///
+/// ## Root pointer
+///
+/// Points to the root hash table within the file.
+
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct Header {
@@ -21,6 +56,7 @@ pub struct Header {
 unsafe impl TriviallyTransmutable for Header {}
 
 impl Header {
+    /// Create a new GVDB header in little-endian
     #[cfg(test)]
     pub fn new_le(version: u32, root: Pointer) -> Self {
         #[cfg(target_endian = "little")]
@@ -31,6 +67,7 @@ impl Header {
         Self::new(byteswap, version, root)
     }
 
+    /// Create a new GVDB header in big-endian
     #[cfg(test)]
     pub fn new_be(version: u32, root: Pointer) -> Self {
         #[cfg(target_endian = "little")]
@@ -41,6 +78,7 @@ impl Header {
         Self::new(byteswap, version, root)
     }
 
+    /// Create a new GVDB header in target endianness
     pub fn new(byteswap: bool, version: u32, root: Pointer) -> Self {
         let signature = if !byteswap {
             [GVDB_SIGNATURE0, GVDB_SIGNATURE1]
@@ -56,6 +94,11 @@ impl Header {
         }
     }
 
+    /// Returns:
+    ///
+    /// - `Ok(true)` if the file is *not* in target endianness (eg. BE on an LE machine)
+    /// - `Ok(false)` if the file is in target endianness (eg. LE on an LE machine)
+    /// - [`Err(Error::Data)`](crate::read::error::Error::Data) if the file signature is invalid
     pub fn is_byteswap(&self) -> Result<bool> {
         if self.signature[0] == GVDB_SIGNATURE0 && self.signature[1] == GVDB_SIGNATURE1 {
             Ok(false)
@@ -71,14 +114,17 @@ impl Header {
         }
     }
 
+    /// Returns true if the header indicates that this is a valid GVDB file.
     pub fn header_valid(&self) -> bool {
         self.is_byteswap().is_ok()
     }
 
+    /// The version of the GVDB file. We only recognize version 0 of the format.
     pub fn version(&self) -> u32 {
         self.version
     }
 
+    /// The pointer to the root hash table.
     pub fn root(&self) -> &Pointer {
         &self.root
     }

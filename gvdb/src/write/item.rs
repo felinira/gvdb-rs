@@ -6,16 +6,16 @@ use std::rc::Rc;
 /// Holds the value of a GVDB hash table
 #[derive(Debug)]
 pub enum HashValue<'a> {
-    // A zvariant::Value
+    /// A zvariant::Value
     Value(zvariant::Value<'a>),
 
-    // A glib::Variant
+    /// A glib::Variant
     #[cfg(feature = "glib")]
     GVariant(glib::Variant),
 
     TableBuilder(HashTableBuilder<'a>),
 
-    // A child container with no additional value
+    /// A child container with no additional value
     Container(Vec<String>),
 }
 
@@ -89,22 +89,22 @@ impl<'a> From<HashTableBuilder<'a>> for HashValue<'a> {
 
 #[derive(Debug)]
 pub struct HashItemBuilder<'a> {
-    // The key string of the item
+    /// The key string of the item
     key: String,
 
-    // The djb hash
+    /// The djb hash
     hash: u32,
 
-    // An arbitrary data container
+    /// An arbitrary data container
     value: RefCell<HashValue<'a>>,
 
-    // The assigned index for the gvdb file
+    /// The assigned index for the gvdb file
     assigned_index: Cell<u32>,
 
-    // The parent item of this builder item
+    /// The parent item of this builder item
     parent: RefCell<Option<Rc<HashItemBuilder<'a>>>>,
 
-    // The next item in the hash bucket
+    /// The next item in the hash bucket
     next: RefCell<Option<Rc<HashItemBuilder<'a>>>>,
 }
 

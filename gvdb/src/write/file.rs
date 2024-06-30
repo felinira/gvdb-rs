@@ -56,6 +56,7 @@ impl<'a> HashTableBuilder<'a> {
         }
     }
 
+    /// Insert the provided [`HashValue`] for the key.
     fn insert_item_value(
         &mut self,
         key: &(impl ToString + ?Sized),

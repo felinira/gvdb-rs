@@ -2,6 +2,10 @@ use crate::util::djb_hash;
 use crate::write::item::{HashItemBuilder, HashValue};
 use std::rc::Rc;
 
+/// A hash table with a fixed number of buckets.
+///
+/// This is used as an intermediate representation before serializing
+/// hashtable data in a HVDB file.
 #[derive(Debug)]
 pub struct SimpleHashTable<'a> {
     buckets: Vec<Option<Rc<HashItemBuilder<'a>>>>,
@@ -9,6 +13,7 @@ pub struct SimpleHashTable<'a> {
 }
 
 impl<'a> SimpleHashTable<'a> {
+    /// Create a hash table with a number of buckets.
     pub fn with_n_buckets(n_buckets: usize) -> Self {
         let mut buckets = Vec::with_capacity(n_buckets);
         buckets.resize_with(n_buckets, || None);
@@ -19,18 +24,24 @@ impl<'a> SimpleHashTable<'a> {
         }
     }
 
+    /// The number of buckets of the hash table. This number is fixed and does not change.
     pub fn n_buckets(&self) -> usize {
         self.buckets.len()
     }
 
+    /// How many items are contained in the hash table.
     pub fn n_items(&self) -> usize {
         self.n_items
     }
 
+    /// Retrieve the hash bucket for the provided [`u32`] hash value
     fn hash_bucket(&self, hash_value: u32) -> usize {
         (hash_value % self.buckets.len() as u32) as usize
     }
 
+    /// Insert a new item into the hash table.
+    ///
+    /// Returns the created hash item.
     pub fn insert(&mut self, key: &str, item: HashValue<'a>) -> Rc<HashItemBuilder<'a>> {
         let hash_value = djb_hash(key);
         let bucket = self.hash_bucket(hash_value);
@@ -84,6 +95,7 @@ impl<'a> SimpleHashTable<'a> {
         }
     }
 
+    /// Retrieve an item with the specified key from the specified bucket.
     fn get_from_bucket(
         &self,
         key: &str,
@@ -104,12 +116,14 @@ impl<'a> SimpleHashTable<'a> {
         None
     }
 
+    /// Returns an item corresponding to the key.
     pub fn get(&self, key: &str) -> Option<Rc<HashItemBuilder<'a>>> {
         let hash_value = djb_hash(key);
         let bucket = self.hash_bucket(hash_value);
         self.get_from_bucket(key, bucket).map(|r| r.1)
     }
 
+    /// Iterator over the hash table items.
     pub fn iter(&self) -> SimpleHashTableIter<'_, 'a> {
         SimpleHashTableIter {
             hash_table: self,
@@ -118,6 +132,7 @@ impl<'a> SimpleHashTable<'a> {
         }
     }
 
+    /// Iterator over the items in the specified bucket.
     pub fn iter_bucket(&self, bucket: usize) -> SimpleHashTableBucketIter<'_, 'a> {
         SimpleHashTableBucketIter {
             hash_table: self,
@@ -127,6 +142,7 @@ impl<'a> SimpleHashTable<'a> {
     }
 }
 
+/// Iterator over the items in a specific bucket of a [`SimpleHashTable`].
 pub struct SimpleHashTableBucketIter<'it, 'h> {
     hash_table: &'it SimpleHashTable<'h>,
     bucket: usize,
@@ -157,6 +173,7 @@ impl<'it, 'h> Iterator for SimpleHashTableBucketIter<'it, 'h> {
     }
 }
 
+/// Iterator over the items of a [`SimpleHashTable`].
 pub struct SimpleHashTableIter<'it, 'h> {
     hash_table: &'it SimpleHashTable<'h>,
     bucket: usize,

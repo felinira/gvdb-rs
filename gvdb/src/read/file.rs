@@ -117,6 +117,7 @@ impl<'a> File<'a> {
         }
     }
 
+    /// Try to read the header, determine the endianness and validate that the header is valid.
     fn read_header(&mut self) -> Result<()> {
         let header = self.get_header()?;
         if !header.header_valid() {

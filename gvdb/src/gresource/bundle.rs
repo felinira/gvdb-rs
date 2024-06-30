@@ -250,7 +250,7 @@ pub struct Data {
 /// # Example
 ///
 /// Create a GResource XML file with [`XmlManifest`][crate::gresource::XmlManifest] and
-/// [`BundleBuilder`](crate::gresource::BundleBuilder)
+/// [`BundleBuilder`]
 /// ```
 /// use std::borrow::Cow;
 /// use std::path::PathBuf;
@@ -494,10 +494,12 @@ mod test {
             assert!(file.key().starts_with("/gvdb/rs/test"));
 
             assert!(
-                ["/gvdb/rs/test/online-symbolic.svg",
+                [
+                    "/gvdb/rs/test/online-symbolic.svg",
                     "/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg",
                     "/gvdb/rs/test/json/test.json",
-                    "/gvdb/rs/test/test.css"]
+                    "/gvdb/rs/test/test.css"
+                ]
                 .contains(&file.key()),
                 "Unknown file with key: {}",
                 file.key()
@@ -529,11 +531,13 @@ mod test {
                 assert!(file.key().starts_with("/gvdb/rs/test"));
 
                 assert!(
-                    ["/gvdb/rs/test/icons/scalable/actions/online-symbolic.svg",
+                    [
+                        "/gvdb/rs/test/icons/scalable/actions/online-symbolic.svg",
                         "/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg",
                         "/gvdb/rs/test/json/test.json",
                         "/gvdb/rs/test/test.css",
-                        "/gvdb/rs/test/test3.gresource.xml"]
+                        "/gvdb/rs/test/test3.gresource.xml"
+                    ]
                     .contains(&file.key()),
                     "Unknown file with key: {}",
                     file.key()

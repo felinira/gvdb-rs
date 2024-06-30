@@ -1,3 +1,10 @@
+/// A pointer internal to the GVDB file.
+///
+/// GVDB files use pointer structs with global start and end locations. Pointers
+/// are *always* little-endian, independant of the file endianess.
+///
+/// It is possible to retrieve the bytes stored at this pointer by using
+/// [`File::dereference()`](crate::read::File::dereference).
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Pointer {
@@ -9,6 +16,8 @@ impl Pointer {
     #[allow(unused)]
     pub(crate) const NULL: Self = Self { start: 0, end: 0 };
 
+    /// Create a new GVDB pointer. Pointers are always internally stored as little endian,
+    /// so we convert the values here.
     pub fn new(start: usize, end: usize) -> Self {
         Self {
             start: (start as u32).to_le(),
@@ -16,14 +25,17 @@ impl Pointer {
         }
     }
 
+    /// Returns the start address of the pointer and convert them to target endianess.
     pub fn start(&self) -> u32 {
         u32::from_le(self.start)
     }
 
+    /// Returns the end address of the pointer and convert them to target endianess.
     pub fn end(&self) -> u32 {
         u32::from_le(self.end)
     }
 
+    /// Returns the number of bytes referenced by the pointer.
     pub fn size(&self) -> usize {
         self.end().saturating_sub(self.start()) as usize
     }

@@ -49,6 +49,27 @@ impl Display for HashItemType {
     }
 }
 
+/// GVDB hash item.
+///
+/// ```text
+/// +-------+----------------------+
+/// | Bytes | Field                |
+/// +-------+----------------------+
+/// |     4 | djb2 hash value      |
+/// +-------+----------------------+
+/// |     4 | parent item index    |
+/// +-------+----------------------+
+/// |     4 | start address of key |
+/// +-------+----------------------+
+/// |     2 | size of key          |
+/// +-------+----------------------+
+/// |     1 | hash item kind       |
+/// +-------+------------------- --+
+/// |     1 | unused               |
+/// +-------+----------------------+
+/// |     8 | value data pointer   |
+/// +-------+----------------------+
+/// ```
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct HashItem {
@@ -88,22 +109,29 @@ impl HashItem {
         }
     }
 
+    /// djb hash value of the item data.
     pub fn hash_value(&self) -> u32 {
         u32::from_le(self.hash_value)
     }
 
+    /// The item index of the parent hash item.
+    ///
+    /// 0xFFFFFFFF means this is a root item.
     pub fn parent(&self) -> u32 {
         u32::from_le(self.parent)
     }
 
+    /// Global start pointer of the key data
     pub fn key_start(&self) -> u32 {
         u32::from_le(self.key_start)
     }
 
+    /// The size of the key data.
     pub fn key_size(&self) -> u16 {
         u16::from_le(self.key_size)
     }
 
+    /// Convenience method to generate a proper GVDB pointer from key_start and key_size.
     pub fn key_ptr(&self) -> Pointer {
         Pointer::new(
             self.key_start() as usize,
@@ -111,10 +139,12 @@ impl HashItem {
         )
     }
 
+    /// The kind of hash item.
     pub fn typ(&self) -> Result<HashItemType> {
         self.typ.try_into()
     }
 
+    /// A pointer to the underlying data.
     pub fn value_ptr(&self) -> &Pointer {
         &self.value
     }
