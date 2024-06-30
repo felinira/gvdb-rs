@@ -21,9 +21,11 @@ The versions in changelog reflect the gvdb versions.
 - `gvdb::read::GvdbHashTable::get_header` (made private)
 - `gvdb::read::GvdbHashTable::get_hash_item` (made private)
 - `gvdb::read::GvdbReaderError::InvalidData` all instances were replaced with more specific errors as `Data(String)`
+
 ### Changed
 
-- The project is now made available under the MIT OR Apache-2.0 licenses. Previous releases remain licensed soley under the MIT license
+- The project and all previous releases are now made available under the MIT OR Apache-2.0 licenses
+- The project is now [REUSE compliant](https://reuse.software/)
 - Most types have been renamed to remove redundant prefixes and be more consistent with the rest of the Rust ecosystem. The previous names have been added as deprecated type aliases where possible. These aliases will be removed in a future release.
 - `gvdb::read` types have gained a few lifetimes. As a result, the reader does not have to borrow the data statically anymore.
 - `gvdb::read::HashTable` is no longer `#[repr(C)]` (it was added accidentally)
