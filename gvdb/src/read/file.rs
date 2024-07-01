@@ -353,7 +353,7 @@ mod test {
         let file = File::from_bytes(Cow::Owned(data)).unwrap();
         let err = file.hash_table().unwrap_err();
         assert_matches!(err, Error::Data(_));
-        assert!(format!("{}", err).contains("Remaining size invalid"));
+        assert!(format!("{}", err).contains("Hash item size invalid"));
     }
 
     #[test]
