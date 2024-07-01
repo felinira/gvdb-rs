@@ -176,22 +176,20 @@ impl<'a, 'file> HashTable<'a, 'file> {
 
     /// Returns the bloom words for this hash table
     #[allow(dead_code)]
-    fn bloom_words(&self) -> Result<Option<&[u32]>> {
+    fn bloom_words(&self) -> &[u32] {
         // This indexing operation is safe as data is guaranteed to be larger than
         // bloom_words_offset and this will just return an empty slice if end == offset
-        Ok(
-            transmute_many_pedantic(&self.data[self.bloom_words_offset()..self.bloom_words_end()])
-                .ok(),
-        )
+        transmute_many_pedantic(&self.data[self.bloom_words_offset()..self.bloom_words_end()])
+            .unwrap_or(&[])
     }
 
-    fn get_bloom_word(&self, index: usize) -> Result<u32> {
+    fn get_bloom_word(&self, index: usize) -> Option<u32> {
         if index >= self.header.n_bloom_words() as usize {
-            return Err(Error::DataOffset);
+            return None;
         }
 
         let start = self.bloom_words_offset() + index * size_of::<u32>();
-        self.read_u32(start)
+        self.read_u32(start).ok()
     }
 
     // TODO: Calculate proper bloom shift
@@ -546,7 +544,7 @@ pub(crate) mod test {
         let header = table.header;
         assert_eq!(header.n_bloom_words(), 0);
         assert_eq!(header.bloom_words_len(), 0);
-        assert_eq!(table.bloom_words().unwrap(), None);
+        assert!(table.bloom_words().is_empty());
     }
 
     #[test]
@@ -591,7 +589,7 @@ pub(crate) mod test {
             let file = new_simple_file(endianess);
             let table = file.hash_table().unwrap();
             let res = table.get_bloom_word(0);
-            assert_matches!(res, Err(Error::DataOffset));
+            assert_matches!(res, None);
         }
     }
 
