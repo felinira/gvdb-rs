@@ -275,14 +275,14 @@ impl<'a, 'file> HashTable<'a, 'file> {
                     if parent == 0xffffffff {
                         // root item
                         let name = self.key_for_item(&item)?;
-                        let _ = std::mem::replace(&mut names[index], Some(name.to_string()));
+                        names[index] = Some(name.to_string());
                         inserted += 1;
                     } else if parent < count && names[parent].is_some() {
                         // We already came across this item
                         let name = self.key_for_item(&item)?;
                         let parent_name = names.get(parent).unwrap().as_ref().unwrap();
                         let full_name = parent_name.to_string() + name;
-                        let _ = std::mem::replace(&mut names[index], Some(full_name));
+                        names[index] = Some(full_name);
                         inserted += 1;
                     } else if parent > count {
                         return Err(Error::Data(format!(
