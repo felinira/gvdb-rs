@@ -139,6 +139,26 @@ impl HashHeader {
     pub fn items_offset(&self) -> usize {
         self.buckets_offset() + self.buckets_len()
     }
+
+    /// Read the items as a slice
+    fn read_items<'a>(&self, data: &'a [u8]) -> Result<&'a [HashItem]> {
+        let offset = self.items_offset();
+        let len = data.len().saturating_sub(offset);
+
+        if len == 0 {
+            // The hash table has no items. This is generally valid.
+            Ok(&[])
+        } else if len % size_of::<HashItem>() != 0 {
+            Err(Error::Data(format!(
+                "Hash item size invalid: Expected a multiple of {}, got {}",
+                size_of::<HashItem>(),
+                data.len()
+            )))
+        } else {
+            let items_data = data.get(offset..(offset + len)).unwrap_or_default();
+            Ok(transmute_many_pedantic(items_data).or(Err(Error::DataOffset))?)
+        }
+    }
 }
 
 impl Debug for HashHeader {
@@ -171,12 +191,10 @@ impl Debug for HashHeader {
 #[derive(Clone)]
 pub struct HashTable<'a, 'file> {
     pub(crate) file: &'a File<'file>,
-    /// A reference to the data section of this [`HashTable`]
-    data: &'a [u8],
+    pub(crate) header: HashHeader,
     bloom_words: SliceLEu32<'a>,
     buckets: SliceLEu32<'a>,
-    pointer: Pointer,
-    pub(crate) header: HashHeader,
+    items: &'a [HashItem],
 }
 
 impl<'a, 'file> HashTable<'a, 'file> {
@@ -187,28 +205,15 @@ impl<'a, 'file> HashTable<'a, 'file> {
         let header = HashHeader::try_from_bytes(data)?;
         let bloom_words = header.read_bloom_words(data)?;
         let buckets = header.read_buckets(data)?;
+        let items = header.read_items(data)?;
 
-        let this = Self {
+        Ok(Self {
             file: root,
-            data,
+            header,
             bloom_words,
             buckets,
-            pointer,
-            header,
-        };
-
-        let hash_items_len = data.len().saturating_sub(header.items_offset());
-
-        if hash_items_len % size_of::<HashItem>() != 0 {
-            // Wrong data length
-            Err(Error::Data(format!(
-                "Remaining size invalid: Expected a multiple of {}, got {}",
-                size_of::<HashItem>(),
-                data.len()
-            )))
-        } else {
-            Ok(this)
-        }
+            items,
+        })
     }
 
     // TODO: Calculate proper bloom shift
@@ -231,35 +236,14 @@ impl<'a, 'file> HashTable<'a, 'file> {
         bloom_word & mask == mask
     }
 
-    /// Return the hash value at `index`
-    fn read_hash(&self, index: usize) -> Option<u32> {
-        self.buckets.get(index)
-    }
-
-    /// The number of hash items
-    fn n_hash_items(&self) -> usize {
-        let len = self.hash_items_end() - self.header.items_offset();
-        len / size_of::<HashItem>()
-    }
-
-    /// The location where the hash items section ends
-    fn hash_items_end(&self) -> usize {
-        self.pointer.size()
-    }
-
     /// Get the hash item at hash item index
-    fn get_hash_item_for_index(&self, index: usize) -> Result<HashItem> {
-        let size = size_of::<HashItem>();
-        let start = self.header.items_offset() + size * index;
-        let end = start + size;
-
-        let data = self.data.get(start..end).ok_or(Error::DataOffset)?;
-        Ok(transmute_one_pedantic(data)?)
+    fn get_hash_item_for_index(&self, index: usize) -> Result<&HashItem> {
+        self.items.get(index).ok_or(Error::DataOffset)
     }
 
     /// Gets a list of keys contained in the hash table.
     pub fn keys(&self) -> Result<Vec<String>> {
-        let count = self.n_hash_items();
+        let count = self.items.len();
         let mut names: Vec<Option<String>> = vec![None; count];
 
         let mut inserted = 0;
@@ -321,7 +305,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
             return true;
         }
 
-        if parent < self.n_hash_items() as u32 && !key.is_empty() {
+        if parent < self.items.len() as u32 && !key.is_empty() {
             let parent_item = match self.get_hash_item_for_index(parent as usize) {
                 Ok(p) => p,
                 Err(_) => return false,
@@ -342,7 +326,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
 
     /// Gets the item at key `key`.
     pub(crate) fn get_hash_item(&self, key: &str) -> Result<HashItem> {
-        if self.header.n_buckets() == 0 || self.n_hash_items() == 0 {
+        if self.header.n_buckets() == 0 || self.items.len() == 0 {
             return Err(Error::KeyNotFound(key.to_string()));
         }
 
@@ -352,22 +336,23 @@ impl<'a, 'file> HashTable<'a, 'file> {
         }
 
         let bucket = hash_value % self.header.n_buckets();
-        let mut itemno = self.read_hash(bucket as usize).ok_or(Error::DataOffset)? as usize;
+        let mut itemno = self.buckets.get(bucket as usize).ok_or(Error::DataOffset)? as usize;
 
         let lastno = if bucket == self.header.n_buckets() - 1 {
-            self.n_hash_items()
+            self.items.len()
         } else {
             min(
-                self.read_hash(bucket as usize + 1)
+                self.buckets
+                    .get(bucket as usize + 1)
                     .ok_or(Error::DataOffset)?,
-                self.n_hash_items() as u32,
+                self.items.len() as u32,
             ) as usize
         };
 
         while itemno < lastno {
             let item = self.get_hash_item_for_index(itemno)?;
             if hash_value == item.hash_value() && self.check_key(&item, key) {
-                return Ok(item);
+                return Ok(*item);
             }
 
             itemno += 1;
