@@ -110,17 +110,8 @@ impl<'a> File<'a> {
 
     /// Dereference a pointer
     pub(crate) fn dereference(&self, pointer: &Pointer, alignment: u32) -> Result<&[u8]> {
-        let start: usize = pointer.start() as usize;
-        let end: usize = pointer.end() as usize;
-        let alignment: usize = alignment as usize;
-
-        if start > end {
-            Err(Error::DataOffset)
-        } else if start & (alignment - 1) != 0 {
-            Err(Error::DataAlignment)
-        } else {
-            self.data.as_ref().get(start..end).ok_or(Error::DataOffset)
-        }
+        self.get_header()?
+            .dereference(self.data.as_ref(), pointer, alignment)
     }
 
     /// Try to read the header, determine the endianness and validate that the header is valid.
