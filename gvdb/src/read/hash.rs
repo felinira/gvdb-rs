@@ -160,7 +160,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
     }
 
     /// Retrieve a single [`u32`] at `offset`
-    fn get_u32(&self, offset: usize) -> Result<u32> {
+    fn read_u32(&self, offset: usize) -> Result<u32> {
         let bytes = self
             .data()?
             .get(offset..offset + size_of::<u32>())
@@ -193,7 +193,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
         }
 
         let start = self.bloom_words_offset() + index * size_of::<u32>();
-        self.get_u32(start)
+        self.read_u32(start)
     }
 
     // TODO: Calculate proper bloom shift
@@ -229,7 +229,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
     /// Return the hash value at `index`
     fn get_hash(&self, index: usize) -> Result<u32> {
         let start = self.hash_buckets_offset() + index * size_of::<u32>();
-        self.get_u32(start)
+        self.read_u32(start)
     }
 
     /// The offset of the hash item section
