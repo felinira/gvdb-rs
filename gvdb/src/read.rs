@@ -4,6 +4,7 @@ mod hash;
 mod hash_item;
 mod header;
 mod pointer;
+mod slice;
 
 pub use error::{Error, Result};
 pub use file::File;

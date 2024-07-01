@@ -369,7 +369,7 @@ mod test {
         // 'test' will always end up being item 2.
         // The parent field is at +4.
         let hash_item_size = size_of::<HashItem>();
-        let start = file.hash_table().unwrap().hash_items_offset() + hash_item_size * 2;
+        let start = file.hash_table().unwrap().header.items_offset() + hash_item_size * 2;
 
         let parent_field = start + 4;
         data[parent_field..parent_field + size_of::<u32>()]
@@ -397,7 +397,7 @@ mod test {
         // 'test' will always end up being item 2.
         // The parent field is at +4.
         let hash_item_size = size_of::<HashItem>();
-        let start = file.hash_table().unwrap().hash_items_offset() + hash_item_size * 2;
+        let start = file.hash_table().unwrap().header.items_offset() + hash_item_size * 2;
 
         let parent_field = start + 4;
         data[parent_field..parent_field + size_of::<u32>()]
