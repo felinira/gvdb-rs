@@ -99,7 +99,13 @@ impl<'a> File<'a> {
     pub fn hash_table(&self) -> Result<HashTable> {
         let header = self.get_header()?;
         let root_ptr = header.root();
-        HashTable::for_bytes(*root_ptr, self)
+        self.read_hash_table(root_ptr)
+    }
+
+    /// Dereference a pointer and try to read the underlying hash table
+    pub(crate) fn read_hash_table(&self, pointer: &Pointer) -> Result<HashTable> {
+        let data = self.dereference(pointer, 4)?;
+        HashTable::for_bytes(data, self)
     }
 
     /// Dereference a pointer

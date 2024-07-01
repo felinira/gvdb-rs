@@ -2,9 +2,7 @@ use crate::read::error::{Error, Result};
 use crate::read::file::File;
 use crate::read::hash_item::HashItem;
 use crate::util::djb_hash;
-use safe_transmute::{
-    transmute_many_pedantic, transmute_one, transmute_one_pedantic, TriviallyTransmutable,
-};
+use safe_transmute::{transmute_many_pedantic, transmute_one, TriviallyTransmutable};
 use serde::Deserialize;
 use std::cmp::min;
 use std::fmt::{Debug, Formatter};
@@ -12,7 +10,7 @@ use std::mem::size_of;
 use zvariant::Type;
 
 use super::slice::SliceLEu32;
-use super::{HashItemType, Pointer};
+use super::HashItemType;
 
 #[cfg(unix)]
 type GVariantDeserializer<'de, 'sig, 'f> =
@@ -200,8 +198,7 @@ pub struct HashTable<'a, 'file> {
 impl<'a, 'file> HashTable<'a, 'file> {
     /// Interpret a chunk of bytes as a HashTable. The table_ptr should point to the hash table.
     /// Data has to be the complete GVDB file, as hash table items are stored somewhere else.
-    pub(crate) fn for_bytes(pointer: Pointer, root: &'a File<'file>) -> Result<Self> {
-        let data = root.dereference(&pointer, 4)?;
+    pub(crate) fn for_bytes(data: &'a [u8], root: &'a File<'file>) -> Result<Self> {
         let header = HashHeader::try_from_bytes(data)?;
         let bloom_words = header.read_bloom_words(data)?;
         let buckets = header.read_buckets(data)?;
@@ -381,7 +378,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
         let item = self.get_hash_item(key)?;
         let typ = item.typ()?;
         if typ == HashItemType::HashTable {
-            HashTable::for_bytes(*item.value_ptr(), self.file)
+            self.file.read_hash_table(item.value_ptr())
         } else {
             Err(Error::Data(format!(
                 "Unable to parse item for key '{}' as hash table: Expected type 'H', got type '{}'",
