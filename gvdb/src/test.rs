@@ -168,7 +168,6 @@ pub fn assert_bytes_eq(a: &[u8], b: &[u8], context: &str) {
     }
 }
 
-#[track_caller]
 pub fn byte_compare_gvdb_file(a: &File, b: &File, context: &str) {
     assert_eq!(a.get_header().unwrap(), b.get_header().unwrap());
 

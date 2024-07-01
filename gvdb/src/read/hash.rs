@@ -6,11 +6,12 @@ use safe_transmute::{
     transmute_many_pedantic, transmute_one, transmute_one_pedantic, TriviallyTransmutable,
 };
 use serde::Deserialize;
-use std::cmp::{max, min};
+use std::cmp::min;
 use std::fmt::{Debug, Formatter};
 use std::mem::size_of;
 use zvariant::Type;
 
+use super::slice::SliceLEu32;
 use super::{HashItemType, Pointer};
 
 #[cfg(unix)]
@@ -52,14 +53,49 @@ impl HashHeader {
         }
     }
 
+    /// Read the hash table header from `data`
+    pub fn try_from_bytes(data: &[u8]) -> Result<Self> {
+        let bytes: &[u8] = data
+            .get(0..size_of::<HashHeader>())
+            .ok_or(Error::DataOffset)?;
+
+        Ok(transmute_one(bytes)?)
+    }
+
     /// Number of bloom words in the hash table header
     pub fn n_bloom_words(&self) -> u32 {
         u32::from_le(self.n_bloom_words) & ((1 << 27) - 1)
     }
 
+    /// The start of the bloom words region
+    pub fn bloom_words_offset(&self) -> usize {
+        size_of::<Self>()
+    }
+
     /// Size of the bloom words section in the header
     pub fn bloom_words_len(&self) -> usize {
         self.n_bloom_words() as usize * size_of::<u32>()
+    }
+
+    /// Read the bloom words from `data`
+    fn read_bloom_words<'a>(&self, data: &'a [u8]) -> Result<SliceLEu32<'a>> {
+        // Bloom words come directly after header
+        let offset = self.bloom_words_offset();
+        let len = self.bloom_words_len();
+
+        if len == 0 {
+            Ok(SliceLEu32(&[]))
+        } else {
+            let words_data = data.get(offset..(offset + len)).ok_or(Error::DataOffset)?;
+            Ok(SliceLEu32(
+                transmute_many_pedantic(words_data).or(Err(Error::DataOffset))?,
+            ))
+        }
+    }
+
+    /// The offset of the hash buckets section
+    pub fn buckets_offset(&self) -> usize {
+        self.bloom_words_offset() + self.bloom_words_len()
     }
 
     /// Number of hash buckets in the hash table header
@@ -70,6 +106,11 @@ impl HashHeader {
     /// Length of the hash buckets section in the header
     pub fn buckets_len(&self) -> usize {
         self.n_buckets() as usize * size_of::<u32>()
+    }
+
+    /// The start of the hash items region
+    pub fn items_offset(&self) -> usize {
+        self.buckets_offset() + self.buckets_len()
     }
 }
 
@@ -86,23 +127,26 @@ impl Debug for HashHeader {
 /// A hash table inside a GVDB file
 ///
 /// ```text
-/// +-------+---------------------------+
-/// | Bytes | Field                     |
-/// +-------+---------------------------+
-/// |     4 | number of bloom words (b) |
-/// +-------+---------------------------+
-/// |     4 | number of buckets (n)     |
-/// +-------+---------------------------+
-/// | b * 4 | bloom words               |
-/// +-------+---------------------------+
-/// | n * 4 | buckets                   |
-/// +-------+---------------------------+
+/// +--------+---------------------------+
+/// |  Bytes | Field                     |
+/// +--------+---------------------------+
+/// |      4 | number of bloom words (b) |
+/// +--------+---------------------------+
+/// |      4 | number of buckets (n)     |
+/// +--------+---------------------------+
+/// |  b * 4 | bloom words               |
+/// +--------+---------------------------+
+/// |  n * 4 | buckets                   |
+/// +--------+---------------------------+
+/// | x * 24 | hash items                |
+/// +--------+---------------------------+
 /// ```
 #[derive(Clone)]
 pub struct HashTable<'a, 'file> {
     pub(crate) file: &'a File<'file>,
     /// A reference to the data section of this [`HashTable`]
     data: &'a [u8],
+    bloom_words: SliceLEu32<'a>,
     pointer: Pointer,
     pub(crate) header: HashHeader,
 }
@@ -112,22 +156,22 @@ impl<'a, 'file> HashTable<'a, 'file> {
     /// Data has to be the complete GVDB file, as hash table items are stored somewhere else.
     pub(crate) fn for_bytes(pointer: Pointer, root: &'a File<'file>) -> Result<Self> {
         let data = root.dereference(&pointer, 4)?;
-        let header = Self::hash_header(data)?;
+        let header = HashHeader::try_from_bytes(data)?;
+        let bloom_words = header.read_bloom_words(data)?;
 
         let this = Self {
             file: root,
             data,
+            bloom_words,
             pointer,
             header,
         };
 
         let header_len = size_of::<HashHeader>();
-        let bloom_words_len = this.bloom_words_end() - this.bloom_words_offset();
-        let hash_buckets_len = this.hash_buckets_end() - this.hash_buckets_offset();
+        let bloom_words_len = this.header.bloom_words_len();
+        let hash_buckets_len = header.buckets_len();
 
-        // we use max() here to prevent possible underflow
-        let hash_items_len =
-            max(this.hash_items_end(), this.hash_items_offset()) - this.hash_items_offset();
+        let hash_items_len = data.len().saturating_sub(header.items_offset());
         let required_len = header_len + bloom_words_len + hash_buckets_len + hash_items_len;
 
         if required_len > data.len() {
@@ -148,15 +192,6 @@ impl<'a, 'file> HashTable<'a, 'file> {
         }
     }
 
-    /// Read the hash table header
-    fn hash_header(data: &'a [u8]) -> Result<HashHeader> {
-        let bytes: &[u8] = data
-            .get(0..size_of::<HashHeader>())
-            .ok_or(Error::DataOffset)?;
-
-        Ok(transmute_one(bytes)?)
-    }
-
     /// Retrieve a single [`u32`] at `offset`
     fn read_u32(&self, offset: usize) -> Result<u32> {
         let bytes = self
@@ -164,32 +199,6 @@ impl<'a, 'file> HashTable<'a, 'file> {
             .get(offset..offset + size_of::<u32>())
             .ok_or(Error::DataOffset)?;
         Ok(u32::from_le_bytes(bytes.try_into().unwrap()))
-    }
-
-    fn bloom_words_offset(&self) -> usize {
-        size_of::<HashHeader>()
-    }
-
-    fn bloom_words_end(&self) -> usize {
-        self.bloom_words_offset() + self.header.bloom_words_len()
-    }
-
-    /// Returns the bloom words for this hash table
-    #[allow(dead_code)]
-    fn bloom_words(&self) -> &[u32] {
-        // This indexing operation is safe as data is guaranteed to be larger than
-        // bloom_words_offset and this will just return an empty slice if end == offset
-        transmute_many_pedantic(&self.data[self.bloom_words_offset()..self.bloom_words_end()])
-            .unwrap_or(&[])
-    }
-
-    fn get_bloom_word(&self, index: usize) -> Option<u32> {
-        if index >= self.header.n_bloom_words() as usize {
-            return None;
-        }
-
-        let start = self.bloom_words_offset() + index * size_of::<u32>();
-        self.read_u32(start).ok()
     }
 
     // TODO: Calculate proper bloom shift
@@ -208,34 +217,19 @@ impl<'a, 'file> HashTable<'a, 'file> {
         mask |= 1 << ((hash_value >> self.bloom_shift()) & 31);
 
         // We know this index is < n_bloom_words
-        let bloom_word = self.get_bloom_word(word as usize).unwrap();
+        let bloom_word = self.bloom_words.get(word as usize).unwrap();
         bloom_word & mask == mask
-    }
-
-    /// The offset of the hash buckets section
-    fn hash_buckets_offset(&self) -> usize {
-        self.bloom_words_end()
-    }
-
-    /// The location where the hash bucket section ends
-    fn hash_buckets_end(&self) -> usize {
-        self.hash_buckets_offset() + self.header.buckets_len()
     }
 
     /// Return the hash value at `index`
     fn get_hash(&self, index: usize) -> Result<u32> {
-        let start = self.hash_buckets_offset() + index * size_of::<u32>();
+        let start = self.header.buckets_offset() + index * size_of::<u32>();
         self.read_u32(start)
-    }
-
-    /// The offset of the hash item section
-    pub(crate) fn hash_items_offset(&self) -> usize {
-        self.hash_buckets_end()
     }
 
     /// The number of hash items
     fn n_hash_items(&self) -> usize {
-        let len = self.hash_items_end() - self.hash_items_offset();
+        let len = self.hash_items_end() - self.header.items_offset();
         len / size_of::<HashItem>()
     }
 
@@ -247,7 +241,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
     /// Get the hash item at hash item index
     fn get_hash_item_for_index(&self, index: usize) -> Result<HashItem> {
         let size = size_of::<HashItem>();
-        let start = self.hash_items_offset() + size * index;
+        let start = self.header.items_offset() + size * index;
         let end = start + size;
 
         let data = self.data.get(start..end).ok_or(Error::DataOffset)?;
@@ -544,7 +538,7 @@ pub(crate) mod test {
         let header = table.header;
         assert_eq!(header.n_bloom_words(), 0);
         assert_eq!(header.bloom_words_len(), 0);
-        assert!(table.bloom_words().is_empty());
+        assert!(table.bloom_words.is_empty());
     }
 
     #[test]
@@ -588,7 +582,7 @@ pub(crate) mod test {
         for endianess in [true, false] {
             let file = new_simple_file(endianess);
             let table = file.hash_table().unwrap();
-            let res = table.get_bloom_word(0);
+            let res = table.bloom_words.get(0);
             assert_matches!(res, None);
         }
     }
