@@ -86,7 +86,13 @@ impl HashHeader {
         if len == 0 {
             Ok(SliceLEu32(&[]))
         } else {
-            let words_data = data.get(offset..(offset + len)).ok_or(Error::DataOffset)?;
+            let words_data = data.get(offset..(offset + len)).ok_or_else(|| {
+                Error::Data(format!(
+                    "Not enough bytes to fit hash table: Expected at least {} bytes, got {}",
+                    self.items_offset(),
+                    data.len()
+                ))
+            })?;
             Ok(SliceLEu32(
                 transmute_many_pedantic(words_data).or(Err(Error::DataOffset))?,
             ))
@@ -106,6 +112,27 @@ impl HashHeader {
     /// Length of the hash buckets section in the header
     pub fn buckets_len(&self) -> usize {
         self.n_buckets() as usize * size_of::<u32>()
+    }
+
+    /// Read the buckets as a little endian slice
+    fn read_buckets<'a>(&self, data: &'a [u8]) -> Result<SliceLEu32<'a>> {
+        let offset = self.buckets_offset();
+        let len = self.buckets_len();
+
+        if len == 0 {
+            Ok(SliceLEu32(&[]))
+        } else {
+            let buckets_data = data.get(offset..(offset + len)).ok_or_else(|| {
+                Error::Data(format!(
+                    "Not enough bytes to fit hash table: Expected at least {} bytes, got {}",
+                    self.items_offset(),
+                    data.len()
+                ))
+            })?;
+            Ok(SliceLEu32(
+                transmute_many_pedantic(buckets_data).or(Err(Error::DataOffset))?,
+            ))
+        }
     }
 
     /// The start of the hash items region
@@ -147,6 +174,7 @@ pub struct HashTable<'a, 'file> {
     /// A reference to the data section of this [`HashTable`]
     data: &'a [u8],
     bloom_words: SliceLEu32<'a>,
+    buckets: SliceLEu32<'a>,
     pointer: Pointer,
     pub(crate) header: HashHeader,
 }
@@ -158,29 +186,20 @@ impl<'a, 'file> HashTable<'a, 'file> {
         let data = root.dereference(&pointer, 4)?;
         let header = HashHeader::try_from_bytes(data)?;
         let bloom_words = header.read_bloom_words(data)?;
+        let buckets = header.read_buckets(data)?;
 
         let this = Self {
             file: root,
             data,
             bloom_words,
+            buckets,
             pointer,
             header,
         };
 
-        let header_len = size_of::<HashHeader>();
-        let bloom_words_len = this.header.bloom_words_len();
-        let hash_buckets_len = header.buckets_len();
-
         let hash_items_len = data.len().saturating_sub(header.items_offset());
-        let required_len = header_len + bloom_words_len + hash_buckets_len + hash_items_len;
 
-        if required_len > data.len() {
-            Err(Error::Data(format!(
-                "Not enough bytes to fit hash table: Expected at least {} bytes, got {}",
-                required_len,
-                data.len()
-            )))
-        } else if hash_items_len % size_of::<HashItem>() != 0 {
+        if hash_items_len % size_of::<HashItem>() != 0 {
             // Wrong data length
             Err(Error::Data(format!(
                 "Remaining size invalid: Expected a multiple of {}, got {}",
@@ -190,15 +209,6 @@ impl<'a, 'file> HashTable<'a, 'file> {
         } else {
             Ok(this)
         }
-    }
-
-    /// Retrieve a single [`u32`] at `offset`
-    fn read_u32(&self, offset: usize) -> Result<u32> {
-        let bytes = self
-            .data
-            .get(offset..offset + size_of::<u32>())
-            .ok_or(Error::DataOffset)?;
-        Ok(u32::from_le_bytes(bytes.try_into().unwrap()))
     }
 
     // TODO: Calculate proper bloom shift
@@ -222,9 +232,8 @@ impl<'a, 'file> HashTable<'a, 'file> {
     }
 
     /// Return the hash value at `index`
-    fn get_hash(&self, index: usize) -> Result<u32> {
-        let start = self.header.buckets_offset() + index * size_of::<u32>();
-        self.read_u32(start)
+    fn read_hash(&self, index: usize) -> Option<u32> {
+        self.buckets.get(index)
     }
 
     /// The number of hash items
@@ -343,13 +352,14 @@ impl<'a, 'file> HashTable<'a, 'file> {
         }
 
         let bucket = hash_value % self.header.n_buckets();
-        let mut itemno = self.get_hash(bucket as usize)? as usize;
+        let mut itemno = self.read_hash(bucket as usize).ok_or(Error::DataOffset)? as usize;
 
         let lastno = if bucket == self.header.n_buckets() - 1 {
             self.n_hash_items()
         } else {
             min(
-                self.get_hash(bucket as usize + 1)?,
+                self.read_hash(bucket as usize + 1)
+                    .ok_or(Error::DataOffset)?,
                 self.n_hash_items() as u32,
             ) as usize
         };
@@ -462,6 +472,8 @@ impl std::fmt::Debug for HashTable<'_, '_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HashTable")
             .field("header", &self.header)
+            .field("bloom_words", &self.bloom_words)
+            .field("buckets", &self.buckets)
             .field(
                 "map",
                 &self.keys().map(|res| {
