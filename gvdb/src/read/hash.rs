@@ -101,6 +101,8 @@ impl Debug for HashHeader {
 #[derive(Clone)]
 pub struct HashTable<'a, 'file> {
     pub(crate) file: &'a File<'file>,
+    /// A reference to the data section of this [`HashTable`]
+    data: &'a [u8],
     pointer: Pointer,
     pub(crate) header: HashHeader,
 }
@@ -114,6 +116,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
 
         let this = Self {
             file: root,
+            data,
             pointer,
             header,
         };
@@ -154,15 +157,10 @@ impl<'a, 'file> HashTable<'a, 'file> {
         Ok(transmute_one(bytes)?)
     }
 
-    /// A reference to the data section of this [`HashTable`]
-    fn data(&self) -> Result<&[u8]> {
-        self.file.dereference(&self.pointer, 4)
-    }
-
     /// Retrieve a single [`u32`] at `offset`
     fn read_u32(&self, offset: usize) -> Result<u32> {
         let bytes = self
-            .data()?
+            .data
             .get(offset..offset + size_of::<u32>())
             .ok_or(Error::DataOffset)?;
         Ok(u32::from_le_bytes(bytes.try_into().unwrap()))
@@ -181,10 +179,10 @@ impl<'a, 'file> HashTable<'a, 'file> {
     fn bloom_words(&self) -> Result<Option<&[u32]>> {
         // This indexing operation is safe as data is guaranteed to be larger than
         // bloom_words_offset and this will just return an empty slice if end == offset
-        Ok(transmute_many_pedantic(
-            &self.data()?[self.bloom_words_offset()..self.bloom_words_end()],
+        Ok(
+            transmute_many_pedantic(&self.data[self.bloom_words_offset()..self.bloom_words_end()])
+                .ok(),
         )
-        .ok())
     }
 
     fn get_bloom_word(&self, index: usize) -> Result<u32> {
@@ -254,7 +252,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
         let start = self.hash_items_offset() + size * index;
         let end = start + size;
 
-        let data = self.data()?.get(start..end).ok_or(Error::DataOffset)?;
+        let data = self.data.get(start..end).ok_or(Error::DataOffset)?;
         Ok(transmute_one_pedantic(data)?)
     }
 
