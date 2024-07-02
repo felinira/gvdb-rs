@@ -157,25 +157,6 @@ impl Header {
     pub fn root(&self) -> &Pointer {
         &self.root
     }
-
-    pub fn dereference<'a>(
-        &self,
-        data: &'a [u8],
-        pointer: &Pointer,
-        alignment: u32,
-    ) -> Result<&'a [u8]> {
-        let start: usize = pointer.start() as usize;
-        let end: usize = pointer.end() as usize;
-        let alignment: usize = alignment as usize;
-
-        if start > end {
-            Err(Error::DataOffset)
-        } else if start & (alignment - 1) != 0 {
-            Err(Error::DataAlignment)
-        } else {
-            data.get(start..end).ok_or(Error::DataOffset)
-        }
-    }
 }
 
 #[cfg(test)]
