@@ -96,7 +96,7 @@ impl<'a> Data<'a> {
 /// ```
 pub struct File<'a> {
     pub(crate) data: Data<'a>,
-    pub(crate) byteswapped: bool,
+    pub(crate) endianness: zvariant::Endian,
     pub(crate) header: Header,
 }
 
@@ -105,17 +105,13 @@ impl<'a> File<'a> {
     pub fn hash_table(&self) -> Result<HashTable> {
         let header = self.header;
         let root_ptr = header.root();
-        self.read_hash_table(root_ptr, self.zvariant_endianess())
+        self.read_hash_table(root_ptr)
     }
 
     /// Dereference a pointer and try to read the underlying hash table
-    pub(crate) fn read_hash_table(
-        &self,
-        pointer: &Pointer,
-        endianness: zvariant::Endian,
-    ) -> Result<HashTable> {
+    pub(crate) fn read_hash_table(&self, pointer: &Pointer) -> Result<HashTable> {
         let data = self.data.dereference(pointer, 4)?;
-        HashTable::for_bytes(data, self, endianness)
+        HashTable::for_bytes(data, self)
     }
 
     /// Dereference a pointer
@@ -127,9 +123,18 @@ impl<'a> File<'a> {
         let header = Header::try_from_bytes(data.as_ref())?;
         let byteswapped = header.is_byteswap()?;
 
+        // Determine the zvariant endianness by comparing with target endianness
+        let endianness = if cfg!(target_endian = "little") && !byteswapped
+            || cfg!(target_endian = "big") && byteswapped
+        {
+            zvariant::LE
+        } else {
+            zvariant::BE
+        };
+
         Ok(Self {
             data,
-            byteswapped,
+            endianness,
             header,
         })
     }
@@ -172,14 +177,8 @@ impl<'a> File<'a> {
     }
 
     /// Determine the endianess to use for zvariant
-    pub(crate) fn zvariant_endianess(&self) -> zvariant::Endian {
-        if cfg!(target_endian = "little") && !self.byteswapped
-            || cfg!(target_endian = "big") && self.byteswapped
-        {
-            zvariant::LE
-        } else {
-            zvariant::BE
-        }
+    pub(crate) fn endianness(&self) -> zvariant::Endian {
+        self.endianness
     }
 }
 
@@ -187,13 +186,13 @@ impl std::fmt::Debug for File<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Ok(hash_table) = self.hash_table() {
             f.debug_struct("File")
-                .field("byteswapped", &self.byteswapped)
+                .field("endianness", &self.endianness)
                 .field("header", &self.header)
                 .field("hash_table", &hash_table)
                 .finish()
         } else {
             f.debug_struct("File")
-                .field("byteswapped", &self.byteswapped)
+                .field("endianness", &self.endianness)
                 .field("header", &self.header)
                 .finish_non_exhaustive()
         }
