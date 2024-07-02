@@ -9,6 +9,7 @@ use std::fmt::{Debug, Formatter};
 use std::mem::size_of;
 use zvariant::Type;
 
+use super::file::Data;
 use super::slice::SliceLEu32;
 use super::HashItemType;
 
@@ -193,12 +194,17 @@ pub struct HashTable<'a, 'file> {
     bloom_words: SliceLEu32<'a>,
     buckets: SliceLEu32<'a>,
     items: &'a [HashItem],
+    endianness: zvariant::Endian,
 }
 
 impl<'a, 'file> HashTable<'a, 'file> {
     /// Interpret a chunk of bytes as a HashTable. The table_ptr should point to the hash table.
     /// Data has to be the complete GVDB file, as hash table items are stored somewhere else.
-    pub(crate) fn for_bytes(data: &'a [u8], root: &'a File<'file>) -> Result<Self> {
+    pub(crate) fn for_bytes(
+        data: &'a [u8],
+        root: &'a File<'file>,
+        endianness: zvariant::Endian,
+    ) -> Result<Self> {
         let header = HashHeader::try_from_bytes(data)?;
         let bloom_words = header.read_bloom_words(data)?;
         let buckets = header.read_buckets(data)?;
@@ -210,6 +216,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
             bloom_words,
             buckets,
             items,
+            endianness,
         })
     }
 
@@ -378,7 +385,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
         let item = self.get_hash_item(key)?;
         let typ = item.typ()?;
         if typ == HashItemType::HashTable {
-            self.file.read_hash_table(item.value_ptr())
+            self.file.read_hash_table(item.value_ptr(), self.endianness)
         } else {
             Err(Error::Data(format!(
                 "Unable to parse item for key '{}' as hash table: Expected type 'H', got type '{}'",
@@ -393,8 +400,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
         let data = self.get_bytes(key)?;
 
         // Create a new zvariant context based on our endianess and the byteswapped property
-        let context =
-            zvariant::serialized::Context::new_gvariant(self.file.zvariant_endianess(), 0);
+        let context = zvariant::serialized::Context::new_gvariant(self.endianness, 0);
 
         // On non-unix systems this function lacks the FD argument
         let de: GVariantDeserializer = GVariantDeserializer::new(
@@ -442,7 +448,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
         let data = self.get_bytes(key)?;
         let variant = glib::Variant::from_data_with_type(data, glib::VariantTy::VARIANT);
 
-        if self.file.byteswapped {
+        if self.endianness == zvariant::Endian::native() {
             Ok(variant.byteswap())
         } else {
             Ok(variant)

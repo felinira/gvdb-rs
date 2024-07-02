@@ -23,6 +23,23 @@ impl AsRef<[u8]> for Data<'_> {
     }
 }
 
+impl<'a> Data<'a> {
+    /// Dereference a pointer
+    pub fn dereference(&'a self, pointer: &Pointer, alignment: u32) -> Result<&'a [u8]> {
+        let start: usize = pointer.start() as usize;
+        let end: usize = pointer.end() as usize;
+        let alignment: usize = alignment as usize;
+
+        if start > end {
+            Err(Error::DataOffset)
+        } else if start & (alignment - 1) != 0 {
+            Err(Error::DataAlignment)
+        } else {
+            self.as_ref().get(start..end).ok_or(Error::DataOffset)
+        }
+    }
+}
+
 /// The root of a GVDB file
 ///
 /// # Examples
@@ -88,19 +105,22 @@ impl<'a> File<'a> {
     pub fn hash_table(&self) -> Result<HashTable> {
         let header = self.header;
         let root_ptr = header.root();
-        self.read_hash_table(root_ptr)
+        self.read_hash_table(root_ptr, self.zvariant_endianess())
     }
 
     /// Dereference a pointer and try to read the underlying hash table
-    pub(crate) fn read_hash_table(&self, pointer: &Pointer) -> Result<HashTable> {
-        let data = self.dereference(pointer, 4)?;
-        HashTable::for_bytes(data, self)
+    pub(crate) fn read_hash_table(
+        &self,
+        pointer: &Pointer,
+        endianness: zvariant::Endian,
+    ) -> Result<HashTable> {
+        let data = self.data.dereference(pointer, 4)?;
+        HashTable::for_bytes(data, self, endianness)
     }
 
     /// Dereference a pointer
     pub(crate) fn dereference(&self, pointer: &Pointer, alignment: u32) -> Result<&[u8]> {
-        self.header
-            .dereference(self.data.as_ref(), pointer, alignment)
+        self.data.dereference(pointer, alignment)
     }
 
     fn from_data(data: Data<'a>) -> Result<Self> {
@@ -376,7 +396,7 @@ mod test {
     fn test_dereference_offset1() {
         // Pointer start > EOF
         let file = create_minimal_file();
-        let res = file.dereference(&Pointer::new(40, 42), 2);
+        let res = file.data.dereference(&Pointer::new(40, 42), 2);
 
         assert_matches!(res, Err(Error::DataOffset));
         println!("{}", res.unwrap_err());
@@ -386,7 +406,7 @@ mod test {
     fn test_dereference_offset2() {
         // Pointer start > end
         let file = create_minimal_file();
-        let res = file.dereference(&Pointer::new(10, 0), 2);
+        let res = file.data.dereference(&Pointer::new(10, 0), 2);
 
         assert_matches!(res, Err(Error::DataOffset));
         println!("{}", res.unwrap_err());
@@ -396,7 +416,7 @@ mod test {
     fn test_dereference_offset3() {
         // Pointer end > EOF
         let file = create_minimal_file();
-        let res = file.dereference(&Pointer::new(10, 0), 2);
+        let res = file.data.dereference(&Pointer::new(10, 0), 2);
 
         assert_matches!(res, Err(Error::DataOffset));
         println!("{}", res.unwrap_err());
@@ -406,7 +426,7 @@ mod test {
     fn test_dereference_alignment() {
         // Pointer end > EOF
         let file = create_minimal_file();
-        let res = file.dereference(&Pointer::new(1, 2), 2);
+        let res = file.data.dereference(&Pointer::new(1, 2), 2);
 
         assert_matches!(res, Err(Error::DataAlignment));
         println!("{}", res.unwrap_err());
