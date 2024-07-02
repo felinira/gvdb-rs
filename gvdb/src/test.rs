@@ -169,7 +169,7 @@ pub fn assert_bytes_eq(a: &[u8], b: &[u8], context: &str) {
 }
 
 pub fn byte_compare_gvdb_file(a: &File, b: &File, context: &str) {
-    assert_eq!(a.get_header().unwrap(), b.get_header().unwrap());
+    assert_eq!(a.header, b.header);
 
     let a_hash = a.hash_table().unwrap();
     let b_hash = b.hash_table().unwrap();
