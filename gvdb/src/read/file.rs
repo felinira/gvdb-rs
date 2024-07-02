@@ -2,10 +2,8 @@ use crate::read::error::{Error, Result};
 use crate::read::header::Header;
 use crate::read::pointer::Pointer;
 use crate::read::HashTable;
-use safe_transmute::transmute_one_pedantic;
 use std::borrow::Cow;
 use std::io::Read;
-use std::mem::size_of;
 use std::path::Path;
 
 #[derive(Debug)]
@@ -82,22 +80,13 @@ impl AsRef<[u8]> for Data<'_> {
 pub struct File<'a> {
     pub(crate) data: Data<'a>,
     pub(crate) byteswapped: bool,
+    pub(crate) header: Header,
 }
 
 impl<'a> File<'a> {
-    /// Get the GVDB file header. Returns [`Error::DataOffset`]` if the header doesn't fit
-    pub(crate) fn get_header(&self) -> Result<Header> {
-        let header_data = self
-            .data
-            .as_ref()
-            .get(0..size_of::<Header>())
-            .ok_or(Error::DataOffset)?;
-        Ok(transmute_one_pedantic(header_data)?)
-    }
-
     /// Returns the root hash table of the file
     pub fn hash_table(&self) -> Result<HashTable> {
-        let header = self.get_header()?;
+        let header = self.header;
         let root_ptr = header.root();
         self.read_hash_table(root_ptr)
     }
@@ -110,41 +99,24 @@ impl<'a> File<'a> {
 
     /// Dereference a pointer
     pub(crate) fn dereference(&self, pointer: &Pointer, alignment: u32) -> Result<&[u8]> {
-        self.get_header()?
+        self.header
             .dereference(self.data.as_ref(), pointer, alignment)
     }
 
-    /// Try to read the header, determine the endianness and validate that the header is valid.
-    fn read_header(&mut self) -> Result<()> {
-        let header = self.get_header()?;
-        if !header.header_valid() {
-            return Err(Error::Data(
-                "Invalid GVDB header. Is this a GVDB file?".to_string(),
-            ));
-        }
+    fn from_data(data: Data<'a>) -> Result<Self> {
+        let header = Header::try_from_bytes(data.as_ref())?;
+        let byteswapped = header.is_byteswap()?;
 
-        self.byteswapped = header.is_byteswap()?;
-
-        if header.version() != 0 {
-            return Err(Error::Data(format!(
-                "Unknown GVDB file format version: {}",
-                header.version()
-            )));
-        }
-
-        Ok(())
+        Ok(Self {
+            data,
+            byteswapped,
+            header,
+        })
     }
 
     /// Interpret a slice of bytes as a GVDB file
     pub fn from_bytes(bytes: Cow<'a, [u8]>) -> Result<Self> {
-        let mut this = Self {
-            data: Data::Cow(bytes),
-            byteswapped: false,
-        };
-
-        this.read_header()?;
-
-        Ok(this)
+        Self::from_data(Data::Cow(bytes))
     }
 
     /// Open a file and interpret the data as GVDB
@@ -176,15 +148,7 @@ impl<'a> File<'a> {
     pub unsafe fn from_file_mmap(filename: &Path) -> Result<Self> {
         let file = std::fs::File::open(filename).map_err(Error::from_io_with_filename(filename))?;
         let mmap = memmap2::Mmap::map(&file).map_err(Error::from_io_with_filename(filename))?;
-
-        let mut this = Self {
-            data: Data::Mmap(mmap),
-            byteswapped: false,
-        };
-
-        this.read_header()?;
-
-        Ok(this)
+        Self::from_data(Data::Mmap(mmap))
     }
 
     /// Determine the endianess to use for zvariant
@@ -204,13 +168,13 @@ impl std::fmt::Debug for File<'_> {
         if let Ok(hash_table) = self.hash_table() {
             f.debug_struct("File")
                 .field("byteswapped", &self.byteswapped)
-                .field("header", &self.get_header())
+                .field("header", &self.header)
                 .field("hash_table", &hash_table)
                 .finish()
         } else {
             f.debug_struct("File")
                 .field("byteswapped", &self.byteswapped)
-                .field("header", &self.get_header())
+                .field("header", &self.header)
                 .finish_non_exhaustive()
         }
     }

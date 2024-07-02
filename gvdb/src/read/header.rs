@@ -1,6 +1,8 @@
+use std::mem::size_of;
+
 use crate::read::error::{Error, Result};
 use crate::read::pointer::Pointer;
-use safe_transmute::TriviallyTransmutable;
+use safe_transmute::{transmute_one_pedantic, TriviallyTransmutable};
 
 // This is just a string, but it is stored in the byteorder of the file
 // Default byteorder is little endian, but the format supports big endian as well
@@ -56,6 +58,33 @@ pub struct Header {
 unsafe impl TriviallyTransmutable for Header {}
 
 impl Header {
+    /// Try to read the header, determine the endianness and validate that the header is valid.
+    ///
+    /// Returns [`Error::DataOffset`]` if the header doesn't fit, and [`Error::Data`] if the header
+    /// is invalid.
+    pub fn try_from_bytes(data: &[u8]) -> Result<Self> {
+        let header_data = data
+            .as_ref()
+            .get(0..size_of::<Header>())
+            .ok_or(Error::DataOffset)?;
+        let header: Self = transmute_one_pedantic(header_data)?;
+
+        if !header.header_valid() {
+            return Err(Error::Data(
+                "Invalid GVDB header. Is this a GVDB file?".to_string(),
+            ));
+        }
+
+        if header.version() != 0 {
+            return Err(Error::Data(format!(
+                "Unknown GVDB file format version: {}",
+                header.version()
+            )));
+        }
+
+        Ok(header)
+    }
+
     /// Create a new GVDB header in little-endian
     #[cfg(test)]
     pub fn new_le(version: u32, root: Pointer) -> Self {
