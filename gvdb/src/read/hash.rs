@@ -1,5 +1,4 @@
 use crate::read::error::{Error, Result};
-use crate::read::file::File;
 use crate::read::hash_item::HashItem;
 use crate::util::djb_hash;
 use safe_transmute::{transmute_many_pedantic, transmute_one, TriviallyTransmutable};
@@ -449,9 +448,9 @@ impl<'a, 'file> HashTable<'a, 'file> {
         let variant = glib::Variant::from_data_with_type(data, glib::VariantTy::VARIANT);
 
         if self.endianness == zvariant::Endian::native() {
-            Ok(variant.byteswap())
-        } else {
             Ok(variant)
+        } else {
+            Ok(variant.byteswap())
         }
     }
 }
@@ -551,10 +550,14 @@ pub(crate) mod test {
         for endianess in [true, false] {
             let file = new_simple_file(endianess);
             let table = file.hash_table().unwrap();
-            let item = table.get_hash_item("test").unwrap();
+            let item = table.get_hash_item(SIMPLE_FILE_KEY).unwrap();
             assert_ne!(item.value_ptr(), &Pointer::NULL);
-            let value: String = table.get_value("test").unwrap().try_into().unwrap();
-            assert_eq!(value, "test");
+            let value: u32 = table
+                .get_value(SIMPLE_FILE_KEY)
+                .unwrap()
+                .try_into()
+                .unwrap();
+            assert_eq!(value, SIMPLE_FILE_VALUE);
 
             let item_fail = table.get_hash_item("fail").unwrap_err();
             assert_matches!(item_fail, Error::KeyNotFound(_));
@@ -569,10 +572,10 @@ pub(crate) mod test {
         for endianess in [true, false] {
             let file = new_simple_file(endianess);
             let table = file.hash_table().unwrap();
-            let res: String = table.get::<String>("test").unwrap();
-            assert_eq!(&res, "test");
+            let res: u32 = table.get::<u32>(SIMPLE_FILE_KEY).unwrap();
+            assert_eq!(res, SIMPLE_FILE_VALUE);
 
-            let res = table.get::<i32>("test");
+            let res = table.get::<i32>(SIMPLE_FILE_KEY);
             assert_matches!(res, Err(Error::Data(_)));
         }
     }
@@ -602,8 +605,8 @@ pub(crate) mod test {
         for endianess in [true, false] {
             let file = new_simple_file(endianess);
             let table = file.hash_table().unwrap();
-            let res = table.get_value("test").unwrap();
-            assert_eq!(&res, &zvariant::Value::from("test"));
+            let res = table.get_value(SIMPLE_FILE_KEY).unwrap();
+            assert_eq!(&res, &zvariant::Value::from(SIMPLE_FILE_VALUE));
 
             let fail = table.get_value("fail").unwrap_err();
             assert_matches!(fail, Error::KeyNotFound(_));
@@ -693,7 +696,7 @@ pub(crate) mod test {
 #[cfg(all(feature = "glib", test))]
 mod test_glib {
     use crate::read::Error;
-    use crate::test::new_simple_file;
+    use crate::test::{new_simple_file, SIMPLE_FILE_KEY, SIMPLE_FILE_VALUE};
     use glib::prelude::*;
     use matches::assert_matches;
 
@@ -702,8 +705,8 @@ mod test_glib {
         for endianess in [true, false] {
             let file = new_simple_file(endianess);
             let table = file.hash_table().unwrap();
-            let res: glib::Variant = table.get_gvariant("test").unwrap().get().unwrap();
-            assert_eq!(&res, &"test".to_variant());
+            let res: glib::Variant = table.get_gvariant(SIMPLE_FILE_KEY).unwrap().get().unwrap();
+            assert_eq!(res, SIMPLE_FILE_VALUE.to_variant());
 
             let fail = table.get_gvariant("fail").unwrap_err();
             assert_matches!(fail, Error::KeyNotFound(_));
