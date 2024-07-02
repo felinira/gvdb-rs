@@ -23,6 +23,9 @@ lazy_static! {
     pub(crate) static ref GRESOURCE_XML: PathBuf = GRESOURCE_DIR.join("test3.gresource.xml");
 }
 
+pub(crate) const SIMPLE_FILE_KEY: &str = "test";
+pub(crate) const SIMPLE_FILE_VALUE: u32 = 0xabca_bcab_u32;
+
 fn write_byte_row(
     f: &mut dyn std::io::Write,
     offset: usize,
@@ -355,7 +358,9 @@ pub(crate) fn new_simple_file(big_endian: bool) -> File<'static> {
     };
 
     let mut table_builder = HashTableBuilder::new();
-    table_builder.insert("test", "test").unwrap();
+    table_builder
+        .insert(SIMPLE_FILE_KEY, SIMPLE_FILE_VALUE)
+        .unwrap();
     let data = Vec::new();
     let mut cursor = Cursor::new(data);
     writer.write_with_table(table_builder, &mut cursor).unwrap();
