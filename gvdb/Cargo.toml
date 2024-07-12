@@ -1,6 +1,6 @@
 [package]
 name = "gvdb"
-version = "0.6.1"
+version = "0.7.0"
 description = "Implementation of the glib gvdb file format"
 exclude = ["test/c"]
 
