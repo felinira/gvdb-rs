@@ -179,18 +179,18 @@ impl Debug for HashHeader {
 /// +--------+---------------------------+
 /// ```
 #[derive(Clone)]
-pub struct HashTable<'a, 'file> {
-    pub(crate) file: &'a File<'file>,
-    pub(crate) header: &'a HashHeader,
-    bloom_words: &'a [u32le],
-    buckets: &'a [u32le],
-    items: &'a [HashItem],
+pub struct HashTable<'table, 'file> {
+    pub(crate) file: &'table File<'file>,
+    pub(crate) header: &'table HashHeader,
+    bloom_words: &'table [u32le],
+    buckets: &'table [u32le],
+    items: &'table [HashItem],
 }
 
-impl<'a, 'file> HashTable<'a, 'file> {
+impl<'table, 'file> HashTable<'table, 'file> {
     /// Interpret a chunk of bytes as a HashTable. The table_ptr should point to the hash table.
     /// Data has to be the complete GVDB file, as hash table items are stored somewhere else.
-    pub(crate) fn for_bytes(data: &'a [u8], root: &'a File<'file>) -> Result<Self> {
+    pub(crate) fn for_bytes(data: &'table [u8], root: &'table File<'file>) -> Result<Self> {
         let header = HashHeader::try_from_bytes(data)?;
         let bloom_words = header.read_bloom_words(data)?;
         let buckets = header.read_buckets(data)?;
@@ -234,7 +234,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
     ///
     /// Not all of these keys correspond to gvariant encoded values. Some keys may correspond to internal container
     /// types, or hash tables.
-    pub fn keys<'iter>(&'iter self) -> Keys<'iter, 'a, 'file> {
+    pub fn keys<'iter>(&'iter self) -> Keys<'iter, 'table, 'file> {
         Keys {
             hash_table: self,
             pos: 0,
@@ -242,7 +242,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
     }
 
     /// Iterator over the gvariant encoded values contained in the hash table.
-    pub fn values<'iter>(&'iter self) -> Values<'iter, 'a, 'file> {
+    pub fn values<'iter>(&'iter self) -> Values<'iter, 'table, 'file> {
         let context = zvariant::serialized::Context::new_gvariant(self.file.endianness(), 0);
 
         Values {
@@ -313,7 +313,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
         None
     }
 
-    fn get_item_bytes(&self, item: &HashItem) -> Result<&'a [u8]> {
+    fn get_item_bytes(&self, item: &HashItem) -> Result<&'table [u8]> {
         let typ = item.typ()?;
 
         if typ == HashItemType::Value {
@@ -328,7 +328,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
     }
 
     /// Get the bytes for the [`HashItem`] at `key`.
-    fn get_bytes(&self, key: &str) -> Result<&'a [u8]> {
+    fn get_bytes(&self, key: &str) -> Result<&'table [u8]> {
         let item = self
             .get_hash_item(key)
             .ok_or(Error::KeyNotFound(key.to_string()))?;
