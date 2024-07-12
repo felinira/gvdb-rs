@@ -2,7 +2,6 @@ use crate::read::error::{Error, Result};
 use crate::read::hash_item::HashItem;
 use crate::util::djb_hash;
 use serde::Deserialize;
-use std::cmp::min;
 use std::fmt::{Debug, Formatter};
 use std::mem::size_of;
 use zerocopy::byteorder::little_endian::U32 as u32le;
@@ -318,7 +317,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
 
     /// Gets the item at key `key`.
     pub(crate) fn get_hash_item(&self, key: &str) -> Option<HashItem> {
-        if self.header.n_buckets() == 0 || self.items.is_empty() {
+        if self.buckets.is_empty() || self.items.is_empty() {
             return None;
         }
 
@@ -327,16 +326,13 @@ impl<'a, 'file> HashTable<'a, 'file> {
             return None;
         }
 
-        let bucket = hash_value % self.buckets.len() as u32;
-        let mut itemno = self.buckets.get(bucket as usize)?.get() as usize;
+        let bucket = (hash_value % self.buckets.len() as u32) as usize;
+        let mut itemno = self.buckets[bucket as usize].get() as usize;
 
-        let lastno = if bucket == self.header.n_buckets() - 1 {
-            self.items.len()
+        let lastno = if let Some(item) = self.buckets.get(bucket + 1) {
+            item.get() as usize
         } else {
-            min(
-                self.buckets.get(bucket as usize + 1)?.get(),
-                self.items.len() as u32,
-            ) as usize
+            self.items.len()
         };
 
         while itemno < lastno {
