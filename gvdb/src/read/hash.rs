@@ -50,8 +50,8 @@ impl HashHeader {
     }
 
     /// Read the hash table header from `data`
-    pub fn try_from_bytes(data: &[u8]) -> Result<Self> {
-        HashHeader::read_from_prefix(data)
+    pub fn try_from_bytes(data: &[u8]) -> Result<&Self> {
+        HashHeader::ref_from_prefix(data)
             .ok_or(Error::Data("Invalid hash table header".to_string()))
     }
 
@@ -182,7 +182,7 @@ impl Debug for HashHeader {
 #[derive(Clone)]
 pub struct HashTable<'a, 'file> {
     pub(crate) file: &'a File<'file>,
-    pub(crate) header: HashHeader,
+    pub(crate) header: &'a HashHeader,
     bloom_words: &'a [u32le],
     buckets: &'a [u32le],
     items: &'a [HashItem],
