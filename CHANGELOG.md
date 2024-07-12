@@ -21,6 +21,7 @@ The versions in changelog reflect the gvdb versions.
 - `gvdb::read::GvdbHashTable::get_header` (made private)
 - `gvdb::read::GvdbHashTable::get_hash_item` (made private)
 - `gvdb::read::GvdbReaderError::InvalidData` all instances were replaced with more specific errors as `Data(String)`
+- `gvdb::read::GvdbReaderError::ZVariant` all instances were replaced with `Data(String)`
 
 ### Changed
 

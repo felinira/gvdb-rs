@@ -382,7 +382,14 @@ impl<'a, 'file> HashTable<'a, 'file> {
     /// Unless you need to inspect the value at runtime, it is recommended to use [`HashTable::get`].
     pub fn get_value(&self, key: &str) -> Result<zvariant::Value> {
         let mut de = self.deserializer_for_key(key)?;
-        Ok(zvariant::Value::deserialize(&mut de)?)
+        zvariant::Value::deserialize(&mut de).map_err(|err| {
+            Error::Data(format!(
+                "Error deserializing value for key \"{}\" as gvariant type \"{}\": {}",
+                key,
+                zvariant::Value::signature(),
+                err
+            ))
+        })
     }
 
     /// Returns the data for `key` and try to deserialize a [`enum@zvariant::Value`].
