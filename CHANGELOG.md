@@ -22,6 +22,7 @@ The versions in changelog reflect the gvdb versions.
 - `gvdb::read::GvdbHashTable::get_hash_item` (made private)
 - `gvdb::read::GvdbReaderError::InvalidData` all instances were replaced with more specific errors as `Data(String)`
 - `gvdb::read::GvdbReaderError::ZVariant` all instances were replaced with `Data(String)`
+- `gvdb::gresource::GResourceBuilderError::Generic` all instances were replaces with less generic variants
 
 ### Changed
 
@@ -35,12 +36,12 @@ The versions in changelog reflect the gvdb versions.
 - `gvdb::gresource::GResourceXMLDocument` is renamed to `XmlManifest`
 - `gvdb::gresource::GResourceBuilderError` is renamed to `BuilderError` and marked `non_exhaustive`
 - `gvdb::gresource::GResourceBuilderResult<T>` is renamed to `BuilderResult<T>`
-- `gvdb::gresource::GResourceXMLError` is renamed to `XmlManifestError`
+- `gvdb::gresource::GResourceXMLError` is renamed to `XmlManifestError` and marked `non_exhaustive`
 - `gvdb::gresource::GResourceXMLResult<T>` is renamed to `XmlManifestResult<T>`
 - `gvdb::read::GvdbFile` is renamed to `File`
 - `gvdb::read::GvdbHashTable` is renamed to `HashTable`
 - `gvdb::read::HashTable::get_names` is renamed to `keys`
-- `gvdb::read::GvdbReaderError` is renamed to `Error`
+- `gvdb::read::GvdbReaderError` is renamed to `Error` and marked `non_exhaustive`
 - `gvdb::read::Error::DataError` is renamed to `Error::Data`
 - `gvdb::read::Error::KeyError` is renamed to `Error::KeyNotFound`
 - `gvdb::read::Error::Utf8` now uses `std::str::Utf8Error` instead of `std::string::FromUtf8Error` and is marked `non_exhaustive`
