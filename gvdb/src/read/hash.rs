@@ -230,57 +230,12 @@ impl<'a, 'file> HashTable<'a, 'file> {
         self.items.get(index)
     }
 
-    /// Gets a list of keys contained in the hash table.
-    pub fn keys(&self) -> Result<Vec<String>> {
-        let count = self.items.len();
-        let mut names: Vec<Option<String>> = vec![None; count];
-
-        let mut inserted = 0;
-        while inserted < count {
-            let last_inserted = inserted;
-            for index in 0..count {
-                let item = self
-                    .get_hash_item_for_index(index)
-                    .ok_or(Error::DataOffset)?;
-                let parent = item.parent();
-
-                if names[index].is_none() {
-                    // Only process items not already processed
-                    if let Some(parent) = parent {
-                        let parent = parent as usize;
-                        if parent < count && names[parent].is_some() {
-                            // We already came across this item
-                            let name = self.key_for_item(item)?;
-                            let parent_name = names.get(parent).unwrap().as_ref().unwrap();
-                            let full_name = parent_name.to_string() + name;
-                            names[index] = Some(full_name);
-                            inserted += 1;
-                        } else if parent > count {
-                            return Err(Error::Data(format!(
-                                "Parent with invalid offset encountered: {}",
-                                parent
-                            )));
-                        }
-                    } else {
-                        // root item
-                        let name = self.key_for_item(item)?;
-                        names[index] = Some(name.to_string());
-                        inserted += 1;
-                    }
-                }
-            }
-
-            if last_inserted == inserted {
-                // No insertion took place this round, there must be a parent loop
-                // We fail instead of infinitely looping
-                return Err(Error::Data(
-                    "Error finding all parent items. The file appears to have a loop".to_string(),
-                ));
-            }
+    /// Iterator over the keys contained in the hash table.
+    pub fn keys<'iter>(&'iter self) -> Keys<'iter, 'a, 'file> {
+        Keys {
+            hash_table: self,
+            pos: 0,
         }
-
-        let names = names.into_iter().map(|s| s.unwrap()).collect();
-        Ok(names)
     }
 
     /// Recurses through parents and check whether `item` has the specified full path name
@@ -447,40 +402,92 @@ impl std::fmt::Debug for HashTable<'_, '_> {
             .field("buckets", &self.buckets)
             .field(
                 "map",
-                &self.keys().map(|res| {
-                    res.iter()
-                        .map(|name| {
-                            let item = self.get_hash_item(name);
-                            match item {
-                                Some(item) => {
-                                    let value = match item.typ() {
-                                        Ok(super::HashItemType::Container) => {
-                                            Ok(Box::new(item) as Box<dyn std::fmt::Debug>)
-                                        }
-                                        Ok(super::HashItemType::HashTable) => {
-                                            self.get_hash_table(name).map(|table| {
-                                                Box::new(table) as Box<dyn std::fmt::Debug>
-                                            })
-                                        }
-                                        Ok(super::HashItemType::Value) => {
-                                            self.get_value(name).map(|value| {
-                                                Box::new(value) as Box<dyn std::fmt::Debug>
-                                            })
-                                        }
-                                        Err(err) => Err(err),
-                                    };
+                &self
+                    .keys()
+                    .map(|name| {
+                        name.into_iter()
+                            .map(|name| {
+                                let item = self.get_hash_item(&name);
+                                match item {
+                                    Some(item) => {
+                                        let value = match item.typ() {
+                                            Ok(super::HashItemType::Container) => {
+                                                Ok(Box::new(item) as Box<dyn std::fmt::Debug>)
+                                            }
+                                            Ok(super::HashItemType::HashTable) => {
+                                                self.get_hash_table(&name).map(|table| {
+                                                    Box::new(table) as Box<dyn std::fmt::Debug>
+                                                })
+                                            }
+                                            Ok(super::HashItemType::Value) => {
+                                                self.get_value(&name).map(|value| {
+                                                    Box::new(value) as Box<dyn std::fmt::Debug>
+                                                })
+                                            }
+                                            Err(err) => Err(err),
+                                        };
 
-                                    (name.to_string(), Some((item, value)))
+                                        (name.to_string(), Some((item, value)))
+                                    }
+                                    None => (name.to_string(), None),
                                 }
-                                None => (name.to_string(), None),
-                            }
-                        })
-                        .collect::<std::collections::HashMap<_, _>>()
-                }),
+                            })
+                            .collect::<std::collections::HashMap<_, _>>()
+                    })
+                    .collect::<Vec<_>>(),
             )
             .finish()
     }
 }
+
+pub struct Keys<'a, 'table, 'file> {
+    hash_table: &'a HashTable<'table, 'file>,
+    pos: usize,
+}
+
+impl<'a, 'table, 'file> Iterator for Keys<'a, 'table, 'file> {
+    type Item = Result<String>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut item_count = self.hash_table.items.len() as isize;
+
+        let mut item = self.hash_table.get_hash_item_for_index(self.pos)?;
+        self.pos += 1;
+        let mut key = self.hash_table.key_for_item(item).ok()?.to_owned();
+
+        while let Some(parent) = item.parent() {
+            if item_count < 0 {
+                return Some(Err(Error::Data(
+                    "Error finding all parent items. The file appears to have a loop".to_string(),
+                )));
+            }
+
+            item = if let Some(item) = self.hash_table.get_hash_item_for_index(parent as usize) {
+                item
+            } else {
+                return Some(Err(Error::Data(format!(
+                    "Parent with invalid offset encountered: {}",
+                    parent
+                ))));
+            };
+
+            // Return None from this iterator if anything goes wrong, such as retrieving the key
+            let parent_key = self.hash_table.key_for_item(item).ok()?;
+
+            key.insert_str(0, parent_key);
+            item_count -= 1;
+        }
+
+        Some(Ok(key))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let size = self.hash_table.items.len().saturating_sub(self.pos);
+        (size, Some(size))
+    }
+}
+
+impl<'a, 'table, 'file> ExactSizeIterator for Keys<'a, 'table, 'file> {}
 
 #[cfg(test)]
 pub(crate) mod test {

@@ -197,9 +197,9 @@ pub fn byte_compare_file_1(file: &File) {
 
 pub fn assert_is_file_1(file: &File) {
     let table = file.hash_table().unwrap();
-    let names = table.keys().unwrap();
+    let mut names = table.keys();
     assert_eq!(names.len(), 1);
-    assert_eq!(names[0], "root_key");
+    assert_eq!(&names.next().unwrap().unwrap(), "root_key");
 
     let value = table.get_value("root_key").unwrap();
     assert_matches!(value, zvariant::Value::Structure(_));
@@ -219,7 +219,7 @@ pub fn byte_compare_file_2(file: &File) {
 
 pub fn assert_is_file_2(file: &File) {
     let table = file.hash_table().unwrap();
-    let names = table.keys().unwrap();
+    let names = table.keys().collect::<Result<Vec<_>, _>>().unwrap();
     assert_eq!(names.len(), 2);
     assert_eq!(names[0], "string");
     assert_eq!(names[1], "table");
@@ -229,7 +229,7 @@ pub fn assert_is_file_2(file: &File) {
     assert_eq!(<&str>::try_from(&str_value), Ok("test string"));
 
     let sub_table = table.get_hash_table("table").unwrap();
-    let sub_table_names = sub_table.keys().unwrap();
+    let sub_table_names = sub_table.keys().collect::<Result<Vec<_>, _>>().unwrap();
     assert_eq!(sub_table_names.len(), 1);
     assert_eq!(sub_table_names[0], "int");
 
@@ -244,7 +244,7 @@ pub fn byte_compare_file_3(file: &File) {
 
 pub fn assert_is_file_3(file: &File) {
     let table = file.hash_table().unwrap();
-    let mut names = table.keys().unwrap();
+    let mut names = table.keys().collect::<Result<Vec<_>, _>>().unwrap();
     names.sort();
     let reference_names = vec![
         "/",
@@ -372,8 +372,8 @@ pub(crate) fn new_simple_file(big_endian: bool) -> File<'static> {
 pub(crate) fn byte_compare_gvdb_hash_table(a: &HashTable, b: &HashTable, context: &str) {
     assert_eq!(a.header, b.header);
 
-    let mut keys_a = a.keys().unwrap();
-    let mut keys_b = b.keys().unwrap();
+    let mut keys_a = a.keys().collect::<Result<Vec<_>, _>>().unwrap();
+    let mut keys_b = b.keys().collect::<Result<Vec<_>, _>>().unwrap();
     keys_a.sort();
     keys_b.sort();
     assert_eq!(keys_a, keys_b);

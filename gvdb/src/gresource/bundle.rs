@@ -579,7 +579,7 @@ mod test {
         let root = File::from_bytes(Cow::Owned(data)).unwrap();
 
         let table = root.hash_table().unwrap();
-        let mut names = table.keys().unwrap();
+        let mut names = table.keys().collect::<Result<Vec<_>, _>>().unwrap();
         names.sort();
         let reference_names = vec![
             "/",
