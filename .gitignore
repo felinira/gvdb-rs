@@ -5,5 +5,5 @@ Cargo.lock
 cobertura.xml
 .idea
 .fleet
-gvdb/test/c/create-test-files/create-test-files
 gvdb/test/temp*
+test-aux/c/create-test-files/create-test-files
