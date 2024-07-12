@@ -231,10 +231,24 @@ impl<'a, 'file> HashTable<'a, 'file> {
     }
 
     /// Iterator over the keys contained in the hash table.
+    ///
+    /// Not all of these keys correspond to gvariant encoded values. Some keys may correspond to internal container
+    /// types, or hash tables.
     pub fn keys<'iter>(&'iter self) -> Keys<'iter, 'a, 'file> {
         Keys {
             hash_table: self,
             pos: 0,
+        }
+    }
+
+    /// Iterator over the gvariant encoded values contained in the hash table.
+    pub fn values<'iter>(&'iter self) -> Values<'iter, 'a, 'file> {
+        let context = zvariant::serialized::Context::new_gvariant(self.file.endianness(), 0);
+
+        Values {
+            hash_table: self,
+            pos: 0,
+            context,
         }
     }
 
@@ -299,21 +313,26 @@ impl<'a, 'file> HashTable<'a, 'file> {
         None
     }
 
-    /// Get the bytes for the [`HashItem`] at `key`.
-    fn get_bytes(&self, key: &str) -> Result<&[u8]> {
-        let item = self
-            .get_hash_item(key)
-            .ok_or(Error::KeyNotFound(key.to_string()))?;
+    fn get_item_bytes(&self, item: &HashItem) -> Result<&'a [u8]> {
         let typ = item.typ()?;
+
         if typ == HashItemType::Value {
             Ok(self.file.dereference(item.value_ptr(), 8)?)
         } else {
             Err(Error::Data(format!(
                 "Unable to parse item for key '{}' as GVariant: Expected type 'v', got type {}",
-                self.key_for_item(&item)?,
+                self.key_for_item(item)?,
                 typ
             )))
         }
+    }
+
+    /// Get the bytes for the [`HashItem`] at `key`.
+    fn get_bytes(&self, key: &str) -> Result<&'a [u8]> {
+        let item = self
+            .get_hash_item(key)
+            .ok_or(Error::KeyNotFound(key.to_string()))?;
+        self.get_item_bytes(&item)
     }
 
     /// Returns the nested [`HashTable`] at `key`, if one is found.
@@ -333,13 +352,10 @@ impl<'a, 'file> HashTable<'a, 'file> {
         }
     }
 
-    /// Create a zvariant deserializer for the specified key.
-    fn deserializer_for_key(&self, key: &str) -> Result<GVariantDeserializer> {
-        let data = self.get_bytes(key)?;
-
-        // Create a new zvariant context based on our endianess and the byteswapped property
-        let context = zvariant::serialized::Context::new_gvariant(self.file.endianness(), 0);
-
+    fn deserializer_for_bytes(
+        context: zvariant::serialized::Context,
+        data: &[u8],
+    ) -> Result<GVariantDeserializer> {
         // On non-unix systems this function lacks the FD argument
         let de: GVariantDeserializer = GVariantDeserializer::new(
             data,
@@ -350,6 +366,16 @@ impl<'a, 'file> HashTable<'a, 'file> {
         )?;
 
         Ok(de)
+    }
+
+    /// Create a zvariant deserializer for the specified key.
+    fn deserializer_for_key(&self, key: &str) -> Result<GVariantDeserializer> {
+        let data = self.get_bytes(key)?;
+
+        // Create a new zvariant context based on our endianess and the byteswapped property
+        let context = zvariant::serialized::Context::new_gvariant(self.file.endianness(), 0);
+
+        Self::deserializer_for_bytes(context, data)
     }
 
     /// Returns the data for `key` as a [`enum@zvariant::Value`].
@@ -440,6 +466,7 @@ impl std::fmt::Debug for HashTable<'_, '_> {
     }
 }
 
+/// Iterator over all keys in a [`HashTable`]
 pub struct Keys<'a, 'table, 'file> {
     hash_table: &'a HashTable<'table, 'file>,
     pos: usize,
@@ -488,6 +515,47 @@ impl<'a, 'table, 'file> Iterator for Keys<'a, 'table, 'file> {
 }
 
 impl<'a, 'table, 'file> ExactSizeIterator for Keys<'a, 'table, 'file> {}
+
+/// Iterator over all values in a [`HashTable`]
+pub struct Values<'a, 'table, 'file> {
+    hash_table: &'a HashTable<'table, 'file>,
+    context: zvariant::serialized::Context,
+    pos: usize,
+}
+
+impl<'a, 'table, 'file> Iterator for Values<'a, 'table, 'file> {
+    type Item = Result<zvariant::Value<'table>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let item = loop {
+            let item = self.hash_table.get_hash_item_for_index(self.pos)?;
+            self.pos += 1;
+
+            if item.typ().is_ok_and(|t| t == HashItemType::Value) {
+                break item;
+            }
+        };
+
+        let bytes = match self.hash_table.get_item_bytes(item) {
+            Ok(bytes) => bytes,
+            Err(err) => return Some(Err(err)),
+        };
+
+        let mut de = match HashTable::deserializer_for_bytes(self.context, bytes) {
+            Ok(de) => de,
+            Err(err) => return Some(Err(err)),
+        };
+
+        Some(zvariant::Value::deserialize(&mut de).map_err(|e| e.into()))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (
+            0,
+            Some(self.hash_table.items.len().saturating_sub(self.pos)),
+        )
+    }
+}
 
 #[cfg(test)]
 pub(crate) mod test {

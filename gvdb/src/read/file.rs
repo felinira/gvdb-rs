@@ -87,6 +87,10 @@ impl<'a> Data<'a> {
 ///     let str_value: String = table.get("string").unwrap();
 ///     assert_eq!(str_value, "test string");
 ///
+///     let mut items = table.values().collect::<Result<Vec<_>, _>>().unwrap();
+///     assert_eq!(items.len(), 2);
+///     assert_eq!(String::try_from(&items[0]).unwrap(), "test string");
+///
 ///     let sub_table = table.get_hash_table("table").unwrap();
 ///     let mut sub_table_keys = sub_table.keys().collect::<Result<Vec<_>, _>>().unwrap();
 ///     assert_eq!(sub_table_keys.len(), 1);
@@ -401,6 +405,22 @@ mod test {
             .unwrap_err();
         assert_matches!(err, Error::Data(_));
         assert!(format!("{}", err).contains("loop"));
+    }
+
+    #[test]
+    fn iter() {
+        let writer = FileWriter::new();
+        let mut table = HashTableBuilder::new();
+        table.insert_string("iter/test", "test").unwrap();
+        table.insert("iter/test2", "test2").unwrap();
+        let data = writer.write_to_vec_with_table(table).unwrap();
+
+        let file = File::from_bytes(Cow::Owned(data.clone())).unwrap();
+        let table = file.hash_table().unwrap();
+        let values = table.values().collect::<Result<Vec<_>, _>>().unwrap();
+
+        assert_eq!(String::try_from(&values[0]).unwrap(), "test");
+        assert_eq!(String::try_from(&values[1]).unwrap(), "test2");
     }
 
     #[test]
