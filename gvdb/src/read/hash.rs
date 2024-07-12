@@ -1,11 +1,13 @@
 use crate::read::error::{Error, Result};
 use crate::read::hash_item::HashItem;
 use crate::util::djb_hash;
-use safe_transmute::{transmute_many_pedantic, transmute_one, TriviallyTransmutable};
+use safe_transmute::transmute_many_pedantic;
 use serde::Deserialize;
 use std::cmp::min;
 use std::fmt::{Debug, Formatter};
 use std::mem::size_of;
+use zerocopy::{AsBytes, FromBytes};
+use zerocopy_derive::{AsBytes, FromBytes, FromZeroes};
 use zvariant::Type;
 
 use super::slice::SliceLEu32;
@@ -29,13 +31,11 @@ type GVariantDeserializer<'de, 'sig, 'f> = zvariant::gvariant::Deserializer<'de,
 /// +-------+-----------------------+
 /// ```
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, FromBytes, FromZeroes, AsBytes)]
 pub struct HashHeader {
     n_bloom_words: u32,
     n_buckets: u32,
 }
-
-unsafe impl TriviallyTransmutable for HashHeader {}
 
 impl HashHeader {
     /// Create a new [`HashHeader`]` using the provided `bloom_shift`, `n_bloom_words` and
@@ -52,11 +52,8 @@ impl HashHeader {
 
     /// Read the hash table header from `data`
     pub fn try_from_bytes(data: &[u8]) -> Result<Self> {
-        let bytes: &[u8] = data
-            .get(0..size_of::<HashHeader>())
-            .ok_or(Error::DataOffset)?;
-
-        Ok(transmute_one(bytes)?)
+        HashHeader::read_from_prefix(data)
+            .ok_or(Error::Data("Invalid hash table header".to_string()))
     }
 
     /// Number of bloom words in the hash table header
@@ -163,7 +160,7 @@ impl Debug for HashHeader {
         f.debug_struct("HashHeader")
             .field("n_bloom_words", &self.n_bloom_words())
             .field("n_buckets", &self.n_buckets())
-            .field("data", &safe_transmute::transmute_one_to_bytes(self))
+            .field("data", &self.as_bytes())
             .finish()
     }
 }
