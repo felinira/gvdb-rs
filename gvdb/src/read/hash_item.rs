@@ -1,6 +1,5 @@
 use crate::read::error::{Error, Result};
 use crate::read::pointer::Pointer;
-use safe_transmute::TriviallyTransmutable;
 use std::fmt::{Display, Formatter};
 use zerocopy_derive::{AsBytes, FromBytes, FromZeroes};
 
@@ -85,8 +84,6 @@ pub struct HashItem {
 
     value: Pointer,
 }
-
-unsafe impl TriviallyTransmutable for HashItem {}
 
 impl HashItem {
     pub fn new(

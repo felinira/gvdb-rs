@@ -63,34 +63,6 @@ impl From<TryFromIntError> for Error {
     }
 }
 
-impl<S, T> From<safe_transmute::Error<'_, S, T>> for Error {
-    fn from(err: safe_transmute::Error<S, T>) -> Self {
-        let name = std::any::type_name::<T>();
-
-        match err {
-            safe_transmute::Error::Guard(guard_err) => {
-                if guard_err.actual > guard_err.required {
-                    Self::Data(format!(
-                        "Found {} unexpected trailing bytes at the end while reading {}",
-                        guard_err.actual - guard_err.required,
-                        name
-                    ))
-                } else {
-                    Self::Data(format!(
-                        "Missing {} bytes to read {}",
-                        guard_err.required - guard_err.actual,
-                        name
-                    ))
-                }
-            }
-            safe_transmute::Error::Unaligned(..) => {
-                Self::Data(format!("Unaligned data read for {}", name))
-            }
-            _ => Self::Data(format!("Error transmuting data as {}", name)),
-        }
-    }
-}
-
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {

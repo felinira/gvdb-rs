@@ -576,7 +576,7 @@ pub(crate) mod test {
         for endianess in [true, false] {
             let file = new_simple_file(endianess);
             let table = file.hash_table().unwrap();
-            let res = table.bloom_words.get(0);
+            let res = table.bloom_words.first();
             assert_matches!(res, None);
         }
     }

@@ -6,7 +6,6 @@ use crate::util::align_offset;
 use crate::write::error::{Error, Result};
 use crate::write::hash::SimpleHashTable;
 use crate::write::item::HashValue;
-use safe_transmute::transmute_one_to_bytes;
 use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::mem::size_of;
@@ -492,7 +491,7 @@ impl FileWriter {
                 let hash_item_end = hash_item_start + size_of::<HashItem>();
 
                 self.chunks[hash_table_chunk_index].data[hash_item_start..hash_item_end]
-                    .copy_from_slice(transmute_one_to_bytes(&hash_item));
+                    .copy_from_slice(hash_item.as_bytes());
 
                 n_item += 1;
             }
