@@ -10,6 +10,7 @@ use safe_transmute::transmute_one_to_bytes;
 use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::mem::size_of;
+use zerocopy::AsBytes;
 
 /// Create hash tables for use in GVDB files
 ///
@@ -523,8 +524,7 @@ impl FileWriter {
             })?
             .pointer();
         let header = Header::new(self.byteswap, 0, root_ptr);
-        self.chunks[0].data_mut()[0..size_of::<Header>()]
-            .copy_from_slice(transmute_one_to_bytes(&header));
+        self.chunks[0].data_mut()[0..size_of::<Header>()].copy_from_slice(header.as_bytes());
 
         let mut size = 0;
         for chunk in self.chunks.into_iter() {

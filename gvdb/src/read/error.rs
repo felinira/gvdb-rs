@@ -138,8 +138,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 mod test {
     use crate::read::{Error, Header, Pointer};
     use matches::assert_matches;
-    use safe_transmute::{transmute_one_pedantic, transmute_one_to_bytes, transmute_vec};
     use std::num::TryFromIntError;
+    use zerocopy::{AsBytes, FromBytes};
 
     #[test]
     fn from() {
@@ -166,33 +166,25 @@ mod test {
         assert!(format!("{}", err).contains("test"));
 
         let to_transmute = Header::new(false, 0, Pointer::NULL);
-        let mut bytes = transmute_one_to_bytes(&to_transmute).to_vec();
+        let mut bytes = to_transmute.as_bytes().to_vec();
         bytes.extend_from_slice(b"fail");
-        let res = transmute_one_pedantic::<Header>(&bytes);
-        let err = Error::from(res.unwrap_err());
-        assert_matches!(err, Error::Data(_));
-        assert!(format!("{}", err).contains("unexpected trailing bytes"));
+        let res = Header::ref_from(&bytes);
+        assert_eq!(res, None); // unexpected trailing bytes
 
         let to_transmute = Header::new(false, 0, Pointer::NULL);
-        let mut bytes = transmute_one_to_bytes(&to_transmute).to_vec();
+        let mut bytes = to_transmute.as_bytes().to_vec();
         bytes.remove(bytes.len() - 1);
-        let res = transmute_one_pedantic::<Header>(&bytes);
-        let err = Error::from(res.unwrap_err());
-        assert_matches!(err, Error::Data(_));
-        assert!(format!("{}", err).contains("Missing 1 bytes"));
+        let res = Header::ref_from(&bytes);
+        assert_eq!(res, None); //Missing 1 byte
 
         let to_transmute = Header::new(false, 0, Pointer::NULL);
         let mut bytes = b"unalign".to_vec();
-        bytes.extend_from_slice(transmute_one_to_bytes(&to_transmute));
-        let res = transmute_one_pedantic::<Header>(&bytes[7..]);
-        let err = Error::from(res.unwrap_err());
-        assert_matches!(err, Error::Data(_));
-        assert!(format!("{}", err).contains("Unaligned"));
+        bytes.extend_from_slice(to_transmute.as_bytes());
+        let res = Header::ref_from(&bytes[7..]);
+        assert_eq!(res, None); // Unaligned
 
         let bytes = vec![0u8; 5];
-        let res = transmute_vec::<u8, Header>(bytes);
-        let err = Error::from(res.unwrap_err());
-        assert_matches!(err, Error::Data(_));
-        assert!(format!("{}", err).contains("transmuting data as gvdb::read::header::Header"));
+        let res = Header::slice_from(&bytes);
+        assert_eq!(res, None); // Invalid size
     }
 }
