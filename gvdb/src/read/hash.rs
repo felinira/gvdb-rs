@@ -233,8 +233,8 @@ impl<'a, 'file> HashTable<'a, 'file> {
     }
 
     /// Get the hash item at hash item index
-    fn get_hash_item_for_index(&self, index: usize) -> Result<&HashItem> {
-        self.items.get(index).ok_or(Error::DataOffset)
+    fn get_hash_item_for_index(&self, index: usize) -> Option<&HashItem> {
+        self.items.get(index)
     }
 
     /// Gets a list of keys contained in the hash table.
@@ -246,7 +246,9 @@ impl<'a, 'file> HashTable<'a, 'file> {
         while inserted < count {
             let last_inserted = inserted;
             for index in 0..count {
-                let item = self.get_hash_item_for_index(index)?;
+                let item = self
+                    .get_hash_item_for_index(index)
+                    .ok_or(Error::DataOffset)?;
                 let parent: usize = item.parent().try_into()?;
 
                 if names[index].is_none() {
@@ -303,8 +305,8 @@ impl<'a, 'file> HashTable<'a, 'file> {
 
         if parent < self.items.len() as u32 && !key.is_empty() {
             let parent_item = match self.get_hash_item_for_index(parent as usize) {
-                Ok(p) => p,
-                Err(_) => return false,
+                Some(p) => p,
+                None => return false,
             };
 
             let parent_key_len = key.len() - this_key.len();
@@ -321,26 +323,24 @@ impl<'a, 'file> HashTable<'a, 'file> {
     }
 
     /// Gets the item at key `key`.
-    pub(crate) fn get_hash_item(&self, key: &str) -> Result<HashItem> {
+    pub(crate) fn get_hash_item(&self, key: &str) -> Option<HashItem> {
         if self.header.n_buckets() == 0 || self.items.is_empty() {
-            return Err(Error::KeyNotFound(key.to_string()));
+            return None;
         }
 
         let hash_value = djb_hash(key);
         if !self.bloom_filter(hash_value) {
-            return Err(Error::KeyNotFound(key.to_string()));
+            return None;
         }
 
-        let bucket = hash_value % self.header.n_buckets();
-        let mut itemno = self.buckets.get(bucket as usize).ok_or(Error::DataOffset)? as usize;
+        let bucket = hash_value % self.buckets.len() as u32;
+        let mut itemno = self.buckets.get(bucket as usize)? as usize;
 
         let lastno = if bucket == self.header.n_buckets() - 1 {
             self.items.len()
         } else {
             min(
-                self.buckets
-                    .get(bucket as usize + 1)
-                    .ok_or(Error::DataOffset)?,
+                self.buckets.get(bucket as usize + 1)?,
                 self.items.len() as u32,
             ) as usize
         };
@@ -348,18 +348,20 @@ impl<'a, 'file> HashTable<'a, 'file> {
         while itemno < lastno {
             let item = self.get_hash_item_for_index(itemno)?;
             if hash_value == item.hash_value() && self.check_key(item, key) {
-                return Ok(*item);
+                return Some(*item);
             }
 
             itemno += 1;
         }
 
-        Err(Error::KeyNotFound(key.to_string()))
+        None
     }
 
     /// Get the bytes for the [`HashItem`] at `key`.
     fn get_bytes(&self, key: &str) -> Result<&[u8]> {
-        let item = self.get_hash_item(key)?;
+        let item = self
+            .get_hash_item(key)
+            .ok_or(Error::KeyNotFound(key.to_string()))?;
         let typ = item.typ()?;
         if typ == HashItemType::Value {
             Ok(self.file.dereference(item.value_ptr(), 8)?)
@@ -374,7 +376,9 @@ impl<'a, 'file> HashTable<'a, 'file> {
 
     /// Returns the nested [`HashTable`] at `key`, if one is found.
     pub fn get_hash_table(&self, key: &str) -> Result<HashTable> {
-        let item = self.get_hash_item(key)?;
+        let item = self
+            .get_hash_item(key)
+            .ok_or(Error::KeyNotFound(key.to_string()))?;
         let typ = item.typ()?;
         if typ == HashItemType::HashTable {
             self.file.read_hash_table(item.value_ptr())
@@ -461,7 +465,7 @@ impl std::fmt::Debug for HashTable<'_, '_> {
                         .map(|name| {
                             let item = self.get_hash_item(name);
                             match item {
-                                Ok(item) => {
+                                Some(item) => {
                                     let value = match item.typ() {
                                         Ok(super::HashItemType::Container) => {
                                             Ok(Box::new(item) as Box<dyn std::fmt::Debug>)
@@ -479,9 +483,9 @@ impl std::fmt::Debug for HashTable<'_, '_> {
                                         Err(err) => Err(err),
                                     };
 
-                                    (name.to_string(), Ok((item, value)))
+                                    (name.to_string(), Some((item, value)))
                                 }
-                                Err(err) => (name.to_string(), Err(err)),
+                                None => (name.to_string(), None),
                             }
                         })
                         .collect::<std::collections::HashMap<_, _>>()
@@ -538,7 +542,7 @@ pub(crate) mod test {
         let file = new_empty_file();
         let table = file.hash_table().unwrap();
         let res = table.get_hash_item("test");
-        assert_matches!(res, Err(Error::KeyNotFound(_)));
+        assert_matches!(res, None);
 
         for endianess in [true, false] {
             let file = new_simple_file(endianess);
@@ -552,11 +556,11 @@ pub(crate) mod test {
                 .unwrap();
             assert_eq!(value, SIMPLE_FILE_VALUE);
 
-            let item_fail = table.get_hash_item("fail").unwrap_err();
-            assert_matches!(item_fail, Error::KeyNotFound(_));
+            let item_fail = table.get_hash_item("fail");
+            assert_matches!(item_fail, None);
 
             let res_item = table.get_hash_item("test_fail");
-            assert_matches!(res_item, Err(Error::KeyNotFound(_)));
+            assert_matches!(res_item, None);
         }
     }
 
