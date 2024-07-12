@@ -1,16 +1,15 @@
 use crate::read::error::{Error, Result};
 use crate::read::hash_item::HashItem;
 use crate::util::djb_hash;
-use safe_transmute::transmute_many_pedantic;
 use serde::Deserialize;
 use std::cmp::min;
 use std::fmt::{Debug, Formatter};
 use std::mem::size_of;
+use zerocopy::byteorder::little_endian::U32 as u32le;
 use zerocopy::{AsBytes, FromBytes};
 use zerocopy_derive::{AsBytes, FromBytes, FromZeroes};
 use zvariant::Type;
 
-use super::slice::SliceLEu32;
 use super::{File, HashItemType};
 
 #[cfg(unix)]
@@ -72,13 +71,13 @@ impl HashHeader {
     }
 
     /// Read the bloom words from `data`
-    fn read_bloom_words<'a>(&self, data: &'a [u8]) -> Result<SliceLEu32<'a>> {
+    fn read_bloom_words<'a>(&self, data: &'a [u8]) -> Result<&'a [u32le]> {
         // Bloom words come directly after header
         let offset = self.bloom_words_offset();
         let len = self.bloom_words_len();
 
         if len == 0 {
-            Ok(SliceLEu32(&[]))
+            Ok(&[])
         } else {
             let words_data = data.get(offset..(offset + len)).ok_or_else(|| {
                 Error::Data(format!(
@@ -87,9 +86,8 @@ impl HashHeader {
                     data.len()
                 ))
             })?;
-            Ok(SliceLEu32(
-                transmute_many_pedantic(words_data).or(Err(Error::DataOffset))?,
-            ))
+
+            u32le::slice_from(words_data).ok_or(Error::DataOffset)
         }
     }
 
@@ -109,12 +107,12 @@ impl HashHeader {
     }
 
     /// Read the buckets as a little endian slice
-    fn read_buckets<'a>(&self, data: &'a [u8]) -> Result<SliceLEu32<'a>> {
+    fn read_buckets<'a>(&self, data: &'a [u8]) -> Result<&'a [u32le]> {
         let offset = self.buckets_offset();
         let len = self.buckets_len();
 
         if len == 0 {
-            Ok(SliceLEu32(&[]))
+            Ok(&[])
         } else {
             let buckets_data = data.get(offset..(offset + len)).ok_or_else(|| {
                 Error::Data(format!(
@@ -123,9 +121,8 @@ impl HashHeader {
                     data.len()
                 ))
             })?;
-            Ok(SliceLEu32(
-                transmute_many_pedantic(buckets_data).or(Err(Error::DataOffset))?,
-            ))
+
+            u32le::slice_from(buckets_data).ok_or(Error::DataOffset)
         }
     }
 
@@ -150,7 +147,7 @@ impl HashHeader {
             )))
         } else {
             let items_data = data.get(offset..(offset + len)).unwrap_or_default();
-            Ok(transmute_many_pedantic(items_data).or(Err(Error::DataOffset))?)
+            HashItem::slice_from(items_data).ok_or(Error::DataOffset)
         }
     }
 }
@@ -186,8 +183,8 @@ impl Debug for HashHeader {
 pub struct HashTable<'a, 'file> {
     pub(crate) file: &'a File<'file>,
     pub(crate) header: HashHeader,
-    bloom_words: SliceLEu32<'a>,
-    buckets: SliceLEu32<'a>,
+    bloom_words: &'a [u32le],
+    buckets: &'a [u32le],
     items: &'a [HashItem],
 }
 
@@ -225,7 +222,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
         mask |= 1 << ((hash_value >> self.bloom_shift()) & 31);
 
         // We know this index is < n_bloom_words
-        let bloom_word = self.bloom_words.get(word as usize).unwrap();
+        let bloom_word = self.bloom_words.get(word as usize).unwrap().get();
         bloom_word & mask == mask
     }
 
@@ -331,13 +328,13 @@ impl<'a, 'file> HashTable<'a, 'file> {
         }
 
         let bucket = hash_value % self.buckets.len() as u32;
-        let mut itemno = self.buckets.get(bucket as usize)? as usize;
+        let mut itemno = self.buckets.get(bucket as usize)?.get() as usize;
 
         let lastno = if bucket == self.header.n_buckets() - 1 {
             self.items.len()
         } else {
             min(
-                self.buckets.get(bucket as usize + 1)?,
+                self.buckets.get(bucket as usize + 1)?.get(),
                 self.items.len() as u32,
             ) as usize
         };
