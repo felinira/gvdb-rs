@@ -253,12 +253,12 @@ impl<'a, 'file> HashTable<'a, 'file> {
                     // Only process items not already processed
                     if parent == 0xffffffff {
                         // root item
-                        let name = self.key_for_item(&item)?;
+                        let name = self.key_for_item(item)?;
                         names[index] = Some(name.to_string());
                         inserted += 1;
                     } else if parent < count && names[parent].is_some() {
                         // We already came across this item
-                        let name = self.key_for_item(&item)?;
+                        let name = self.key_for_item(item)?;
                         let parent_name = names.get(parent).unwrap().as_ref().unwrap();
                         let full_name = parent_name.to_string() + name;
                         names[index] = Some(full_name);
@@ -308,7 +308,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
             };
 
             let parent_key_len = key.len() - this_key.len();
-            return self.check_key(&parent_item, &key[0..parent_key_len]);
+            return self.check_key(parent_item, &key[0..parent_key_len]);
         }
 
         false
@@ -322,7 +322,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
 
     /// Gets the item at key `key`.
     pub(crate) fn get_hash_item(&self, key: &str) -> Result<HashItem> {
-        if self.header.n_buckets() == 0 || self.items.len() == 0 {
+        if self.header.n_buckets() == 0 || self.items.is_empty() {
             return Err(Error::KeyNotFound(key.to_string()));
         }
 
@@ -347,7 +347,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
 
         while itemno < lastno {
             let item = self.get_hash_item_for_index(itemno)?;
-            if hash_value == item.hash_value() && self.check_key(&item, key) {
+            if hash_value == item.hash_value() && self.check_key(item, key) {
                 return Ok(*item);
             }
 
