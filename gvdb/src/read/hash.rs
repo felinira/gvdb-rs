@@ -242,27 +242,30 @@ impl<'a, 'file> HashTable<'a, 'file> {
                 let item = self
                     .get_hash_item_for_index(index)
                     .ok_or(Error::DataOffset)?;
-                let parent: usize = item.parent().try_into()?;
+                let parent = item.parent();
 
                 if names[index].is_none() {
                     // Only process items not already processed
-                    if parent == 0xffffffff {
+                    if let Some(parent) = parent {
+                        let parent = parent as usize;
+                        if parent < count && names[parent].is_some() {
+                            // We already came across this item
+                            let name = self.key_for_item(item)?;
+                            let parent_name = names.get(parent).unwrap().as_ref().unwrap();
+                            let full_name = parent_name.to_string() + name;
+                            names[index] = Some(full_name);
+                            inserted += 1;
+                        } else if parent > count {
+                            return Err(Error::Data(format!(
+                                "Parent with invalid offset encountered: {}",
+                                parent
+                            )));
+                        }
+                    } else {
                         // root item
                         let name = self.key_for_item(item)?;
                         names[index] = Some(name.to_string());
                         inserted += 1;
-                    } else if parent < count && names[parent].is_some() {
-                        // We already came across this item
-                        let name = self.key_for_item(item)?;
-                        let parent_name = names.get(parent).unwrap().as_ref().unwrap();
-                        let full_name = parent_name.to_string() + name;
-                        names[index] = Some(full_name);
-                        inserted += 1;
-                    } else if parent > count {
-                        return Err(Error::Data(format!(
-                            "Parent with invalid offset encountered: {}",
-                            parent
-                        )));
                     }
                 }
             }
@@ -291,22 +294,16 @@ impl<'a, 'file> HashTable<'a, 'file> {
             return false;
         }
 
-        let parent = item.parent();
-        if key.len() == this_key.len() && parent == 0xffffffff {
-            return true;
+        if let Some(parent) = item.parent() {
+            if let Some(parent_item) = self.get_hash_item_for_index(parent as usize) {
+                let parent_key_len = key.len().saturating_sub(this_key.len());
+                self.check_key(parent_item, &key[0..parent_key_len])
+            } else {
+                false
+            }
+        } else {
+            key.len() == this_key.len()
         }
-
-        if parent < self.items.len() as u32 && !key.is_empty() {
-            let parent_item = match self.get_hash_item_for_index(parent as usize) {
-                Some(p) => p,
-                None => return false,
-            };
-
-            let parent_key_len = key.len() - this_key.len();
-            return self.check_key(parent_item, &key[0..parent_key_len]);
-        }
-
-        false
     }
 
     /// Return the string that corresponds to the key part of the [`HashItem`].
@@ -647,7 +644,7 @@ pub(crate) mod test {
         let key_ptr = Pointer::new(500, 500);
         let broken_item = HashItem::new(
             item.hash_value(),
-            item.parent(),
+            None,
             key_ptr,
             item.typ().unwrap(),
             *item.value_ptr(),
@@ -667,7 +664,7 @@ pub(crate) mod test {
             .unwrap();
         let broken_item = HashItem::new(
             item.hash_value(),
-            50,
+            Some(50),
             item.key_ptr(),
             item.typ().unwrap(),
             *item.value_ptr(),

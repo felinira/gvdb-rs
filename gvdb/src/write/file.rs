@@ -431,11 +431,10 @@ impl FileWriter {
                 .copy_from_slice(u32::to_le_bytes(n_item as u32).as_slice());
 
             for current_item in table.iter_bucket(bucket) {
-                let parent = if let Some(parent) = &*current_item.parent_ref() {
-                    parent.assigned_index()
-                } else {
-                    u32::MAX
-                };
+                let parent = current_item
+                    .parent_ref()
+                    .as_ref()
+                    .map(|p| p.assigned_index());
 
                 let key = if let Some(parent) = &*current_item.parent_ref() {
                     current_item.key().strip_prefix(parent.key()).unwrap_or("")
