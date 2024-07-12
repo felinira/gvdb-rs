@@ -14,9 +14,6 @@ pub enum Error {
     /// Generic I/O error. Path contains an optional filename if applicable
     Io(std::io::Error, Option<PathBuf>),
 
-    /// An error occured when deserializing variant data with zvariant
-    ZVariant(zvariant::Error),
-
     /// Tried to access an invalid data offset
     DataOffset,
 
@@ -53,7 +50,7 @@ impl From<Utf8Error> for Error {
 
 impl From<zvariant::Error> for Error {
     fn from(err: zvariant::Error) -> Self {
-        Self::ZVariant(err)
+        Self::Data(format!("Error deserializing value as gvariant: {err}"))
     }
 }
 
@@ -79,7 +76,6 @@ impl Display for Error {
                     write!(f, "I/O error: {}", err)
                 }
             }
-            Error::ZVariant(err) => write!(f, "Error parsing ZVariant data: {}", err),
             Error::DataOffset => {
                 write!(f, "Tried to access an invalid data offset. Most likely reason is a corrupted GVDB file")
             }

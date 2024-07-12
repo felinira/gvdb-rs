@@ -343,6 +343,37 @@ mod test {
     }
 
     #[test]
+    fn invalid_gvariant() {
+        let writer = FileWriter::new();
+        let mut table = HashTableBuilder::new();
+        table.insert_string("test", "test").unwrap();
+        let mut data = writer.write_to_vec_with_table(table).unwrap();
+
+        // Load the file to find out where the value ends up being
+        let file = File::from_bytes(Cow::Borrowed(&data[..])).unwrap();
+        let table = file.hash_table().unwrap();
+        let item = table.get_hash_item("test").unwrap();
+        let value_ptr = item.value_ptr();
+
+        drop(file);
+
+        // Now we overwrite the value ptr with 0xFF
+        for i in value_ptr.start()..value_ptr.end() {
+            data[i as usize] = u8::MAX;
+        }
+
+        // Reload the file
+        let file = File::from_bytes(Cow::Owned(data)).unwrap();
+        let table = file.hash_table().unwrap();
+        assert_matches!(table.get::<String>("test"), Err(Error::Data(msg)) if msg.contains("gvariant"));
+        assert_matches!(table.get_value("test"), Err(Error::Data(msg)) if msg.contains("gvariant"));
+
+        for value in table.values() {
+            assert_matches!(value, Err(Error::Data(msg)) if msg.contains("gvariant"));
+        }
+    }
+
+    #[test]
     fn parent_invalid_offset() {
         let writer = FileWriter::new();
         let mut table = HashTableBuilder::new();

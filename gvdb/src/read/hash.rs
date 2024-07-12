@@ -355,17 +355,16 @@ impl<'a, 'file> HashTable<'a, 'file> {
     fn deserializer_for_bytes(
         context: zvariant::serialized::Context,
         data: &[u8],
-    ) -> Result<GVariantDeserializer> {
+    ) -> GVariantDeserializer {
         // On non-unix systems this function lacks the FD argument
-        let de: GVariantDeserializer = GVariantDeserializer::new(
+        GVariantDeserializer::new(
             data,
             #[cfg(unix)]
             None::<&[zvariant::Fd]>,
             zvariant::Value::signature(),
             context,
-        )?;
-
-        Ok(de)
+        )
+        .expect("zvariant::Value::signature() must be a valid zvariant signature")
     }
 
     /// Create a zvariant deserializer for the specified key.
@@ -375,7 +374,7 @@ impl<'a, 'file> HashTable<'a, 'file> {
         // Create a new zvariant context based on our endianess and the byteswapped property
         let context = zvariant::serialized::Context::new_gvariant(self.file.endianness(), 0);
 
-        Self::deserializer_for_bytes(context, data)
+        Ok(Self::deserializer_for_bytes(context, data))
     }
 
     /// Returns the data for `key` as a [`enum@zvariant::Value`].
@@ -546,7 +545,7 @@ impl<'a, 'table, 'file> Iterator for Values<'a, 'table, 'file> {
 
         item.map(|item| {
             let bytes = self.hash_table.get_item_bytes(item)?;
-            let mut de = HashTable::deserializer_for_bytes(self.context, bytes)?;
+            let mut de = HashTable::deserializer_for_bytes(self.context, bytes);
             Ok(zvariant::Value::deserialize(&mut de)?)
         })
     }
@@ -646,6 +645,12 @@ pub(crate) mod test {
         assert_matches!(table.get_item_bytes(&null_item), Ok(&[]));
         let parent = table.get_hash_item_for_index(invalid_parent.parent().unwrap() as usize);
         assert_matches!(parent, None);
+
+        let broken_item = HashItem::test_new_invalid_key_ptr();
+        assert_matches!(table.key_for_item(&broken_item), Err(Error::DataOffset));
+
+        let broken_item = HashItem::test_new_invalid_value_ptr();
+        assert_matches!(table.get_item_bytes(&broken_item), Err(Error::DataOffset));
     }
 
     #[test]
