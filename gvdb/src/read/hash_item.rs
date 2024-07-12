@@ -88,13 +88,18 @@ pub struct HashItem {
 impl HashItem {
     pub fn new(
         hash_value: u32,
-        parent: u32,
+        parent: Option<u32>,
         key_ptr: Pointer,
         typ: HashItemType,
         value: Pointer,
     ) -> Self {
         let key_start = key_ptr.start().to_le();
         let key_size = (key_ptr.size() as u16).to_le();
+        let parent = if let Some(parent) = parent {
+            parent
+        } else {
+            u32::MAX
+        };
 
         Self {
             hash_value: hash_value.to_le(),
@@ -115,8 +120,13 @@ impl HashItem {
     /// The item index of the parent hash item.
     ///
     /// 0xFFFFFFFF means this is a root item.
-    pub fn parent(&self) -> u32 {
-        u32::from_le(self.parent)
+    pub fn parent(&self) -> Option<u32> {
+        let parent = u32::from_le(self.parent);
+        if parent == u32::MAX {
+            None
+        } else {
+            Some(parent)
+        }
     }
 
     /// Global start pointer of the key data
@@ -176,7 +186,7 @@ mod test {
         let typ = HashItemType::Container;
         println!("{}, {:?}", typ, typ);
 
-        let item = HashItem::new(0, 0, Pointer::NULL, HashItemType::Value, Pointer::NULL);
+        let item = HashItem::new(0, None, Pointer::NULL, HashItemType::Value, Pointer::NULL);
         let item2 = item;
         println!("{:?}", item2);
     }
@@ -192,10 +202,16 @@ mod test {
 
     #[test]
     fn item() {
-        let item = HashItem::new(0, 0, Pointer::NULL, HashItemType::Value, Pointer::NULL);
+        let item = HashItem::new(
+            0,
+            Some(0),
+            Pointer::NULL,
+            HashItemType::Value,
+            Pointer::NULL,
+        );
 
         assert_eq!(item.hash_value(), 0);
-        assert_eq!(item.parent(), 0);
+        assert_eq!(item.parent(), Some(0));
         assert_eq!(item.key_ptr(), Pointer::NULL);
         assert_matches!(item.typ(), Ok(HashItemType::Value));
         assert_eq!(item.value_ptr(), &Pointer::NULL);
