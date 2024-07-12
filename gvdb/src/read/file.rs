@@ -353,7 +353,7 @@ mod test {
 
         let parent_field = start + 4;
         data[parent_field..parent_field + size_of::<u32>()]
-            .copy_from_slice(safe_transmute::transmute_one_to_bytes(&10u32.to_le()));
+            .copy_from_slice(10u32.to_le().as_bytes());
 
         println!("{:?}", File::from_bytes(Cow::Owned(data.clone())).unwrap());
 
@@ -381,7 +381,7 @@ mod test {
 
         let parent_field = start + 4;
         data[parent_field..parent_field + size_of::<u32>()]
-            .copy_from_slice(safe_transmute::transmute_one_to_bytes(&1u32.to_le()));
+            .copy_from_slice(1u32.to_le().as_bytes());
 
         println!("{:?}", File::from_bytes(Cow::Owned(data.clone())).unwrap());
 
