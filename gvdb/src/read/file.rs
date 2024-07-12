@@ -291,7 +291,7 @@ mod test {
     #[test]
     fn test_minimal_file() {
         let file = create_minimal_file();
-        format!("{file:?}");
+        assert!(!format!("{file:?}").is_empty());
     }
 
     #[test]
