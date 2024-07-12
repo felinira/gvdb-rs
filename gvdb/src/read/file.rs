@@ -212,7 +212,7 @@ mod test {
     use matches::assert_matches;
     #[allow(unused_imports)]
     use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
-    use safe_transmute::transmute_one_to_bytes;
+    use zerocopy::AsBytes;
 
     #[test]
     fn test_file_1() {
@@ -242,7 +242,7 @@ mod test {
     #[test]
     fn invalid_header() {
         let header = Header::new_be(0, Pointer::new(0, 0));
-        let mut data = transmute_one_to_bytes(&header).to_vec();
+        let mut data = header.as_bytes().to_vec();
 
         data[0] = 0;
         assert_matches!(File::from_bytes(Cow::Owned(data)), Err(Error::Data(_)));
@@ -251,7 +251,7 @@ mod test {
     #[test]
     fn invalid_version() {
         let header = Header::new_le(1, Pointer::new(0, 0));
-        let data = transmute_one_to_bytes(&header).to_vec();
+        let data = header.as_bytes().to_vec();
 
         assert_matches!(File::from_bytes(Cow::Owned(data)), Err(Error::Data(_)));
     }
@@ -276,7 +276,7 @@ mod test {
 
     fn create_minimal_file() -> File<'static> {
         let header = Header::new_le(0, Pointer::new(0, 0));
-        let data = transmute_one_to_bytes(&header).to_vec();
+        let data = header.as_bytes().to_vec();
         assert_bytes_eq(
             &data,
             &[

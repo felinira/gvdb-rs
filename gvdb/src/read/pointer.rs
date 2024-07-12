@@ -1,3 +1,5 @@
+use zerocopy_derive::{AsBytes, FromBytes, FromZeroes};
+
 /// A pointer internal to the GVDB file.
 ///
 /// GVDB files use pointer structs with global start and end locations. Pointers
@@ -6,7 +8,7 @@
 /// It is possible to retrieve the bytes stored at this pointer by using
 /// [`File::dereference()`](crate::read::File::dereference).
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, AsBytes, FromBytes, FromZeroes)]
 pub struct Pointer {
     start: u32,
     end: u32,

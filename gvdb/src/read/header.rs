@@ -1,8 +1,7 @@
-use std::mem::size_of;
-
 use crate::read::error::{Error, Result};
 use crate::read::pointer::Pointer;
-use safe_transmute::{transmute_one_pedantic, TriviallyTransmutable};
+use zerocopy::FromBytes;
+use zerocopy_derive::{AsBytes, FromBytes, FromZeroes};
 
 // This is just a string, but it is stored in the byteorder of the file
 // Default byteorder is little endian, but the format supports big endian as well
@@ -47,7 +46,7 @@ const GVDB_SIGNATURE1: u32 = 1953390953;
 /// Points to the root hash table within the file.
 
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, FromZeroes, FromBytes, AsBytes)]
 pub struct Header {
     signature: [u32; 2],
     version: u32,
@@ -55,19 +54,14 @@ pub struct Header {
     root: Pointer,
 }
 
-unsafe impl TriviallyTransmutable for Header {}
-
 impl Header {
     /// Try to read the header, determine the endianness and validate that the header is valid.
     ///
     /// Returns [`Error::DataOffset`]` if the header doesn't fit, and [`Error::Data`] if the header
     /// is invalid.
     pub fn try_from_bytes(data: &[u8]) -> Result<Self> {
-        let header_data = data
-            .as_ref()
-            .get(0..size_of::<Header>())
-            .ok_or(Error::DataOffset)?;
-        let header: Self = transmute_one_pedantic(header_data)?;
+        let header =
+            Header::read_from_prefix(data).ok_or(Error::Data("Invalid GVDB header".to_string()))?;
 
         if !header.header_valid() {
             return Err(Error::Data(
@@ -162,7 +156,7 @@ impl Header {
 #[cfg(test)]
 mod test {
     use super::*;
-    use safe_transmute::{transmute_one_pedantic, transmute_one_to_bytes};
+    use zerocopy::AsBytes;
 
     #[test]
     fn derives() {
@@ -175,14 +169,14 @@ mod test {
     fn header_serialize() {
         let header = Header::new(false, 123, Pointer::NULL);
         assert!(!header.is_byteswap().unwrap());
-        let data = transmute_one_to_bytes(&header);
-        let parsed_header: Header = transmute_one_pedantic(data).unwrap();
+        let data = header.as_bytes();
+        let parsed_header = Header::ref_from(data).unwrap();
         assert!(!parsed_header.is_byteswap().unwrap());
 
         let header = Header::new(true, 0, Pointer::NULL);
         assert!(header.is_byteswap().unwrap());
-        let data = transmute_one_to_bytes(&header);
-        let parsed_header: Header = transmute_one_pedantic(data).unwrap();
+        let data = header.as_bytes();
+        let parsed_header = Header::ref_from(data).unwrap();
         assert!(parsed_header.is_byteswap().unwrap());
     }
 }
