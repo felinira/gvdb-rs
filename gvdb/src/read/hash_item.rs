@@ -158,6 +158,45 @@ impl HashItem {
     }
 }
 
+#[cfg(test)]
+impl HashItem {
+    pub(crate) fn test_new_null() -> Self {
+        Self {
+            hash_value: 0,
+            parent: u32::MAX,
+            key_start: 0,
+            key_size: 0,
+            typ: b'v',
+            unused: 0,
+            value: Pointer::NULL,
+        }
+    }
+
+    pub(crate) fn test_new_invalid_type() -> Self {
+        Self {
+            hash_value: 0,
+            parent: u32::MAX,
+            key_start: 0,
+            key_size: 0,
+            typ: b'x',
+            unused: 0,
+            value: Pointer::NULL,
+        }
+    }
+
+    pub(crate) fn test_new_invalid_parent() -> Self {
+        Self {
+            hash_value: 0,
+            parent: u32::MAX - 1,
+            key_start: 0,
+            key_size: 0,
+            typ: b'v',
+            unused: 0,
+            value: Pointer::NULL,
+        }
+    }
+}
+
 impl std::fmt::Debug for HashItem {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HashItem")
