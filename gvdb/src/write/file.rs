@@ -420,7 +420,7 @@ impl FileWriter {
         let hash_items_offset = hash_buckets_offset + header.buckets_len();
 
         let (hash_table_chunk_index, hash_table_chunk) = self.allocate_empty_chunk(size, 4);
-        let header = transmute_one_to_bytes(&header);
+        let header = header.as_bytes();
         hash_table_chunk.data_mut()[0..header.len()].copy_from_slice(header);
 
         let mut n_item = 0;
