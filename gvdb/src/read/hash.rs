@@ -320,8 +320,8 @@ impl<'a, 'file> HashTable<'a, 'file> {
             Ok(self.file.dereference(item.value_ptr(), 8)?)
         } else {
             Err(Error::Data(format!(
-                "Unable to parse item for key '{}' as GVariant: Expected type 'v', got type {}",
-                self.key_for_item(item)?,
+                "Unable to parse item for key '{:?}' as GVariant: Expected type 'v', got type {}",
+                self.key_for_item(item),
                 typ
             )))
         }
@@ -478,34 +478,39 @@ impl<'a, 'table, 'file> Iterator for Keys<'a, 'table, 'file> {
     fn next(&mut self) -> Option<Self::Item> {
         let mut item_count = self.hash_table.items.len() as isize;
 
-        let mut item = self.hash_table.get_hash_item_for_index(self.pos)?;
-        self.pos += 1;
-        let mut key = self.hash_table.key_for_item(item).ok()?.to_owned();
+        self.hash_table
+            .get_hash_item_for_index(self.pos)
+            .map(|mut item| {
+                self.pos += 1;
+                let mut key = self.hash_table.key_for_item(item)?.to_owned();
 
-        while let Some(parent) = item.parent() {
-            if item_count < 0 {
-                return Some(Err(Error::Data(
-                    "Error finding all parent items. The file appears to have a loop".to_string(),
-                )));
-            }
+                while let Some(parent) = item.parent() {
+                    if item_count < 0 {
+                        return Err(Error::Data(
+                            "Error finding all parent items. The file appears to have a loop"
+                                .to_string(),
+                        ));
+                    }
 
-            item = if let Some(item) = self.hash_table.get_hash_item_for_index(parent as usize) {
-                item
-            } else {
-                return Some(Err(Error::Data(format!(
-                    "Parent with invalid offset encountered: {}",
-                    parent
-                ))));
-            };
+                    item = if let Some(item) =
+                        self.hash_table.get_hash_item_for_index(parent as usize)
+                    {
+                        item
+                    } else {
+                        return Err(Error::Data(format!(
+                            "Parent with invalid offset encountered: {}",
+                            parent
+                        )));
+                    };
 
-            // Return None from this iterator if anything goes wrong, such as retrieving the key
-            let parent_key = self.hash_table.key_for_item(item).ok()?;
+                    let parent_key = self.hash_table.key_for_item(item)?;
 
-            key.insert_str(0, parent_key);
-            item_count -= 1;
-        }
+                    key.insert_str(0, parent_key);
+                    item_count -= 1;
+                }
 
-        Some(Ok(key))
+                Ok(key)
+            })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -528,25 +533,22 @@ impl<'a, 'table, 'file> Iterator for Values<'a, 'table, 'file> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let item = loop {
-            let item = self.hash_table.get_hash_item_for_index(self.pos)?;
+            let Some(item) = self.hash_table.get_hash_item_for_index(self.pos) else {
+                break None;
+            };
+
             self.pos += 1;
 
             if item.typ().is_ok_and(|t| t == HashItemType::Value) {
-                break item;
+                break Some(item);
             }
         };
 
-        let bytes = match self.hash_table.get_item_bytes(item) {
-            Ok(bytes) => bytes,
-            Err(err) => return Some(Err(err)),
-        };
-
-        let mut de = match HashTable::deserializer_for_bytes(self.context, bytes) {
-            Ok(de) => de,
-            Err(err) => return Some(Err(err)),
-        };
-
-        Some(zvariant::Value::deserialize(&mut de).map_err(|e| e.into()))
+        item.map(|item| {
+            let bytes = self.hash_table.get_item_bytes(item)?;
+            let mut de = HashTable::deserializer_for_bytes(self.context, bytes)?;
+            Ok(zvariant::Value::deserialize(&mut de)?)
+        })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -611,6 +613,8 @@ pub(crate) mod test {
             let table = file.hash_table().unwrap();
             let item = table.get_hash_item(SIMPLE_FILE_KEY).unwrap();
             assert_ne!(item.value_ptr(), &Pointer::NULL);
+            let bytes = table.get_item_bytes(&item);
+            assert!(bytes.is_ok());
             let value: u32 = table
                 .get_value(SIMPLE_FILE_KEY)
                 .unwrap()
@@ -624,6 +628,24 @@ pub(crate) mod test {
             let res_item = table.get_hash_item("test_fail");
             assert_matches!(res_item, None);
         }
+    }
+
+    #[test]
+    fn broken_items() {
+        let file = File::from_file(&TEST_FILE_2).unwrap();
+        let table = file.hash_table().unwrap();
+        let table = table.get_hash_table("table").unwrap();
+
+        let broken_item = HashItem::test_new_invalid_type();
+        assert_matches!(table.get_item_bytes(&broken_item), Err(Error::Data(_)));
+
+        let null_item = HashItem::test_new_null();
+        assert_matches!(table.get_item_bytes(&null_item), Ok(&[]));
+
+        let invalid_parent = HashItem::test_new_invalid_parent();
+        assert_matches!(table.get_item_bytes(&null_item), Ok(&[]));
+        let parent = table.get_hash_item_for_index(invalid_parent.parent().unwrap() as usize);
+        assert_matches!(parent, None);
     }
 
     #[test]
