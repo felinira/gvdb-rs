@@ -195,6 +195,30 @@ impl HashItem {
             value: Pointer::NULL,
         }
     }
+
+    pub(crate) fn test_new_invalid_key_ptr() -> Self {
+        Self {
+            hash_value: 0,
+            parent: u32::MAX,
+            key_start: u32::MAX,
+            key_size: 100,
+            typ: b'v',
+            unused: 0,
+            value: Pointer::NULL,
+        }
+    }
+
+    pub(crate) fn test_new_invalid_value_ptr() -> Self {
+        Self {
+            hash_value: 0,
+            parent: u32::MAX,
+            key_start: 0,
+            key_size: 0,
+            typ: b'v',
+            unused: 0,
+            value: Pointer::new(usize::MAX, 100),
+        }
+    }
 }
 
 impl std::fmt::Debug for HashItem {
