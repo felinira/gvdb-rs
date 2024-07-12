@@ -2,6 +2,7 @@ use crate::read::error::{Error, Result};
 use crate::read::pointer::Pointer;
 use safe_transmute::TriviallyTransmutable;
 use std::fmt::{Display, Formatter};
+use zerocopy_derive::{AsBytes, FromBytes, FromZeroes};
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum HashItemType {
@@ -71,7 +72,7 @@ impl Display for HashItemType {
 /// +-------+----------------------+
 /// ```
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, FromZeroes, FromBytes, AsBytes)]
 pub struct HashItem {
     hash_value: u32,
     parent: u32,
