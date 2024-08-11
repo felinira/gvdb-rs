@@ -1,7 +1,7 @@
 use crate::read::error::{Error, Result};
 use crate::read::pointer::Pointer;
 use std::fmt::{Display, Formatter};
-use zerocopy_derive::{AsBytes, FromBytes, FromZeroes};
+use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum HashItemType {

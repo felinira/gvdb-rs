@@ -15,8 +15,7 @@ categories.workspace = true
 all-features = true
 
 [dependencies]
-zerocopy = "0.7"
-zerocopy-derive = "0.7"
+zerocopy = { version = "0.7", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 zvariant = { version = "4.0", default-features = false, features = [
     "gvariant",

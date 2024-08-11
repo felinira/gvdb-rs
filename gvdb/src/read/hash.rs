@@ -5,8 +5,7 @@ use serde::Deserialize;
 use std::fmt::{Debug, Formatter};
 use std::mem::size_of;
 use zerocopy::byteorder::little_endian::U32 as u32le;
-use zerocopy::{AsBytes, FromBytes};
-use zerocopy_derive::{AsBytes, FromBytes, FromZeroes};
+use zerocopy::{AsBytes, FromBytes, FromZeroes};
 use zvariant::Type;
 
 use super::{File, HashItemType};
