@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 The versions in changelog reflect the gvdb versions.
 
+## [0.7.1] - 2024-08-11
+
+### Fixed
+
+- Fixed compilation when zerocopy derive feature was added by another crate
+
 ## [0.7.0] - 2024-07-13
 
 ### Added
