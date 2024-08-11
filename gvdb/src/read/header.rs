@@ -1,7 +1,6 @@
 use crate::read::error::{Error, Result};
 use crate::read::pointer::Pointer;
-use zerocopy::FromBytes;
-use zerocopy_derive::{AsBytes, FromBytes, FromZeroes};
+use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
 // This is just a string, but it is stored in the byteorder of the file
 // Default byteorder is little endian, but the format supports big endian as well

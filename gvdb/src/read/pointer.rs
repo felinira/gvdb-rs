@@ -1,4 +1,4 @@
-use zerocopy_derive::{AsBytes, FromBytes, FromZeroes};
+use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
 /// A pointer internal to the GVDB file.
 ///
