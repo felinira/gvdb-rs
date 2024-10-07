@@ -478,7 +478,7 @@ pub struct Keys<'a, 'table, 'file> {
     pos: usize,
 }
 
-impl<'a, 'table, 'file> Iterator for Keys<'a, 'table, 'file> {
+impl Iterator for Keys<'_, '_, '_> {
     type Item = Result<String>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -525,7 +525,7 @@ impl<'a, 'table, 'file> Iterator for Keys<'a, 'table, 'file> {
     }
 }
 
-impl<'a, 'table, 'file> ExactSizeIterator for Keys<'a, 'table, 'file> {}
+impl ExactSizeIterator for Keys<'_, '_, '_> {}
 
 /// Iterator over all values in a [`HashTable`]
 pub struct Values<'a, 'table, 'file> {
@@ -534,7 +534,7 @@ pub struct Values<'a, 'table, 'file> {
     pos: usize,
 }
 
-impl<'a, 'table, 'file> Iterator for Values<'a, 'table, 'file> {
+impl<'table> Iterator for Values<'_, 'table, '_> {
     type Item = Result<zvariant::Value<'table>>;
 
     fn next(&mut self) -> Option<Self::Item> {

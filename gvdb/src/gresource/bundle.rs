@@ -211,22 +211,22 @@ impl<'a> FileData<'a> {
 }
 
 /// We define equality as key equality only. The resulting file can only have one file for each key.
-impl<'a> std::cmp::PartialEq for FileData<'a> {
+impl std::cmp::PartialEq for FileData<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.key == other.key
     }
 }
 
-impl<'a> std::cmp::Eq for FileData<'a> {}
+impl std::cmp::Eq for FileData<'_> {}
 
 /// We define ordering as key ordering only. The resulting file can only have one file for each key.
-impl<'a> std::cmp::PartialOrd for FileData<'a> {
+impl std::cmp::PartialOrd for FileData<'_> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<'a> std::cmp::Ord for FileData<'a> {
+impl std::cmp::Ord for FileData<'_> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.key.cmp(&other.key)
     }

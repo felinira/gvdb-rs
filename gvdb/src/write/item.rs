@@ -19,14 +19,14 @@ pub enum HashValue<'a> {
     Container(Vec<String>),
 }
 
-impl<'a> Default for HashValue<'a> {
+impl Default for HashValue<'_> {
     fn default() -> Self {
         Self::Container(Vec::new())
     }
 }
 
 #[allow(dead_code)]
-impl<'a> HashValue<'a> {
+impl HashValue<'_> {
     pub fn typ(&self) -> HashItemType {
         match self {
             HashValue::Value(_) => HashItemType::Value,
@@ -75,7 +75,7 @@ impl<'a> From<zvariant::Value<'a>> for HashValue<'a> {
 }
 
 #[cfg(feature = "glib")]
-impl<'a> From<glib::Variant> for HashValue<'a> {
+impl From<glib::Variant> for HashValue<'_> {
     fn from(var: glib::Variant) -> Self {
         HashValue::GVariant(var)
     }

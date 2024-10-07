@@ -149,7 +149,7 @@ pub struct SimpleHashTableBucketIter<'it, 'h> {
     last_item: Option<Rc<HashItemBuilder<'h>>>,
 }
 
-impl<'it, 'h> Iterator for SimpleHashTableBucketIter<'it, 'h> {
+impl<'h> Iterator for SimpleHashTableBucketIter<'_, 'h> {
     type Item = Rc<HashItemBuilder<'h>>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -180,7 +180,7 @@ pub struct SimpleHashTableIter<'it, 'h> {
     last_item: Option<Rc<HashItemBuilder<'h>>>,
 }
 
-impl<'it, 'h> Iterator for SimpleHashTableIter<'it, 'h> {
+impl<'h> Iterator for SimpleHashTableIter<'_, 'h> {
     type Item = (usize, Rc<HashItemBuilder<'h>>);
 
     fn next(&mut self) -> Option<Self::Item> {
