@@ -248,7 +248,7 @@ impl<'a> HashTableBuilder<'a> {
     }
 }
 
-impl<'a> Default for HashTableBuilder<'a> {
+impl Default for HashTableBuilder<'_> {
     fn default() -> Self {
         Self::new()
     }

@@ -43,7 +43,6 @@ const GVDB_SIGNATURE1: u32 = 1953390953;
 /// ## Root pointer
 ///
 /// Points to the root hash table within the file.
-
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Immutable, KnownLayout, FromBytes, IntoBytes)]
 pub struct Header {
