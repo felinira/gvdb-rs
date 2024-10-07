@@ -75,8 +75,8 @@ impl HashHeader {
         let offset = self.bloom_words_offset();
         let len = self.bloom_words_len();
 
-        if len == 0 {
-            Ok(&[])
+        Ok(if len == 0 {
+            &[]
         } else {
             let words_data = data.get(offset..(offset + len)).ok_or_else(|| {
                 Error::Data(format!(
@@ -86,8 +86,8 @@ impl HashHeader {
                 ))
             })?;
 
-            <[u32le]>::ref_from_bytes(words_data).map_err(|_| Error::DataOffset)
-        }
+            <[u32le]>::ref_from_bytes(words_data)?
+        })
     }
 
     /// The offset of the hash buckets section
@@ -110,8 +110,8 @@ impl HashHeader {
         let offset = self.buckets_offset();
         let len = self.buckets_len();
 
-        if len == 0 {
-            Ok(&[])
+        Ok(if len == 0 {
+            &[]
         } else {
             let buckets_data = data.get(offset..(offset + len)).ok_or_else(|| {
                 Error::Data(format!(
@@ -121,8 +121,8 @@ impl HashHeader {
                 ))
             })?;
 
-            <[u32le]>::ref_from_bytes(buckets_data).map_err(|_| Error::DataOffset)
-        }
+            <[u32le]>::ref_from_bytes(buckets_data)?
+        })
     }
 
     /// The start of the hash items region
@@ -146,7 +146,7 @@ impl HashHeader {
             )))
         } else {
             let items_data = data.get(offset..(offset + len)).unwrap_or_default();
-            <[HashItem]>::ref_from_bytes(items_data).map_err(|_| Error::DataOffset)
+            Ok(<[HashItem]>::ref_from_bytes(items_data)?)
         }
     }
 }

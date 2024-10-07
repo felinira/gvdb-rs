@@ -34,6 +34,16 @@ impl Error {
     }
 }
 
+impl<Src, Dst: ?Sized> From<zerocopy::CastError<Src, Dst>> for Error {
+    fn from(value: zerocopy::CastError<Src, Dst>) -> Self {
+        match value {
+            zerocopy::ConvertError::Alignment(_) => Self::DataAlignment,
+            zerocopy::ConvertError::Size(_) => Self::DataOffset,
+            zerocopy::ConvertError::Validity(_infallible) => unreachable!(),
+        }
+    }
+}
+
 impl std::error::Error for Error {}
 
 impl From<FromUtf8Error> for Error {
