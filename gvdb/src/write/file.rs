@@ -9,7 +9,7 @@ use crate::write::item::HashValue;
 use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::mem::size_of;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 /// Create hash tables for use in GVDB files
 ///

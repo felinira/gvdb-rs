@@ -107,7 +107,7 @@ mod test {
     use crate::read::{Error, Header, Pointer};
     use matches::assert_matches;
     use std::num::TryFromIntError;
-    use zerocopy::{AsBytes, FromBytes};
+    use zerocopy::{CastError, FromBytes, IntoBytes};
 
     #[test]
     fn from() {
@@ -136,23 +136,23 @@ mod test {
         let to_transmute = Header::new(false, 0, Pointer::NULL);
         let mut bytes = to_transmute.as_bytes().to_vec();
         bytes.extend_from_slice(b"fail");
-        let res = Header::ref_from(&bytes);
-        assert_eq!(res, None); // unexpected trailing bytes
+        let res = Header::ref_from_bytes(&bytes);
+        assert_matches!(res, Err(CastError::Size(_))); // unexpected trailing bytes
 
         let to_transmute = Header::new(false, 0, Pointer::NULL);
         let mut bytes = to_transmute.as_bytes().to_vec();
         bytes.remove(bytes.len() - 1);
-        let res = Header::ref_from(&bytes);
-        assert_eq!(res, None); //Missing 1 byte
+        let res = Header::ref_from_bytes(&bytes);
+        assert_matches!(res, Err(CastError::Size(_))); //Missing 1 byte
 
         let to_transmute = Header::new(false, 0, Pointer::NULL);
         let mut bytes = b"unalign".to_vec();
         bytes.extend_from_slice(to_transmute.as_bytes());
-        let res = Header::ref_from(&bytes[7..]);
-        assert_eq!(res, None); // Unaligned
+        let res = Header::ref_from_bytes(&bytes[7..]);
+        assert_matches!(res, Err(CastError::Alignment(_))); // Unaligned
 
         let bytes = vec![0u8; 5];
-        let res = Header::slice_from(&bytes);
-        assert_eq!(res, None); // Invalid size
+        let res = <[Header]>::ref_from_bytes(&bytes);
+        assert_matches!(res, Err(CastError::Size(_))); // Invalid size
     }
 }

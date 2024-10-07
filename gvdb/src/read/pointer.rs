@@ -1,4 +1,4 @@
-use zerocopy::{AsBytes, FromBytes, FromZeroes};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 /// A pointer internal to the GVDB file.
 ///
@@ -8,7 +8,7 @@ use zerocopy::{AsBytes, FromBytes, FromZeroes};
 /// It is possible to retrieve the bytes stored at this pointer by using
 /// [`File::dereference()`](crate::read::File::dereference).
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Eq, AsBytes, FromBytes, FromZeroes)]
+#[derive(Copy, Clone, PartialEq, Eq, Immutable, KnownLayout, FromBytes, IntoBytes)]
 pub struct Pointer {
     start: u32,
     end: u32,

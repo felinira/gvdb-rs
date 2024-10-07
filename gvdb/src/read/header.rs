@@ -1,6 +1,6 @@
 use crate::read::error::{Error, Result};
 use crate::read::pointer::Pointer;
-use zerocopy::{AsBytes, FromBytes, FromZeroes};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 // This is just a string, but it is stored in the byteorder of the file
 // Default byteorder is little endian, but the format supports big endian as well
@@ -45,7 +45,7 @@ const GVDB_SIGNATURE1: u32 = 1953390953;
 /// Points to the root hash table within the file.
 
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Eq, Debug, FromZeroes, FromBytes, AsBytes)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Immutable, KnownLayout, FromBytes, IntoBytes)]
 pub struct Header {
     signature: [u32; 2],
     version: u32,
@@ -59,8 +59,8 @@ impl Header {
     /// Returns [`Error::DataOffset`]` if the header doesn't fit, and [`Error::Data`] if the header
     /// is invalid.
     pub fn try_from_bytes(data: &[u8]) -> Result<Self> {
-        let header =
-            Header::read_from_prefix(data).ok_or(Error::Data("Invalid GVDB header".to_string()))?;
+        let (header, _) = Header::read_from_prefix(data)
+            .map_err(|_| Error::Data("Invalid GVDB header".to_string()))?;
 
         if !header.header_valid() {
             return Err(Error::Data(
@@ -155,7 +155,7 @@ impl Header {
 #[cfg(test)]
 mod test {
     use super::*;
-    use zerocopy::AsBytes;
+    use zerocopy::IntoBytes;
 
     #[test]
     fn derives() {
@@ -169,13 +169,13 @@ mod test {
         let header = Header::new(false, 123, Pointer::NULL);
         assert!(!header.is_byteswap().unwrap());
         let data = header.as_bytes();
-        let parsed_header = Header::ref_from(data).unwrap();
+        let parsed_header = Header::ref_from_bytes(data).unwrap();
         assert!(!parsed_header.is_byteswap().unwrap());
 
         let header = Header::new(true, 0, Pointer::NULL);
         assert!(header.is_byteswap().unwrap());
         let data = header.as_bytes();
-        let parsed_header = Header::ref_from(data).unwrap();
+        let parsed_header = Header::ref_from_bytes(data).unwrap();
         assert!(parsed_header.is_byteswap().unwrap());
     }
 }

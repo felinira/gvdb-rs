@@ -5,7 +5,7 @@ use serde::Deserialize;
 use std::fmt::{Debug, Formatter};
 use std::mem::size_of;
 use zerocopy::byteorder::little_endian::U32 as u32le;
-use zerocopy::{AsBytes, FromBytes, FromZeroes};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 use zvariant::Type;
 
 use super::{File, HashItemType};
@@ -28,7 +28,7 @@ type GVariantDeserializer<'de, 'sig, 'f> = zvariant::gvariant::Deserializer<'de,
 /// +-------+-----------------------+
 /// ```
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Eq, FromBytes, FromZeroes, AsBytes)]
+#[derive(Copy, Clone, PartialEq, Eq, Immutable, KnownLayout, FromBytes, IntoBytes)]
 pub struct HashHeader {
     n_bloom_words: u32,
     n_buckets: u32,
@@ -50,7 +50,8 @@ impl HashHeader {
     /// Read the hash table header from `data`
     pub fn try_from_bytes(data: &[u8]) -> Result<&Self> {
         HashHeader::ref_from_prefix(data)
-            .ok_or(Error::Data("Invalid hash table header".to_string()))
+            .map(|(header, _remain)| header)
+            .map_err(|_| Error::Data("Invalid hash table header".to_string()))
     }
 
     /// Number of bloom words in the hash table header
@@ -85,7 +86,7 @@ impl HashHeader {
                 ))
             })?;
 
-            u32le::slice_from(words_data).ok_or(Error::DataOffset)
+            <[u32le]>::ref_from_bytes(words_data).map_err(|_| Error::DataOffset)
         }
     }
 
@@ -120,7 +121,7 @@ impl HashHeader {
                 ))
             })?;
 
-            u32le::slice_from(buckets_data).ok_or(Error::DataOffset)
+            <[u32le]>::ref_from_bytes(buckets_data).map_err(|_| Error::DataOffset)
         }
     }
 
@@ -145,7 +146,7 @@ impl HashHeader {
             )))
         } else {
             let items_data = data.get(offset..(offset + len)).unwrap_or_default();
-            HashItem::slice_from(items_data).ok_or(Error::DataOffset)
+            <[HashItem]>::ref_from_bytes(items_data).map_err(|_| Error::DataOffset)
         }
     }
 }

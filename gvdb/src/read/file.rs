@@ -218,7 +218,7 @@ mod test {
     use matches::assert_matches;
     #[allow(unused_imports)]
     use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
-    use zerocopy::AsBytes;
+    use zerocopy::IntoBytes;
 
     #[test]
     fn test_file_1() {
