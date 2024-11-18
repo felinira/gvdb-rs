@@ -1,44 +1,45 @@
-use crate::read::GvdbHashItemType;
-use crate::write::file::GvdbHashTableBuilder;
+use crate::read::HashItemType;
+use crate::write::file::HashTableBuilder;
 use std::cell::{Cell, Ref, RefCell};
 use std::rc::Rc;
 
+/// Holds the value of a GVDB hash table
 #[derive(Debug)]
-pub enum GvdbBuilderItemValue<'a> {
-    // A zvariant::Value
+pub enum HashValue<'a> {
+    /// A zvariant::Value
     Value(zvariant::Value<'a>),
 
-    // A glib::Variant
+    /// A glib::Variant
     #[cfg(feature = "glib")]
     GVariant(glib::Variant),
 
-    TableBuilder(GvdbHashTableBuilder<'a>),
+    TableBuilder(HashTableBuilder<'a>),
 
-    // A child container with no additional value
+    /// A child container with no additional value
     Container(Vec<String>),
 }
 
-impl<'a> Default for GvdbBuilderItemValue<'a> {
+impl Default for HashValue<'_> {
     fn default() -> Self {
         Self::Container(Vec::new())
     }
 }
 
 #[allow(dead_code)]
-impl<'a> GvdbBuilderItemValue<'a> {
-    pub fn typ(&self) -> GvdbHashItemType {
+impl HashValue<'_> {
+    pub fn typ(&self) -> HashItemType {
         match self {
-            GvdbBuilderItemValue::Value(_) => GvdbHashItemType::Value,
+            HashValue::Value(_) => HashItemType::Value,
             #[cfg(feature = "glib")]
-            GvdbBuilderItemValue::GVariant(_) => GvdbHashItemType::Value,
-            GvdbBuilderItemValue::TableBuilder(_) => GvdbHashItemType::HashTable,
-            GvdbBuilderItemValue::Container(_) => GvdbHashItemType::Container,
+            HashValue::GVariant(_) => HashItemType::Value,
+            HashValue::TableBuilder(_) => HashItemType::HashTable,
+            HashValue::Container(_) => HashItemType::Container,
         }
     }
 
     pub fn value(&self) -> Option<&zvariant::Value> {
         match self {
-            GvdbBuilderItemValue::Value(value) => Some(value),
+            HashValue::Value(value) => Some(value),
             _ => None,
         }
     }
@@ -46,69 +47,69 @@ impl<'a> GvdbBuilderItemValue<'a> {
     #[cfg(feature = "glib")]
     pub fn gvariant(&self) -> Option<&glib::Variant> {
         match self {
-            GvdbBuilderItemValue::GVariant(variant) => Some(variant),
+            HashValue::GVariant(variant) => Some(variant),
             _ => None,
         }
     }
 
     #[allow(dead_code)]
-    pub fn table_builder(&self) -> Option<&GvdbHashTableBuilder> {
+    pub fn table_builder(&self) -> Option<&HashTableBuilder> {
         match self {
-            GvdbBuilderItemValue::TableBuilder(tb) => Some(tb),
+            HashValue::TableBuilder(tb) => Some(tb),
             _ => None,
         }
     }
 
     pub fn container(&self) -> Option<&Vec<String>> {
         match self {
-            GvdbBuilderItemValue::Container(children) => Some(children),
+            HashValue::Container(children) => Some(children),
             _ => None,
         }
     }
 }
 
-impl<'a> From<zvariant::Value<'a>> for GvdbBuilderItemValue<'a> {
+impl<'a> From<zvariant::Value<'a>> for HashValue<'a> {
     fn from(var: zvariant::Value<'a>) -> Self {
-        GvdbBuilderItemValue::Value(var)
+        HashValue::Value(var)
     }
 }
 
 #[cfg(feature = "glib")]
-impl<'a> From<glib::Variant> for GvdbBuilderItemValue<'a> {
+impl From<glib::Variant> for HashValue<'_> {
     fn from(var: glib::Variant) -> Self {
-        GvdbBuilderItemValue::GVariant(var)
+        HashValue::GVariant(var)
     }
 }
 
-impl<'a> From<GvdbHashTableBuilder<'a>> for GvdbBuilderItemValue<'a> {
-    fn from(tb: GvdbHashTableBuilder<'a>) -> Self {
-        GvdbBuilderItemValue::TableBuilder(tb)
+impl<'a> From<HashTableBuilder<'a>> for HashValue<'a> {
+    fn from(tb: HashTableBuilder<'a>) -> Self {
+        HashValue::TableBuilder(tb)
     }
 }
 
 #[derive(Debug)]
-pub struct GvdbBuilderItem<'a> {
-    // The key string of the item
+pub struct HashItemBuilder<'a> {
+    /// The key string of the item
     key: String,
 
-    // The djb hash
+    /// The djb hash
     hash: u32,
 
-    // An arbitrary data container
-    value: RefCell<GvdbBuilderItemValue<'a>>,
+    /// An arbitrary data container
+    value: RefCell<HashValue<'a>>,
 
-    // The assigned index for the gvdb file
+    /// The assigned index for the gvdb file
     assigned_index: Cell<u32>,
 
-    // The parent item of this builder item
-    parent: RefCell<Option<Rc<GvdbBuilderItem<'a>>>>,
+    /// The parent item of this builder item
+    parent: RefCell<Option<Rc<HashItemBuilder<'a>>>>,
 
-    // The next item in the hash bucket
-    next: RefCell<Option<Rc<GvdbBuilderItem<'a>>>>,
+    /// The next item in the hash bucket
+    next: RefCell<Option<Rc<HashItemBuilder<'a>>>>,
 }
 
-impl<'a> GvdbBuilderItem<'a> {
-    pub fn new(key: &str, hash: u32, value: GvdbBuilderItemValue<'a>) -> Self {
+impl<'a> HashItemBuilder<'a> {
+    pub fn new(key: &str, hash: u32, value: HashValue<'a>) -> Self {
         let key = key.to_string();
 
         Self {
@@ -129,23 +130,23 @@ impl<'a> GvdbBuilderItem<'a> {
         self.hash
     }
 
-    pub fn next(&self) -> &RefCell<Option<Rc<GvdbBuilderItem<'a>>>> {
+    pub fn next(&self) -> &RefCell<Option<Rc<HashItemBuilder<'a>>>> {
         &self.next
     }
 
-    pub fn value(&self) -> &RefCell<GvdbBuilderItemValue<'a>> {
+    pub fn value(&self) -> &RefCell<HashValue<'a>> {
         &self.value
     }
 
-    pub fn value_ref(&self) -> Ref<GvdbBuilderItemValue<'a>> {
+    pub fn value_ref(&self) -> Ref<HashValue<'a>> {
         self.value.borrow()
     }
 
-    pub fn parent(&self) -> &RefCell<Option<Rc<GvdbBuilderItem<'a>>>> {
+    pub fn parent(&self) -> &RefCell<Option<Rc<HashItemBuilder<'a>>>> {
         &self.parent
     }
 
-    pub fn parent_ref(&self) -> Ref<Option<Rc<GvdbBuilderItem<'a>>>> {
+    pub fn parent_ref(&self) -> Ref<Option<Rc<HashItemBuilder<'a>>>> {
         self.parent.borrow()
     }
 
@@ -160,37 +161,41 @@ impl<'a> GvdbBuilderItem<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::read::GvdbHashItemType;
-    use crate::write::item::{GvdbBuilderItem, GvdbBuilderItemValue};
-    use crate::write::GvdbHashTableBuilder;
+    use crate::read::HashItemType;
+    use crate::write::item::{HashItemBuilder, HashValue};
+    use crate::write::HashTableBuilder;
     use matches::assert_matches;
 
     #[test]
     fn derives() {
         let value1: zvariant::Value = "test".into();
-        let item1 = GvdbBuilderItemValue::Value(value1.clone());
+        let item1 = HashValue::Value(value1);
         println!("{:?}", item1);
     }
 
     #[test]
     fn item_value() {
         let value1: zvariant::Value = "test".into();
-        let item1 = GvdbBuilderItemValue::Value(value1.clone());
-        assert_eq!(item1.typ(), GvdbHashItemType::Value);
+        let item1 = HashValue::Value(
+            value1
+                .try_clone()
+                .expect("Value to not contain a file descriptor"),
+        );
+        assert_eq!(item1.typ(), HashItemType::Value);
         assert_eq!(item1.value().unwrap(), &value1);
 
         #[cfg(feature = "glib")]
         assert_matches!(item1.gvariant(), None);
 
-        let value2 = GvdbHashTableBuilder::new();
-        let item2 = GvdbBuilderItemValue::from(value2);
-        assert_eq!(item2.typ(), GvdbHashItemType::HashTable);
+        let value2 = HashTableBuilder::new();
+        let item2 = HashValue::from(value2);
+        assert_eq!(item2.typ(), HashItemType::HashTable);
         assert!(item2.table_builder().is_some());
         assert_matches!(item2.container(), None);
 
         let value3 = vec!["test".to_string(), "test2".to_string()];
-        let item3 = GvdbBuilderItemValue::Container(value3.clone());
-        assert_eq!(item3.typ(), GvdbHashItemType::Container);
+        let item3 = HashValue::Container(value3.clone());
+        assert_eq!(item3.typ(), HashItemType::Container);
         assert_eq!(item3.container().unwrap(), &value3);
         assert_matches!(item3.table_builder(), None);
     }
@@ -198,27 +203,27 @@ mod test {
     #[test]
     fn builder_item() {
         let value1: zvariant::Value = "test".into();
-        let item1 = GvdbBuilderItemValue::Value(value1.clone());
-        let item = GvdbBuilderItem::new("test", 0, item1);
+        let item1 = HashValue::Value(value1);
+        let item = HashItemBuilder::new("test", 0, item1);
         println!("{:?}", item);
 
         assert_eq!(item.key(), "test");
-        assert_matches!(&*item.value().borrow(), GvdbBuilderItemValue::Value(_));
+        assert_matches!(&*item.value().borrow(), HashValue::Value(_));
     }
 }
 
 #[cfg(all(feature = "glib", test))]
 mod test_glib {
-    use crate::read::GvdbHashItemType;
-    use crate::write::item::GvdbBuilderItemValue;
-    use glib::ToVariant;
+    use crate::read::HashItemType;
+    use crate::write::item::HashValue;
+    use glib::prelude::*;
     use matches::assert_matches;
 
     #[test]
     fn item_value() {
         let value1 = "test".to_variant();
-        let item1 = GvdbBuilderItemValue::from(value1.clone());
-        assert_eq!(item1.typ(), GvdbHashItemType::Value);
+        let item1 = HashValue::from(value1.clone());
+        assert_eq!(item1.typ(), HashItemType::Value);
         assert_eq!(item1.gvariant().unwrap(), &value1);
         assert_matches!(item1.value(), None);
     }

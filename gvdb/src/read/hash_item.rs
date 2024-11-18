@@ -1,57 +1,78 @@
-use crate::read::error::{GvdbReaderError, GvdbReaderResult};
-use crate::read::pointer::GvdbPointer;
-use safe_transmute::TriviallyTransmutable;
+use crate::read::error::{Error, Result};
+use crate::read::pointer::Pointer;
 use std::fmt::{Display, Formatter};
+use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 #[derive(PartialEq, Eq, Debug)]
-pub enum GvdbHashItemType {
+pub enum HashItemType {
     Value,
     HashTable,
     Container,
 }
 
-impl From<GvdbHashItemType> for u8 {
-    fn from(item: GvdbHashItemType) -> Self {
+impl From<HashItemType> for u8 {
+    fn from(item: HashItemType) -> Self {
         match item {
-            GvdbHashItemType::Value => b'v',
-            GvdbHashItemType::HashTable => b'H',
-            GvdbHashItemType::Container => b'L',
+            HashItemType::Value => b'v',
+            HashItemType::HashTable => b'H',
+            HashItemType::Container => b'L',
         }
     }
 }
 
-impl TryFrom<u8> for GvdbHashItemType {
-    type Error = GvdbReaderError;
+impl TryFrom<u8> for HashItemType {
+    type Error = Error;
 
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
+    fn try_from(value: u8) -> Result<Self> {
         let chr = value as char;
         if chr == 'v' {
-            Ok(GvdbHashItemType::Value)
+            Ok(HashItemType::Value)
         } else if chr == 'H' {
-            Ok(GvdbHashItemType::HashTable)
+            Ok(HashItemType::HashTable)
         } else if chr == 'L' {
-            Ok(GvdbHashItemType::Container)
+            Ok(HashItemType::Container)
         } else {
-            Err(GvdbReaderError::InvalidData)
+            Err(Error::Data(format!("Invalid HashItemType: '{}'", chr)))
         }
     }
 }
 
-impl Display for GvdbHashItemType {
+impl Display for HashItemType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let text = match self {
-            GvdbHashItemType::Value => "Value",
-            GvdbHashItemType::HashTable => "HashTable",
-            GvdbHashItemType::Container => "Child",
+            HashItemType::Value => "Value",
+            HashItemType::HashTable => "HashTable",
+            HashItemType::Container => "Child",
         };
 
         write!(f, "{}", text)
     }
 }
 
+/// GVDB hash item.
+///
+/// ```text
+/// +-------+----------------------+
+/// | Bytes | Field                |
+/// +-------+----------------------+
+/// |     4 | djb2 hash value      |
+/// +-------+----------------------+
+/// |     4 | parent item index    |
+/// +-------+----------------------+
+/// |     4 | start address of key |
+/// +-------+----------------------+
+/// |     2 | size of key          |
+/// +-------+----------------------+
+/// |     1 | hash item kind       |
+/// +-------+------------------- --+
+/// |     1 | unused               |
+/// +-------+----------------------+
+/// |     8 | value data pointer   |
+/// +-------+----------------------+
+/// ```
 #[repr(C)]
-#[derive(Copy, Clone)]
-pub struct GvdbHashItem {
+#[derive(Copy, Clone, Immutable, FromBytes, IntoBytes)]
+pub struct HashItem {
     hash_value: u32,
     parent: u32,
 
@@ -61,21 +82,24 @@ pub struct GvdbHashItem {
     typ: u8,
     unused: u8,
 
-    value: GvdbPointer,
+    value: Pointer,
 }
 
-unsafe impl TriviallyTransmutable for GvdbHashItem {}
-
-impl GvdbHashItem {
+impl HashItem {
     pub fn new(
         hash_value: u32,
-        parent: u32,
-        key_ptr: GvdbPointer,
-        typ: GvdbHashItemType,
-        value: GvdbPointer,
+        parent: Option<u32>,
+        key_ptr: Pointer,
+        typ: HashItemType,
+        value: Pointer,
     ) -> Self {
         let key_start = key_ptr.start().to_le();
         let key_size = (key_ptr.size() as u16).to_le();
+        let parent = if let Some(parent) = parent {
+            parent
+        } else {
+            u32::MAX
+        };
 
         Self {
             hash_value: hash_value.to_le(),
@@ -88,41 +112,118 @@ impl GvdbHashItem {
         }
     }
 
+    /// djb hash value of the item data.
     pub fn hash_value(&self) -> u32 {
         u32::from_le(self.hash_value)
     }
 
-    pub fn parent(&self) -> u32 {
-        u32::from_le(self.parent)
+    /// The item index of the parent hash item.
+    ///
+    /// 0xFFFFFFFF means this is a root item.
+    pub fn parent(&self) -> Option<u32> {
+        let parent = u32::from_le(self.parent);
+        if parent == u32::MAX {
+            None
+        } else {
+            Some(parent)
+        }
     }
 
+    /// Global start pointer of the key data
     pub fn key_start(&self) -> u32 {
         u32::from_le(self.key_start)
     }
 
+    /// The size of the key data.
     pub fn key_size(&self) -> u16 {
         u16::from_le(self.key_size)
     }
 
-    pub fn key_ptr(&self) -> GvdbPointer {
-        GvdbPointer::new(
+    /// Convenience method to generate a proper GVDB pointer from key_start and key_size.
+    pub fn key_ptr(&self) -> Pointer {
+        Pointer::new(
             self.key_start() as usize,
             self.key_start() as usize + self.key_size() as usize,
         )
     }
 
-    pub fn typ(&self) -> GvdbReaderResult<GvdbHashItemType> {
+    /// The kind of hash item.
+    pub fn typ(&self) -> Result<HashItemType> {
         self.typ.try_into()
     }
 
-    pub fn value_ptr(&self) -> &GvdbPointer {
+    /// A pointer to the underlying data.
+    pub fn value_ptr(&self) -> &Pointer {
         &self.value
     }
 }
 
-impl std::fmt::Debug for GvdbHashItem {
+#[cfg(test)]
+impl HashItem {
+    pub(crate) fn test_new_null() -> Self {
+        Self {
+            hash_value: 0,
+            parent: u32::MAX,
+            key_start: 0,
+            key_size: 0,
+            typ: b'v',
+            unused: 0,
+            value: Pointer::NULL,
+        }
+    }
+
+    pub(crate) fn test_new_invalid_type() -> Self {
+        Self {
+            hash_value: 0,
+            parent: u32::MAX,
+            key_start: 0,
+            key_size: 0,
+            typ: b'x',
+            unused: 0,
+            value: Pointer::NULL,
+        }
+    }
+
+    pub(crate) fn test_new_invalid_parent() -> Self {
+        Self {
+            hash_value: 0,
+            parent: u32::MAX - 1,
+            key_start: 0,
+            key_size: 0,
+            typ: b'v',
+            unused: 0,
+            value: Pointer::NULL,
+        }
+    }
+
+    pub(crate) fn test_new_invalid_key_ptr() -> Self {
+        Self {
+            hash_value: 0,
+            parent: u32::MAX,
+            key_start: u32::MAX,
+            key_size: 100,
+            typ: b'v',
+            unused: 0,
+            value: Pointer::NULL,
+        }
+    }
+
+    pub(crate) fn test_new_invalid_value_ptr() -> Self {
+        Self {
+            hash_value: 0,
+            parent: u32::MAX,
+            key_start: 0,
+            key_size: 0,
+            typ: b'v',
+            unused: 0,
+            value: Pointer::new(usize::MAX, 100),
+        }
+    }
+}
+
+impl std::fmt::Debug for HashItem {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GvdbHashItem")
+        f.debug_struct("HashItem")
             .field("hash_value", &self.hash_value())
             .field("parent", &self.parent())
             .field("key_start", &self.key_start())
@@ -136,67 +237,46 @@ impl std::fmt::Debug for GvdbHashItem {
 
 #[cfg(test)]
 mod test {
-    use crate::read::{GvdbHashItem, GvdbHashItemType, GvdbPointer, GvdbReaderError};
+    use crate::read::{Error, HashItem, HashItemType, Pointer};
     use matches::assert_matches;
 
     #[test]
     fn derives() {
-        let typ = GvdbHashItemType::Value;
+        let typ = HashItemType::Value;
         println!("{}, {:?}", typ, typ);
-        let typ = GvdbHashItemType::HashTable;
+        let typ = HashItemType::HashTable;
         println!("{}, {:?}", typ, typ);
-        let typ = GvdbHashItemType::Container;
+        let typ = HashItemType::Container;
         println!("{}, {:?}", typ, typ);
 
-        let item = GvdbHashItem::new(
-            0,
-            0,
-            GvdbPointer::NULL,
-            GvdbHashItemType::Value,
-            GvdbPointer::NULL,
-        );
-        let item2 = item.clone();
+        let item = HashItem::new(0, None, Pointer::NULL, HashItemType::Value, Pointer::NULL);
+        let item2 = item;
         println!("{:?}", item2);
     }
 
     #[test]
     fn type_try_from() {
-        assert_matches!(
-            GvdbHashItemType::try_from(b'v'),
-            Ok(GvdbHashItemType::Value)
-        );
-        assert_matches!(
-            GvdbHashItemType::try_from(b'H'),
-            Ok(GvdbHashItemType::HashTable)
-        );
-        assert_matches!(
-            GvdbHashItemType::try_from(b'L'),
-            Ok(GvdbHashItemType::Container)
-        );
-        assert_matches!(
-            GvdbHashItemType::try_from(b'x'),
-            Err(GvdbReaderError::InvalidData)
-        );
-        assert_matches!(
-            GvdbHashItemType::try_from(b'?'),
-            Err(GvdbReaderError::InvalidData)
-        );
+        assert_matches!(HashItemType::try_from(b'v'), Ok(HashItemType::Value));
+        assert_matches!(HashItemType::try_from(b'H'), Ok(HashItemType::HashTable));
+        assert_matches!(HashItemType::try_from(b'L'), Ok(HashItemType::Container));
+        assert_matches!(HashItemType::try_from(b'x'), Err(Error::Data(_)));
+        assert_matches!(HashItemType::try_from(b'?'), Err(Error::Data(_)));
     }
 
     #[test]
     fn item() {
-        let item = GvdbHashItem::new(
+        let item = HashItem::new(
             0,
-            0,
-            GvdbPointer::NULL,
-            GvdbHashItemType::Value,
-            GvdbPointer::NULL,
+            Some(0),
+            Pointer::NULL,
+            HashItemType::Value,
+            Pointer::NULL,
         );
 
         assert_eq!(item.hash_value(), 0);
-        assert_eq!(item.parent(), 0);
-        assert_eq!(item.key_ptr(), GvdbPointer::NULL);
-        assert_matches!(item.typ(), Ok(GvdbHashItemType::Value));
-        assert_eq!(item.value_ptr(), &GvdbPointer::NULL);
+        assert_eq!(item.parent(), Some(0));
+        assert_eq!(item.key_ptr(), Pointer::NULL);
+        assert_matches!(item.typ(), Ok(HashItemType::Value));
+        assert_eq!(item.value_ptr(), &Pointer::NULL);
     }
 }

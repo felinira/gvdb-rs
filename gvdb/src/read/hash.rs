@@ -1,27 +1,41 @@
-use crate::read::error::{GvdbReaderError, GvdbReaderResult};
-use crate::read::file::GvdbFile;
-use crate::read::hash_item::GvdbHashItem;
+use crate::read::error::{Error, Result};
+use crate::read::hash_item::HashItem;
 use crate::util::djb_hash;
-use safe_transmute::{
-    transmute_many_pedantic, transmute_one, transmute_one_pedantic, TriviallyTransmutable,
-};
-use std::borrow::Cow;
-use std::cmp::{max, min};
+use serde::Deserialize;
 use std::fmt::{Debug, Formatter};
 use std::mem::size_of;
+use zerocopy::byteorder::little_endian::U32 as u32le;
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
+use zvariant::Type;
 
-/// The header of a GVDB hash table
+use super::{File, HashItemType};
+
+#[cfg(unix)]
+type GVariantDeserializer<'de, 'sig, 'f> =
+    zvariant::gvariant::Deserializer<'de, 'sig, 'f, zvariant::Fd<'f>>;
+#[cfg(not(unix))]
+type GVariantDeserializer<'de, 'sig, 'f> = zvariant::gvariant::Deserializer<'de, 'sig, 'f, ()>;
+
+/// The header of a GVDB hash table.
+///
+/// ```text
+/// +-------+-----------------------+
+/// | Bytes | Field                 |
+/// +-------+-----------------------+
+/// |     4 | number of bloom words |
+/// +-------+-----------------------+
+/// |     4 | number of buckets     |
+/// +-------+-----------------------+
+/// ```
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub struct GvdbHashHeader {
+#[derive(Copy, Clone, PartialEq, Eq, Immutable, KnownLayout, FromBytes, IntoBytes)]
+pub struct HashHeader {
     n_bloom_words: u32,
     n_buckets: u32,
 }
 
-unsafe impl TriviallyTransmutable for GvdbHashHeader {}
-
-impl GvdbHashHeader {
-    /// Create a new GvdbHashHeader using the provided `bloom_shift`, `n_bloom_words` and
+impl HashHeader {
+    /// Create a new [`HashHeader`]` using the provided `bloom_shift`, `n_bloom_words` and
     /// `n_buckets`
     pub fn new(bloom_shift: u32, n_bloom_words: u32, n_buckets: u32) -> Self {
         assert!(n_bloom_words < (1 << 27));
@@ -33,14 +47,52 @@ impl GvdbHashHeader {
         }
     }
 
+    /// Read the hash table header from `data`
+    pub fn try_from_bytes(data: &[u8]) -> Result<&Self> {
+        HashHeader::ref_from_prefix(data)
+            .map(|(header, _remain)| header)
+            .map_err(|_| Error::Data("Invalid hash table header".to_string()))
+    }
+
     /// Number of bloom words in the hash table header
     pub fn n_bloom_words(&self) -> u32 {
         u32::from_le(self.n_bloom_words) & ((1 << 27) - 1)
     }
 
+    /// The start of the bloom words region
+    pub fn bloom_words_offset(&self) -> usize {
+        size_of::<Self>()
+    }
+
     /// Size of the bloom words section in the header
     pub fn bloom_words_len(&self) -> usize {
         self.n_bloom_words() as usize * size_of::<u32>()
+    }
+
+    /// Read the bloom words from `data`
+    fn read_bloom_words<'a>(&self, data: &'a [u8]) -> Result<&'a [u32le]> {
+        // Bloom words come directly after header
+        let offset = self.bloom_words_offset();
+        let len = self.bloom_words_len();
+
+        Ok(if len == 0 {
+            &[]
+        } else {
+            let words_data = data.get(offset..(offset + len)).ok_or_else(|| {
+                Error::Data(format!(
+                    "Not enough bytes to fit hash table: Expected at least {} bytes, got {}",
+                    self.items_offset(),
+                    data.len()
+                ))
+            })?;
+
+            <[u32le]>::ref_from_bytes(words_data)?
+        })
+    }
+
+    /// The offset of the hash buckets section
+    pub fn buckets_offset(&self) -> usize {
+        self.bloom_words_offset() + self.bloom_words_len()
     }
 
     /// Number of hash buckets in the hash table header
@@ -52,110 +104,105 @@ impl GvdbHashHeader {
     pub fn buckets_len(&self) -> usize {
         self.n_buckets() as usize * size_of::<u32>()
     }
+
+    /// Read the buckets as a little endian slice
+    fn read_buckets<'a>(&self, data: &'a [u8]) -> Result<&'a [u32le]> {
+        let offset = self.buckets_offset();
+        let len = self.buckets_len();
+
+        Ok(if len == 0 {
+            &[]
+        } else {
+            let buckets_data = data.get(offset..(offset + len)).ok_or_else(|| {
+                Error::Data(format!(
+                    "Not enough bytes to fit hash table: Expected at least {} bytes, got {}",
+                    self.items_offset(),
+                    data.len()
+                ))
+            })?;
+
+            <[u32le]>::ref_from_bytes(buckets_data)?
+        })
+    }
+
+    /// The start of the hash items region
+    pub fn items_offset(&self) -> usize {
+        self.buckets_offset() + self.buckets_len()
+    }
+
+    /// Read the items as a slice
+    fn read_items<'a>(&self, data: &'a [u8]) -> Result<&'a [HashItem]> {
+        let offset = self.items_offset();
+        let len = data.len().saturating_sub(offset);
+
+        if len == 0 {
+            // The hash table has no items. This is generally valid.
+            Ok(&[])
+        } else if len % size_of::<HashItem>() != 0 {
+            Err(Error::Data(format!(
+                "Hash item size invalid: Expected a multiple of {}, got {}",
+                size_of::<HashItem>(),
+                data.len()
+            )))
+        } else {
+            let items_data = data.get(offset..(offset + len)).unwrap_or_default();
+            Ok(<[HashItem]>::ref_from_bytes(items_data)?)
+        }
+    }
 }
 
-impl Debug for GvdbHashHeader {
+impl Debug for HashHeader {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GvdbHashHeader")
+        f.debug_struct("HashHeader")
             .field("n_bloom_words", &self.n_bloom_words())
             .field("n_buckets", &self.n_buckets())
-            .field("data", &safe_transmute::transmute_one_to_bytes(self))
+            .field("data", &self.as_bytes())
             .finish()
     }
 }
 
 /// A hash table inside a GVDB file
 ///
-///
-#[repr(C)]
+/// ```text
+/// +--------+---------------------------+
+/// |  Bytes | Field                     |
+/// +--------+---------------------------+
+/// |      4 | number of bloom words (b) |
+/// +--------+---------------------------+
+/// |      4 | number of buckets (n)     |
+/// +--------+---------------------------+
+/// |  b * 4 | bloom words               |
+/// +--------+---------------------------+
+/// |  n * 4 | buckets                   |
+/// +--------+---------------------------+
+/// | x * 24 | hash items                |
+/// +--------+---------------------------+
+/// ```
 #[derive(Clone)]
-pub struct GvdbHashTable<'a> {
-    pub(crate) root: &'a GvdbFile,
-    data: Cow<'a, [u8]>,
-    header: GvdbHashHeader,
+pub struct HashTable<'table, 'file> {
+    pub(crate) file: &'table File<'file>,
+    pub(crate) header: &'table HashHeader,
+    bloom_words: &'table [u32le],
+    buckets: &'table [u32le],
+    items: &'table [HashItem],
 }
 
-impl<'a> GvdbHashTable<'a> {
+impl<'table, 'file> HashTable<'table, 'file> {
     /// Interpret a chunk of bytes as a HashTable. The table_ptr should point to the hash table.
     /// Data has to be the complete GVDB file, as hash table items are stored somewhere else.
-    pub fn for_bytes(data: &'a [u8], root: &'a GvdbFile) -> GvdbReaderResult<Self> {
-        let header = Self::hash_header(data)?;
-        let data = Cow::Borrowed(data);
+    pub(crate) fn for_bytes(data: &'table [u8], root: &'table File<'file>) -> Result<Self> {
+        let header = HashHeader::try_from_bytes(data)?;
+        let bloom_words = header.read_bloom_words(data)?;
+        let buckets = header.read_buckets(data)?;
+        let items = header.read_items(data)?;
 
-        let this = Self { root, data, header };
-
-        let header_len = size_of::<GvdbHashHeader>();
-        let bloom_words_len = this.bloom_words_end() - this.bloom_words_offset();
-        let hash_buckets_len = this.hash_buckets_end() - this.hash_buckets_offset();
-
-        // we use max() here to prevent possible underflow
-        let hash_items_len =
-            max(this.hash_items_end(), this.hash_items_offset()) - this.hash_items_offset();
-        let required_len = header_len + bloom_words_len + hash_buckets_len + hash_items_len;
-
-        if required_len > this.data.len() {
-            Err(GvdbReaderError::DataError(format!(
-                "Not enough bytes to fit hash table: Expected at least {} bytes, got {}",
-                required_len,
-                this.data.len()
-            )))
-        } else if hash_items_len % size_of::<GvdbHashItem>() != 0 {
-            // Wrong data length
-            Err(GvdbReaderError::DataError(format!(
-                "Remaining size invalid: Expected a multiple of {}, got {}",
-                size_of::<GvdbHashItem>(),
-                this.data.len()
-            )))
-        } else {
-            Ok(this)
-        }
-    }
-
-    /// Read the hash table header
-    fn hash_header(data: &'a [u8]) -> GvdbReaderResult<GvdbHashHeader> {
-        let bytes: &[u8] = data
-            .get(0..size_of::<GvdbHashHeader>())
-            .ok_or(GvdbReaderError::DataOffset)?;
-
-        Ok(transmute_one(bytes)?)
-    }
-
-    /// Returns the header for this hash table
-    pub fn get_header(&self) -> GvdbHashHeader {
-        self.header
-    }
-
-    fn get_u32(&self, offset: usize) -> GvdbReaderResult<u32> {
-        let bytes = self
-            .data
-            .get(offset..offset + size_of::<u32>())
-            .ok_or(GvdbReaderError::DataOffset)?;
-        Ok(u32::from_le_bytes(bytes.try_into().unwrap()))
-    }
-
-    fn bloom_words_offset(&self) -> usize {
-        size_of::<GvdbHashHeader>()
-    }
-
-    fn bloom_words_end(&self) -> usize {
-        self.bloom_words_offset() + self.header.bloom_words_len()
-    }
-
-    /// Returns the bloom words for this hash table
-    #[allow(dead_code)]
-    fn bloom_words(&self) -> Option<&[u32]> {
-        // This indexing operation is safe as data is guaranteed to be larger than
-        // bloom_words_offset and this will just return an empty slice if end == offset
-        transmute_many_pedantic(&self.data[self.bloom_words_offset()..self.bloom_words_end()]).ok()
-    }
-
-    fn get_bloom_word(&self, index: usize) -> GvdbReaderResult<u32> {
-        if index >= self.header.n_bloom_words() as usize {
-            return Err(GvdbReaderError::DataOffset);
-        }
-
-        let start = self.bloom_words_offset() + index * size_of::<u32>();
-        self.get_u32(start)
+        Ok(Self {
+            file: root,
+            header,
+            bloom_words,
+            buckets,
+            items,
+        })
     }
 
     // TODO: Calculate proper bloom shift
@@ -174,99 +221,40 @@ impl<'a> GvdbHashTable<'a> {
         mask |= 1 << ((hash_value >> self.bloom_shift()) & 31);
 
         // We know this index is < n_bloom_words
-        let bloom_word = self.get_bloom_word(word as usize).unwrap();
+        let bloom_word = self.bloom_words.get(word as usize).unwrap().get();
         bloom_word & mask == mask
     }
 
-    fn hash_buckets_offset(&self) -> usize {
-        self.bloom_words_end()
-    }
-
-    fn hash_buckets_end(&self) -> usize {
-        self.hash_buckets_offset() + self.header.buckets_len()
-    }
-
-    fn get_hash(&self, index: usize) -> GvdbReaderResult<u32> {
-        let start = self.hash_buckets_offset() + index * size_of::<u32>();
-        self.get_u32(start)
-    }
-
-    pub(crate) fn hash_items_offset(&self) -> usize {
-        self.hash_buckets_end()
-    }
-
-    fn n_hash_items(&self) -> usize {
-        let len = self.hash_items_end() - self.hash_items_offset();
-        len / size_of::<GvdbHashItem>()
-    }
-
-    fn hash_items_end(&self) -> usize {
-        self.data.len()
-    }
-
     /// Get the hash item at hash item index
-    fn get_hash_item_for_index(&self, index: usize) -> GvdbReaderResult<GvdbHashItem> {
-        let size = size_of::<GvdbHashItem>();
-        let start = self.hash_items_offset() + size * index;
-        let end = start + size;
-
-        let data = self
-            .data
-            .get(start..end)
-            .ok_or(GvdbReaderError::DataOffset)?;
-        Ok(transmute_one_pedantic(data)?)
+    fn get_hash_item_for_index(&self, index: usize) -> Option<&HashItem> {
+        self.items.get(index)
     }
 
-    /// Gets a list of keys contained in the hash table
-    pub fn get_names(&self) -> GvdbReaderResult<Vec<String>> {
-        let count = self.n_hash_items();
-        let mut names = vec![None; count];
-
-        let mut inserted = 0;
-        while inserted < count {
-            let last_inserted = inserted;
-            for index in 0..count {
-                let item = self.get_hash_item_for_index(index)?;
-                let parent: usize = item.parent().try_into()?;
-
-                if names[index].is_none() {
-                    // Only process items not already processed
-                    if parent == 0xffffffff {
-                        // root item
-                        let name = self.get_key(&item)?;
-                        let _ = std::mem::replace(&mut names[index], Some(name));
-                        inserted += 1;
-                    } else if parent < count && names[parent].is_some() {
-                        // We already came across this item
-                        let name = self.get_key(&item)?;
-                        let parent_name = names.get(parent).unwrap().as_ref().unwrap();
-                        let full_name = parent_name.to_string() + &name;
-                        let _ = std::mem::replace(&mut names[index], Some(full_name));
-                        inserted += 1;
-                    } else if parent > count {
-                        return Err(GvdbReaderError::DataError(format!(
-                            "Parent with invalid offset encountered: {}",
-                            parent
-                        )));
-                    }
-                }
-            }
-
-            if last_inserted == inserted {
-                // No insertion took place this round, there must be a parent loop
-                // We fail instead of infinitely looping
-                return Err(GvdbReaderError::DataError(
-                    "Error finding all parent items. The file appears to have a loop".to_string(),
-                ));
-            }
+    /// Iterator over the keys contained in the hash table.
+    ///
+    /// Not all of these keys correspond to gvariant encoded values. Some keys may correspond to internal container
+    /// types, or hash tables.
+    pub fn keys<'iter>(&'iter self) -> Keys<'iter, 'table, 'file> {
+        Keys {
+            hash_table: self,
+            pos: 0,
         }
-
-        let names = names.into_iter().map(|s| s.unwrap()).collect();
-        Ok(names)
     }
 
-    fn check_name(&self, item: &GvdbHashItem, key: &str) -> bool {
-        let this_key = match self.get_key(item) {
+    /// Iterator over the gvariant encoded values contained in the hash table.
+    pub fn values<'iter>(&'iter self) -> Values<'iter, 'table, 'file> {
+        let context = zvariant::serialized::Context::new_gvariant(self.file.endianness(), 0);
+
+        Values {
+            hash_table: self,
+            pos: 0,
+            context,
+        }
+    }
+
+    /// Recurses through parents and check whether `item` has the specified full path name
+    fn check_key(&self, item: &HashItem, key: &str) -> bool {
+        let this_key = match self.key_for_item(item) {
             Ok(this_key) => this_key,
             Err(_) => return false,
         };
@@ -275,157 +263,318 @@ impl<'a> GvdbHashTable<'a> {
             return false;
         }
 
-        let parent = item.parent();
-        if key.len() == this_key.len() && parent == 0xffffffff {
-            return true;
+        if let Some(parent) = item.parent() {
+            if let Some(parent_item) = self.get_hash_item_for_index(parent as usize) {
+                let parent_key_len = key.len().saturating_sub(this_key.len());
+                self.check_key(parent_item, &key[0..parent_key_len])
+            } else {
+                false
+            }
+        } else {
+            key.len() == this_key.len()
         }
-
-        if parent < self.n_hash_items() as u32 && !key.is_empty() {
-            let parent_item = match self.get_hash_item_for_index(parent as usize) {
-                Ok(p) => p,
-                Err(_) => return false,
-            };
-
-            let parent_key_len = key.len() - this_key.len();
-            return self.check_name(&parent_item, &key[0..parent_key_len]);
-        }
-
-        false
     }
 
-    /// Gets the item at key `key`
-    pub fn get_hash_item(&self, key: &str) -> GvdbReaderResult<GvdbHashItem> {
-        if self.header.n_buckets() == 0 || self.n_hash_items() == 0 {
-            return Err(GvdbReaderError::KeyError(key.to_string()));
+    /// Return the string that corresponds to the key part of the [`HashItem`].
+    fn key_for_item(&self, item: &HashItem) -> Result<&str> {
+        let data = self.file.dereference(&item.key_ptr(), 1)?;
+        Ok(std::str::from_utf8(data)?)
+    }
+
+    /// Gets the item at key `key`.
+    pub(crate) fn get_hash_item(&self, key: &str) -> Option<HashItem> {
+        if self.buckets.is_empty() || self.items.is_empty() {
+            return None;
         }
 
         let hash_value = djb_hash(key);
         if !self.bloom_filter(hash_value) {
-            return Err(GvdbReaderError::KeyError(key.to_string()));
+            return None;
         }
 
-        let bucket = hash_value % self.header.n_buckets();
-        let mut itemno = self.get_hash(bucket as usize)? as usize;
+        let bucket = (hash_value % self.buckets.len() as u32) as usize;
+        let mut itemno = self.buckets[bucket as usize].get() as usize;
 
-        let lastno = if bucket == self.header.n_buckets() - 1 {
-            self.n_hash_items()
+        let lastno = if let Some(item) = self.buckets.get(bucket + 1) {
+            item.get() as usize
         } else {
-            min(
-                self.get_hash(bucket as usize + 1)?,
-                self.n_hash_items() as u32,
-            ) as usize
+            self.items.len()
         };
 
         while itemno < lastno {
             let item = self.get_hash_item_for_index(itemno)?;
-            if hash_value == item.hash_value() && self.check_name(&item, key) {
-                return Ok(item);
+            if hash_value == item.hash_value() && self.check_key(item, key) {
+                return Some(*item);
             }
 
             itemno += 1;
         }
 
-        Err(GvdbReaderError::KeyError(key.to_string()))
+        None
     }
 
-    /// Get the item at key `key` and try to interpret it as a [`enum@zvariant::Value`]
-    pub fn get_value(&self, key: &str) -> GvdbReaderResult<zvariant::Value> {
-        self.get_value_for_item(&self.get_hash_item(key)?)
+    fn get_item_bytes(&self, item: &HashItem) -> Result<&'table [u8]> {
+        let typ = item.typ()?;
+
+        if typ == HashItemType::Value {
+            Ok(self.file.dereference(item.value_ptr(), 8)?)
+        } else {
+            Err(Error::Data(format!(
+                "Unable to parse item for key '{:?}' as GVariant: Expected type 'v', got type {}",
+                self.key_for_item(item),
+                typ
+            )))
+        }
     }
 
-    /// Get the item at key `key` and try to convert it from [`enum@zvariant::Value`] to T
-    pub fn get<T: ?Sized>(&self, key: &str) -> GvdbReaderResult<T>
-    where
-        T: TryFrom<zvariant::OwnedValue>,
-    {
-        T::try_from(zvariant::OwnedValue::from(
-            self.get_value_for_item(&self.get_hash_item(key)?)?,
-        ))
-        .map_err(|_| {
-            GvdbReaderError::DataError("Can't convert Value to specified type".to_string())
+    /// Get the bytes for the [`HashItem`] at `key`.
+    fn get_bytes(&self, key: &str) -> Result<&'table [u8]> {
+        let item = self
+            .get_hash_item(key)
+            .ok_or(Error::KeyNotFound(key.to_string()))?;
+        self.get_item_bytes(&item)
+    }
+
+    /// Returns the nested [`HashTable`] at `key`, if one is found.
+    pub fn get_hash_table(&self, key: &str) -> Result<HashTable> {
+        let item = self
+            .get_hash_item(key)
+            .ok_or(Error::KeyNotFound(key.to_string()))?;
+        let typ = item.typ()?;
+        if typ == HashItemType::HashTable {
+            self.file.read_hash_table(item.value_ptr())
+        } else {
+            Err(Error::Data(format!(
+                "Unable to parse item for key '{}' as hash table: Expected type 'H', got type '{}'",
+                self.key_for_item(&item)?,
+                typ
+            )))
+        }
+    }
+
+    fn deserializer_for_bytes(
+        context: zvariant::serialized::Context,
+        data: &[u8],
+    ) -> GVariantDeserializer {
+        // On non-unix systems this function lacks the FD argument
+        GVariantDeserializer::new(
+            data,
+            #[cfg(unix)]
+            None::<&[zvariant::Fd]>,
+            zvariant::Value::signature(),
+            context,
+        )
+        .expect("zvariant::Value::signature() must be a valid zvariant signature")
+    }
+
+    /// Create a zvariant deserializer for the specified key.
+    fn deserializer_for_key(&self, key: &str) -> Result<GVariantDeserializer> {
+        let data = self.get_bytes(key)?;
+
+        // Create a new zvariant context based on our endianess and the byteswapped property
+        let context = zvariant::serialized::Context::new_gvariant(self.file.endianness(), 0);
+
+        Ok(Self::deserializer_for_bytes(context, data))
+    }
+
+    /// Returns the data for `key` as a [`enum@zvariant::Value`].
+    ///
+    /// Unless you need to inspect the value at runtime, it is recommended to use [`HashTable::get`].
+    pub fn get_value(&self, key: &str) -> Result<zvariant::Value> {
+        let mut de = self.deserializer_for_key(key)?;
+        zvariant::Value::deserialize(&mut de).map_err(|err| {
+            Error::Data(format!(
+                "Error deserializing value for key \"{}\" as gvariant type \"{}\": {}",
+                key,
+                zvariant::Value::signature(),
+                err
+            ))
         })
     }
 
+    /// Returns the data for `key` and try to deserialize a [`enum@zvariant::Value`].
+    ///
+    /// Then try to extract an underlying `T`.
+    pub fn get<'d, T>(&'d self, key: &str) -> Result<T>
+    where
+        T: zvariant::Type + serde::Deserialize<'d> + 'd,
+    {
+        let mut de = self.deserializer_for_key(key)?;
+        let value = zvariant::DeserializeValue::deserialize(&mut de).map_err(|err| {
+            Error::Data(format!(
+                "Error deserializing value for key \"{}\" as gvariant type \"{}\": {}",
+                key,
+                T::signature(),
+                err
+            ))
+        })?;
+
+        Ok(value.0)
+    }
+
     #[cfg(feature = "glib")]
-    /// Get the item at key `key` and try to interpret it as a [`struct@glib::Variant`]
-    pub fn get_gvariant(&self, key: &str) -> GvdbReaderResult<glib::Variant> {
-        self.get_gvariant_for_item(&self.get_hash_item(key)?)
-    }
+    /// Returns the data for `key` as a [`struct@glib::Variant`].
+    pub fn get_gvariant(&self, key: &str) -> Result<glib::Variant> {
+        let data = self.get_bytes(key)?;
+        let variant = glib::Variant::from_data_with_type(data, glib::VariantTy::VARIANT);
 
-    /// Get the item at key `key` and try to interpret it as a [`GvdbHashTable`]
-    pub fn get_hash_table(&self, key: &str) -> GvdbReaderResult<GvdbHashTable> {
-        self.get_hash_table_for_item(&self.get_hash_item(key)?)
-    }
-
-    fn get_key(&self, item: &GvdbHashItem) -> GvdbReaderResult<String> {
-        self.root.get_key(item)
-    }
-
-    fn get_value_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<zvariant::Value> {
-        self.root.get_value_for_item(item)
-    }
-
-    #[cfg(feature = "glib")]
-    fn get_gvariant_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<glib::Variant> {
-        self.root.get_gvariant_for_item(item)
-    }
-
-    fn get_hash_table_for_item(&self, item: &GvdbHashItem) -> GvdbReaderResult<GvdbHashTable> {
-        self.root.get_hash_table_for_item(item)
+        if self.file.endianness == zvariant::Endian::native() {
+            Ok(variant)
+        } else {
+            Ok(variant.byteswap())
+        }
     }
 }
 
-impl std::fmt::Debug for GvdbHashTable<'_> {
+impl std::fmt::Debug for HashTable<'_, '_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GvdbHashTable")
+        f.debug_struct("HashTable")
             .field("header", &self.header)
+            .field("bloom_words", &self.bloom_words)
+            .field("buckets", &self.buckets)
             .field(
                 "map",
-                &self.get_names().map(|res| {
-                    res.iter()
-                        .map(|name| {
-                            let item = self.get_hash_item(name);
-                            match item {
-                                Ok(item) => {
-                                    let value = match item.typ() {
-                                        Ok(super::GvdbHashItemType::Container) => {
-                                            Ok(Box::new(item) as Box<dyn std::fmt::Debug>)
-                                        }
-                                        Ok(super::GvdbHashItemType::HashTable) => {
-                                            self.get_hash_table_for_item(&item).map(|table| {
-                                                Box::new(table) as Box<dyn std::fmt::Debug>
-                                            })
-                                        }
-                                        Ok(super::GvdbHashItemType::Value) => {
-                                            self.get_value_for_item(&item).map(|value| {
-                                                Box::new(value) as Box<dyn std::fmt::Debug>
-                                            })
-                                        }
-                                        Err(err) => Err(err),
-                                    };
+                &self
+                    .keys()
+                    .map(|name| {
+                        name.into_iter()
+                            .map(|name| {
+                                let item = self.get_hash_item(&name);
+                                match item {
+                                    Some(item) => {
+                                        let value = match item.typ() {
+                                            Ok(super::HashItemType::Container) => {
+                                                Ok(Box::new(item) as Box<dyn std::fmt::Debug>)
+                                            }
+                                            Ok(super::HashItemType::HashTable) => {
+                                                self.get_hash_table(&name).map(|table| {
+                                                    Box::new(table) as Box<dyn std::fmt::Debug>
+                                                })
+                                            }
+                                            Ok(super::HashItemType::Value) => {
+                                                self.get_value(&name).map(|value| {
+                                                    Box::new(value) as Box<dyn std::fmt::Debug>
+                                                })
+                                            }
+                                            Err(err) => Err(err),
+                                        };
 
-                                    (name.to_string(), Ok((item, value)))
+                                        (name.to_string(), Some((item, value)))
+                                    }
+                                    None => (name.to_string(), None),
                                 }
-                                Err(err) => (name.to_string(), Err(err)),
-                            }
-                        })
-                        .collect::<std::collections::HashMap<_, _>>()
-                }),
+                            })
+                            .collect::<std::collections::HashMap<_, _>>()
+                    })
+                    .collect::<Vec<_>>(),
             )
             .finish()
     }
 }
 
+/// Iterator over all keys in a [`HashTable`]
+pub struct Keys<'a, 'table, 'file> {
+    hash_table: &'a HashTable<'table, 'file>,
+    pos: usize,
+}
+
+impl Iterator for Keys<'_, '_, '_> {
+    type Item = Result<String>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut item_count = self.hash_table.items.len() as isize;
+
+        self.hash_table
+            .get_hash_item_for_index(self.pos)
+            .map(|mut item| {
+                self.pos += 1;
+                let mut key = self.hash_table.key_for_item(item)?.to_owned();
+
+                while let Some(parent) = item.parent() {
+                    if item_count < 0 {
+                        return Err(Error::Data(
+                            "Error finding all parent items. The file appears to have a loop"
+                                .to_string(),
+                        ));
+                    }
+
+                    item = if let Some(item) =
+                        self.hash_table.get_hash_item_for_index(parent as usize)
+                    {
+                        item
+                    } else {
+                        return Err(Error::Data(format!(
+                            "Parent with invalid offset encountered: {}",
+                            parent
+                        )));
+                    };
+
+                    let parent_key = self.hash_table.key_for_item(item)?;
+
+                    key.insert_str(0, parent_key);
+                    item_count -= 1;
+                }
+
+                Ok(key)
+            })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let size = self.hash_table.items.len().saturating_sub(self.pos);
+        (size, Some(size))
+    }
+}
+
+impl ExactSizeIterator for Keys<'_, '_, '_> {}
+
+/// Iterator over all values in a [`HashTable`]
+pub struct Values<'a, 'table, 'file> {
+    hash_table: &'a HashTable<'table, 'file>,
+    context: zvariant::serialized::Context,
+    pos: usize,
+}
+
+impl<'table> Iterator for Values<'_, 'table, '_> {
+    type Item = Result<zvariant::Value<'table>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let item = loop {
+            let Some(item) = self.hash_table.get_hash_item_for_index(self.pos) else {
+                break None;
+            };
+
+            self.pos += 1;
+
+            if item.typ().is_ok_and(|t| t == HashItemType::Value) {
+                break Some(item);
+            }
+        };
+
+        item.map(|item| {
+            let bytes = self.hash_table.get_item_bytes(item)?;
+            let mut de = HashTable::deserializer_for_bytes(self.context, bytes);
+            Ok(zvariant::Value::deserialize(&mut de)?)
+        })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (
+            0,
+            Some(self.hash_table.items.len().saturating_sub(self.pos)),
+        )
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod test {
-    use crate::read::{GvdbFile, GvdbHashHeader, GvdbHashItem, GvdbPointer, GvdbReaderError};
+    use crate::read::{Error, File, HashHeader, HashItem, Pointer};
     use crate::test::*;
     use crate::test::{assert_eq, assert_matches, assert_ne};
 
     #[test]
     fn debug() {
-        let header = GvdbHashHeader::new(0, 0, 0);
-        let header2 = header.clone();
+        let header = HashHeader::new(0, 0, 0);
+        let header2 = header;
         println!("{:?}", header2);
 
         let file = new_empty_file();
@@ -438,12 +587,12 @@ pub(crate) mod test {
     fn get_header() {
         let file = new_empty_file();
         let table = file.hash_table().unwrap();
-        let header = table.get_header();
+        let header = table.header;
         assert_eq!(header.n_buckets(), 0);
 
         let file = new_simple_file(false);
         let table = file.hash_table().unwrap();
-        let header = table.get_header();
+        let header = table.header;
         assert_eq!(header.n_buckets(), 1);
         println!("{:?}", table);
     }
@@ -452,10 +601,10 @@ pub(crate) mod test {
     fn bloom_words() {
         let file = new_empty_file();
         let table = file.hash_table().unwrap();
-        let header = table.get_header();
+        let header = table.header;
         assert_eq!(header.n_bloom_words(), 0);
         assert_eq!(header.bloom_words_len(), 0);
-        assert_eq!(table.bloom_words(), None);
+        assert!(table.bloom_words.is_empty());
     }
 
     #[test]
@@ -463,22 +612,52 @@ pub(crate) mod test {
         let file = new_empty_file();
         let table = file.hash_table().unwrap();
         let res = table.get_hash_item("test");
-        assert_matches!(res, Err(GvdbReaderError::KeyError(_)));
+        assert_matches!(res, None);
 
         for endianess in [true, false] {
             let file = new_simple_file(endianess);
             let table = file.hash_table().unwrap();
-            let item = table.get_hash_item("test").unwrap();
-            assert_ne!(item.value_ptr(), &GvdbPointer::NULL);
-            let value: String = table.get_value_for_item(&item).unwrap().try_into().unwrap();
-            assert_eq!(value, "test");
+            let item = table.get_hash_item(SIMPLE_FILE_KEY).unwrap();
+            assert_ne!(item.value_ptr(), &Pointer::NULL);
+            let bytes = table.get_item_bytes(&item);
+            assert!(bytes.is_ok());
+            let value: u32 = table
+                .get_value(SIMPLE_FILE_KEY)
+                .unwrap()
+                .try_into()
+                .unwrap();
+            assert_eq!(value, SIMPLE_FILE_VALUE);
 
-            let item_fail = table.get_hash_item("fail").unwrap_err();
-            assert_matches!(item_fail, GvdbReaderError::KeyError(_));
+            let item_fail = table.get_hash_item("fail");
+            assert_matches!(item_fail, None);
 
             let res_item = table.get_hash_item("test_fail");
-            assert_matches!(res_item, Err(GvdbReaderError::KeyError(_)));
+            assert_matches!(res_item, None);
         }
+    }
+
+    #[test]
+    fn broken_items() {
+        let file = File::from_file(&TEST_FILE_2).unwrap();
+        let table = file.hash_table().unwrap();
+        let table = table.get_hash_table("table").unwrap();
+
+        let broken_item = HashItem::test_new_invalid_type();
+        assert_matches!(table.get_item_bytes(&broken_item), Err(Error::Data(_)));
+
+        let null_item = HashItem::test_new_null();
+        assert_matches!(table.get_item_bytes(&null_item), Ok(&[]));
+
+        let invalid_parent = HashItem::test_new_invalid_parent();
+        assert_matches!(table.get_item_bytes(&null_item), Ok(&[]));
+        let parent = table.get_hash_item_for_index(invalid_parent.parent().unwrap() as usize);
+        assert_matches!(parent, None);
+
+        let broken_item = HashItem::test_new_invalid_key_ptr();
+        assert_matches!(table.key_for_item(&broken_item), Err(Error::DataOffset));
+
+        let broken_item = HashItem::test_new_invalid_value_ptr();
+        assert_matches!(table.get_item_bytes(&broken_item), Err(Error::DataOffset));
     }
 
     #[test]
@@ -486,11 +665,11 @@ pub(crate) mod test {
         for endianess in [true, false] {
             let file = new_simple_file(endianess);
             let table = file.hash_table().unwrap();
-            let res: String = table.get::<String>("test").unwrap().into();
-            assert_eq!(&res, "test");
+            let res: u32 = table.get::<u32>(SIMPLE_FILE_KEY).unwrap();
+            assert_eq!(res, SIMPLE_FILE_VALUE);
 
-            let res = table.get::<i32>("test");
-            assert_matches!(res, Err(GvdbReaderError::DataError(_)));
+            let res = table.get::<i32>(SIMPLE_FILE_KEY);
+            assert_matches!(res, Err(Error::Data(_)));
         }
     }
 
@@ -499,8 +678,8 @@ pub(crate) mod test {
         for endianess in [true, false] {
             let file = new_simple_file(endianess);
             let table = file.hash_table().unwrap();
-            let res = table.get_bloom_word(0);
-            assert_matches!(res, Err(GvdbReaderError::DataOffset));
+            let res = table.bloom_words.first();
+            assert_matches!(res, None);
         }
     }
 
@@ -519,89 +698,89 @@ pub(crate) mod test {
         for endianess in [true, false] {
             let file = new_simple_file(endianess);
             let table = file.hash_table().unwrap();
-            let res = table.get_value("test").unwrap();
-            assert_eq!(&res, &zvariant::Value::from("test"));
+            let res = table.get_value(SIMPLE_FILE_KEY).unwrap();
+            assert_eq!(&res, &zvariant::Value::from(SIMPLE_FILE_VALUE));
 
             let fail = table.get_value("fail").unwrap_err();
-            assert_matches!(fail, GvdbReaderError::KeyError(_));
+            assert_matches!(fail, Error::KeyNotFound(_));
         }
     }
 
     #[test]
     fn get_hash_table() {
-        let file = GvdbFile::from_file(&TEST_FILE_2).unwrap();
+        let file = File::from_file(&TEST_FILE_2).unwrap();
         let table = file.hash_table().unwrap();
         let table = table.get_hash_table("table").unwrap();
         let fail = table.get_hash_table("fail").unwrap_err();
-        assert_matches!(fail, GvdbReaderError::KeyError(_));
+        assert_matches!(fail, Error::KeyNotFound(_));
     }
 
     #[test]
     fn check_name_pass() {
-        let file = GvdbFile::from_file(&TEST_FILE_2).unwrap();
+        let file = File::from_file(&TEST_FILE_2).unwrap();
         let table = file.hash_table().unwrap();
         let item = table.get_hash_item("string").unwrap();
-        assert_eq!(table.check_name(&item, "string"), true);
+        assert_eq!(table.check_key(&item, "string"), true);
     }
 
     #[test]
     fn check_name_invalid_name() {
-        let file = GvdbFile::from_file(&TEST_FILE_2).unwrap();
+        let file = File::from_file(&TEST_FILE_2).unwrap();
         let table = file.hash_table().unwrap();
         let item = table.get_hash_item("string").unwrap();
-        assert_eq!(table.check_name(&item, "fail"), false);
+        assert_eq!(table.check_key(&item, "fail"), false);
     }
 
     #[test]
     fn check_name_wrong_item() {
-        let file = GvdbFile::from_file(&TEST_FILE_2).unwrap();
+        let file = File::from_file(&TEST_FILE_2).unwrap();
         let table = file.hash_table().unwrap();
         let table = table.get_hash_table("table").unwrap();
 
         // Get an item from the sub-hash table and call check_names on the root
         let item = table.get_hash_item("int").unwrap();
-        assert_eq!(table.check_name(&item, "table"), false);
+        assert_eq!(table.check_key(&item, "table"), false);
     }
 
     #[test]
     fn check_name_broken_key_pointer() {
-        let file = GvdbFile::from_file(&TEST_FILE_2).unwrap();
+        let file = File::from_file(&TEST_FILE_2).unwrap();
         let table = file.hash_table().unwrap();
         let table = table.get_hash_table("table").unwrap();
 
         // Break the key pointer
         let item = table.get_hash_item("int").unwrap();
-        let key_ptr = GvdbPointer::new(500, 500);
-        let broken_item = GvdbHashItem::new(
+        let key_ptr = Pointer::new(500, 500);
+        let broken_item = HashItem::new(
             item.hash_value(),
-            item.parent(),
+            None,
             key_ptr,
             item.typ().unwrap(),
-            item.value_ptr().clone(),
+            *item.value_ptr(),
         );
 
-        assert_eq!(table.check_name(&broken_item, "table"), false);
+        assert_eq!(table.check_key(&broken_item, "table"), false);
     }
 
     #[test]
     fn check_name_invalid_parent() {
-        let file = GvdbFile::from_file(&TEST_FILE_3).unwrap();
+        let file = File::from_file(&TEST_FILE_3).unwrap();
         let table = file.hash_table().unwrap();
 
         // Break the key pointer
         let item = table
             .get_hash_item("/gvdb/rs/test/online-symbolic.svg")
             .unwrap();
-        let broken_item = GvdbHashItem::new(
+        let broken_item = HashItem::new(
             item.hash_value(),
-            50,
+            Some(50),
             item.key_ptr(),
             item.typ().unwrap(),
-            item.value_ptr().clone(),
+            *item.value_ptr(),
         );
 
         assert_eq!(
-            table.check_name(&broken_item, "/gvdb/rs/test/online-symbolic.svg"),
+            table.check_key(&broken_item, "/gvdb/rs/test/online-symbolic.svg"),
             false
         );
     }
@@ -609,9 +788,9 @@ pub(crate) mod test {
 
 #[cfg(all(feature = "glib", test))]
 mod test_glib {
-    use crate::read::GvdbReaderError;
-    use crate::test::new_simple_file;
-    use glib::ToVariant;
+    use crate::read::Error;
+    use crate::test::{new_simple_file, SIMPLE_FILE_KEY, SIMPLE_FILE_VALUE};
+    use glib::prelude::*;
     use matches::assert_matches;
 
     #[test]
@@ -619,11 +798,11 @@ mod test_glib {
         for endianess in [true, false] {
             let file = new_simple_file(endianess);
             let table = file.hash_table().unwrap();
-            let res: glib::Variant = table.get_gvariant("test").unwrap().get().unwrap();
-            assert_eq!(&res, &"test".to_variant());
+            let res: glib::Variant = table.get_gvariant(SIMPLE_FILE_KEY).unwrap().get().unwrap();
+            assert_eq!(res, SIMPLE_FILE_VALUE.to_variant());
 
             let fail = table.get_gvariant("fail").unwrap_err();
-            assert_matches!(fail, GvdbReaderError::KeyError(_));
+            assert_matches!(fail, Error::KeyNotFound(_));
         }
     }
 }

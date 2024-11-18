@@ -1,0 +1,12 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: gvdb-rs
+Upstream-Contact: Fina Wilke <finaw@gnome.org>
+Source: https://github.com/felinira/gvdb-rs/
+
+Files: *
+Copyright: The gvdb-rs Contributors
+License: MIT OR Apache-2.0
+
+Files: test-data/gresource/icons/*
+Copyright: The GNOME Project
+License: CC0-1.0

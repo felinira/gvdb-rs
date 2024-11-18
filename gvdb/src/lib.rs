@@ -5,15 +5,15 @@
 //!
 //! ## Examples
 //!
-//! Load a GResource file from disk with [`GvdbFile`](crate::read::GvdbFile)
+//! Load a GResource file from disk with [`File`](crate::read::File)
 //!
 //! ```
 //! use std::path::PathBuf;
-//! use gvdb::read::GvdbFile;
+//! use gvdb::read::File;
 //!
 //! pub fn read_gresource_file() {
 //!     let path = PathBuf::from("test-data/test3.gresource");
-//!     let file = GvdbFile::from_file(&path).unwrap();
+//!     let file = File::from_file(&path).unwrap();
 //!     let table = file.hash_table().unwrap();
 //!
 //!     #[derive(serde::Deserialize, zvariant::Type)]
@@ -23,32 +23,28 @@
 //!         content: Vec<u8>
 //!     }
 //!    
-//!     let value = table
-//!         .get_value("/gvdb/rs/test/online-symbolic.svg")
+//!     let svg: SvgData = table
+//!         .get("/gvdb/rs/test/online-symbolic.svg")
 //!         .unwrap();
-//!     let svg = value.downcast_ref::<zvariant::Structure>().unwrap().fields();
-//!     let svg1_size = svg[0].downcast_ref::<u32>().unwrap();
-//!     let svg1_flags = svg[1].downcast_ref::<u32>().unwrap();
-//!     let svg1_content = svg[2].clone().downcast::<Vec<u8>>().unwrap();
-//!     let svg1_str = std::str::from_utf8(&svg1_content[0..svg1_content.len() - 1]).unwrap();
+//!     let svg_str = std::str::from_utf8(&svg.content).unwrap();
 //!
-//!     println!("{}", svg1_str);
+//!     println!("{}", svg_str);
 //! }
 //! ```
 //!
-//! Create a simple GVDB file with [`GvdbFileWriter`](crate::write::GvdbFileWriter)
+//! Create a simple GVDB file with [`FileWriter`](crate::write::FileWriter)
 //!
 //! ```
-//! use gvdb::write::{GvdbFileWriter, GvdbHashTableBuilder};
+//! use gvdb::write::{FileWriter, HashTableBuilder};
 //!
 //! fn create_gvdb_file() {
-//!     let mut file_writer = GvdbFileWriter::new();
-//!     let mut table_builder = GvdbHashTableBuilder::new();
+//!     let mut file_writer = FileWriter::new();
+//!     let mut table_builder = HashTableBuilder::new();
 //!     table_builder
 //!            .insert_string("string", "test string")
 //!            .unwrap();
 //!
-//!     let mut table_builder_2 = GvdbHashTableBuilder::new();
+//!     let mut table_builder_2 = HashTableBuilder::new();
 //!     table_builder_2
 //!         .insert("int", 42u32)
 //!         .unwrap();
@@ -84,26 +80,27 @@
 //! GResource file creation.
 
 #![warn(missing_docs)]
+#![allow(unknown_lints, clippy::assigning_clones)]
 #![doc = include_str!("../README.md")]
 
 extern crate core;
 
 /// Read GResource XML files and compile a GResource file
 ///
-/// Use [`GResourceXMLDoc`](crate::gresource::GResourceXMLDocument) for XML file reading and
-/// [`GResourceBuilder`](crate::gresource::GResourceBuilder) to create the GResource binary
+/// Use [`XmlManifest`](crate::gresource::XmlManifest) for XML file reading and
+/// [`BundleBuilder`](crate::gresource::BundleBuilder) to create the GResource binary
 /// file
 #[cfg(feature = "gresource")]
 pub mod gresource;
 
 /// Read GVDB files from a file or from a byte slice
 ///
-/// See the documentation of [`GvdbFile`](crate::read::GvdbFile) to get started
+/// See the documentation of [`File`](crate::read::File) to get started
 pub mod read;
 
 /// Create GVDB files
 ///
-/// See the documentation of [`GvdbFileWriter`](crate::write::GvdbFileWriter) to get started
+/// See the documentation of [`FileWriter`](crate::write::FileWriter) to get started
 pub mod write;
 
 #[cfg(test)]
