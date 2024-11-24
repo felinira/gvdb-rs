@@ -577,6 +577,7 @@ mod test {
         test::byte_compare_file_4,
     };
     use matches::assert_matches;
+    use rand::seq::SliceRandom;
     use std::borrow::Cow;
     use std::io::Cursor;
 
@@ -727,7 +728,10 @@ mod test {
         for _ in 0..100 {
             let file_builder = FileWriter::new();
             let mut table_builder = HashTableBuilder::new();
-            for num in 0..200 {
+            let mut numbers: Vec<usize> = (0..200).collect();
+            numbers.shuffle(&mut rand::thread_rng());
+
+            for num in numbers {
                 let str = format!("{}", num);
                 table_builder.insert_string(&str, &str).unwrap();
             }
