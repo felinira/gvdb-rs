@@ -7,7 +7,7 @@ mod pointer;
 
 pub use error::{Error, Result};
 pub use file::File;
-pub use hash::HashTable;
+pub use hash::{HashTable, Keys, Values};
 
 pub(crate) use hash::HashHeader;
 pub(crate) use hash_item::{HashItem, HashItemType};
