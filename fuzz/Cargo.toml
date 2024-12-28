@@ -19,17 +19,3 @@ path = "fuzz_targets/read_file.rs"
 test = false
 doc = false
 bench = false
-
-[[bin]]
-name = "read_hash"
-path = "fuzz_targets/read_hash.rs"
-test = false
-doc = false
-bench = false
-
-[[bin]]
-name = "read_hash_header"
-path = "fuzz_targets/read_hash_header.rs"
-test = false
-doc = false
-bench = false

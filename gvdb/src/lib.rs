@@ -103,7 +103,13 @@ pub mod read;
 /// See the documentation of [`FileWriter`](crate::write::FileWriter) to get started
 pub mod write;
 
+/// Serialize types as GVariant
+pub mod variant;
+
 #[cfg(test)]
 pub(crate) mod test;
 
+mod endian;
 mod util;
+
+pub(crate) use endian::Endian;

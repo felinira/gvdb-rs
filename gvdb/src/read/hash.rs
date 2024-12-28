@@ -1,20 +1,13 @@
 use crate::read::error::{Error, Result};
 use crate::read::hash_item::HashItem;
 use crate::util::djb_hash;
-use serde::Deserialize;
 use std::fmt::{Debug, Formatter};
 use std::mem::size_of;
 use zerocopy::byteorder::little_endian::U32 as u32le;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
-use zvariant::Type;
 
 use super::{File, HashItemType};
-
-#[cfg(unix)]
-type GVariantDeserializer<'de, 'sig, 'f> =
-    zvariant::gvariant::Deserializer<'de, 'sig, 'f, zvariant::Fd<'f>>;
-#[cfg(not(unix))]
-type GVariantDeserializer<'de, 'sig, 'f> = zvariant::gvariant::Deserializer<'de, 'sig, 'f, ()>;
+use crate::variant::{DecodeValue, DecodeVariant, VariantType};
 
 /// The header of a GVDB hash table.
 ///
@@ -243,12 +236,10 @@ impl<'table, 'file> HashTable<'table, 'file> {
 
     /// Iterator over the gvariant encoded values contained in the hash table.
     pub fn values<'iter>(&'iter self) -> Values<'iter, 'table, 'file> {
-        let context = zvariant::serialized::Context::new_gvariant(self.file.endianness(), 0);
-
         Values {
             hash_table: self,
+            endian: self.file.endianness(),
             pos: 0,
-            context,
         }
     }
 
@@ -352,37 +343,13 @@ impl<'table, 'file> HashTable<'table, 'file> {
         }
     }
 
-    fn deserializer_for_bytes(
-        context: zvariant::serialized::Context,
-        data: &[u8],
-    ) -> GVariantDeserializer {
-        // On non-unix systems this function lacks the FD argument
-        GVariantDeserializer::new(
-            data,
-            #[cfg(unix)]
-            None::<&[zvariant::Fd]>,
-            zvariant::Value::signature(),
-            context,
-        )
-        .expect("zvariant::Value::signature() must be a valid zvariant signature")
-    }
-
-    /// Create a zvariant deserializer for the specified key.
-    fn deserializer_for_key(&self, key: &str) -> Result<GVariantDeserializer> {
-        let data = self.get_bytes(key)?;
-
-        // Create a new zvariant context based on our endianess and the byteswapped property
-        let context = zvariant::serialized::Context::new_gvariant(self.file.endianness(), 0);
-
-        Ok(Self::deserializer_for_bytes(context, data))
-    }
-
     /// Returns the data for `key` as a [`enum@zvariant::Value`].
     ///
     /// Unless you need to inspect the value at runtime, it is recommended to use [`HashTable::get`].
     pub fn get_value(&self, key: &str) -> Result<zvariant::Value> {
-        let mut de = self.deserializer_for_key(key)?;
-        zvariant::Value::deserialize(&mut de).map_err(|err| {
+        let data = self.get_bytes(key)?;
+
+        zvariant::Value::decode(data, self.file.endianness()).map_err(|err| {
             Error::Data(format!(
                 "Error deserializing value for key \"{}\" as gvariant type \"{}\": {}",
                 key,
@@ -397,17 +364,19 @@ impl<'table, 'file> HashTable<'table, 'file> {
     /// Then try to extract an underlying `T`.
     pub fn get<'d, T>(&'d self, key: &str) -> Result<T>
     where
-        T: zvariant::Type + serde::Deserialize<'d> + 'd,
+        T: DecodeVariant<'d> + VariantType + 'd,
+        DecodeValue<'d, T>: DecodeVariant<'d>,
     {
-        let mut de = self.deserializer_for_key(key)?;
-        let value = zvariant::DeserializeValue::deserialize(&mut de).map_err(|err| {
-            Error::Data(format!(
-                "Error deserializing value for key \"{}\" as gvariant type \"{}\": {}",
-                key,
-                T::signature(),
-                err
-            ))
-        })?;
+        let data = self.get_bytes(key)?;
+        let value: DecodeValue<T> =
+            DecodeValue::decode(data, self.file.endianness()).map_err(|err| {
+                Error::Data(format!(
+                    "Error deserializing value for key \"{}\" as gvariant type \"{}\": {}",
+                    key,
+                    <T as VariantType>::signature(),
+                    err
+                ))
+            })?;
 
         Ok(value.0)
     }
@@ -418,7 +387,7 @@ impl<'table, 'file> HashTable<'table, 'file> {
         let data = self.get_bytes(key)?;
         let variant = glib::Variant::from_data_with_type(data, glib::VariantTy::VARIANT);
 
-        if self.file.endianness == zvariant::Endian::native() {
+        if self.file.endianness == crate::Endian::native() {
             Ok(variant)
         } else {
             Ok(variant.byteswap())
@@ -530,7 +499,7 @@ impl ExactSizeIterator for Keys<'_, '_, '_> {}
 /// Iterator over all values in a [`HashTable`]
 pub struct Values<'a, 'table, 'file> {
     hash_table: &'a HashTable<'table, 'file>,
-    context: zvariant::serialized::Context,
+    endian: crate::Endian,
     pos: usize,
 }
 
@@ -552,8 +521,7 @@ impl<'table> Iterator for Values<'_, 'table, '_> {
 
         item.map(|item| {
             let bytes = self.hash_table.get_item_bytes(item)?;
-            let mut de = HashTable::deserializer_for_bytes(self.context, bytes);
-            Ok(zvariant::Value::deserialize(&mut de)?)
+            zvariant::Value::decode(bytes, self.endian)
         })
     }
 
