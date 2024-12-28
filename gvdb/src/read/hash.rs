@@ -32,7 +32,7 @@ impl HashHeader {
     /// `n_buckets`
     pub fn new(bloom_shift: u32, n_bloom_words: u32, n_buckets: u32) -> Self {
         assert!(n_bloom_words < (1 << 27));
-        let n_bloom_words = bloom_shift << 27 | n_bloom_words;
+        let n_bloom_words = (bloom_shift << 27) | n_bloom_words;
 
         Self {
             n_bloom_words: n_bloom_words.to_le(),
