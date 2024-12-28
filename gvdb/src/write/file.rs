@@ -1,11 +1,10 @@
-use crate::read::HashHeader;
-use crate::read::HashItem;
-use crate::read::Header;
-use crate::read::Pointer;
+use crate::read::{HashHeader, HashItem, Header, Pointer};
 use crate::util::align_offset;
+use crate::variant::{EncodeValue, EncodeVariant};
 use crate::write::error::{Error, Result};
 use crate::write::hash::SimpleHashTable;
 use crate::write::item::HashValue;
+use crate::Endian;
 use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::mem::size_of;
@@ -120,11 +119,12 @@ impl<'a> HashTableBuilder<'a> {
         key: &(impl ToString + ?Sized),
         value: zvariant::Value<'a>,
     ) -> Result<()> {
-        let item = HashValue::Value(value);
+        let item = HashValue::from_value(value);
         self.insert_item_value(key, item)
     }
 
-    /// Insert `item` for `key` where item needs to be `Into<zvariant::Value>`
+    /// Insert `item` for `key` where `item` needs to be something that, wrapped in an [`EncodeValue`],
+    /// implements [`EncodeVariant`].
     ///
     /// ```
     /// use zvariant::Value;
@@ -134,9 +134,9 @@ impl<'a> HashTableBuilder<'a> {
     /// ```
     pub fn insert<T>(&mut self, key: &(impl ToString + ?Sized), value: T) -> Result<()>
     where
-        T: Into<zvariant::Value<'a>>,
+        EncodeValue<T>: EncodeVariant<'a> + Sized + 'a,
     {
-        let item = HashValue::Value(value.into());
+        let item = HashValue::from_value(EncodeValue::new(value));
         self.insert_item_value(key, item)
     }
 
@@ -370,19 +370,17 @@ impl FileWriter {
         self.allocate_chunk_with_data(data, alignment)
     }
 
-    fn add_value(&mut self, value: &zvariant::Value) -> Result<(usize, &mut Chunk)> {
+    fn add_value<'a, V>(&mut self, value: &V) -> Result<(usize, &mut Chunk)>
+    where
+        V: EncodeVariant<'a> + ?Sized,
+    {
         #[cfg(target_endian = "little")]
-        let le = true;
+        let le = !self.byteswap;
         #[cfg(target_endian = "big")]
-        let le = false;
+        let le = self.byteswap;
 
-        let data: Box<[u8]> = if le && !self.byteswap || !le && self.byteswap {
-            let context = zvariant::serialized::Context::new_gvariant(zvariant::LE, 0);
-            Box::from(&*zvariant::to_bytes(context, value)?)
-        } else {
-            let context = zvariant::serialized::Context::new_gvariant(zvariant::BE, 0);
-            Box::from(&*zvariant::to_bytes(context, value)?)
-        };
+        let endian = if le { Endian::Little } else { Endian::Big };
+        let data: Box<[u8]> = value.encode(endian)?;
 
         Ok(self.allocate_chunk_with_data(data, 8))
     }
@@ -453,7 +451,7 @@ impl FileWriter {
                 let typ = current_item.value_ref().typ();
 
                 let value_ptr = match current_item.value().take() {
-                    HashValue::Value(value) => self.add_value(&value)?.1.pointer(),
+                    HashValue::Value(value) => self.add_value(&*value)?.1.pointer(),
                     #[cfg(feature = "glib")]
                     HashValue::GVariant(variant) => self.add_gvariant(&variant).1.pointer(),
                     HashValue::TableBuilder(tb) => self.add_table_builder(tb)?.1.pointer(),
@@ -578,8 +576,8 @@ mod test {
     };
     use matches::assert_matches;
     use rand::seq::SliceRandom;
-    use std::borrow::Cow;
     use std::io::Cursor;
+    use std::{borrow::Cow, collections::BTreeMap};
 
     use crate::test::{
         assert_bytes_eq, assert_is_file_1, assert_is_file_2, byte_compare_file_1,
@@ -615,13 +613,23 @@ mod test {
         let table = builder.build().unwrap();
 
         assert_eq!(
-            table.get("string").unwrap().value_ref().value().unwrap(),
-            &zvariant::Value::new("Test")
+            table
+                .get("string")
+                .unwrap()
+                .value_ref()
+                .encode_value(Endian::Little)
+                .unwrap(),
+            zvariant::Value::new("Test").encode(Endian::Little).unwrap()
         );
 
         assert_eq!(
-            table.get("123").unwrap().value_ref().value().unwrap(),
-            &zvariant::Value::new(123u32)
+            table
+                .get("123")
+                .unwrap()
+                .value_ref()
+                .encode_value(Endian::Big)
+                .unwrap(),
+            zvariant::Value::new(123u32).encode(Endian::Big).unwrap()
         );
 
         let item = table.get("table").unwrap();
@@ -635,8 +643,13 @@ mod test {
         let table2 = tb.build().unwrap();
         let data: &[u8] = &[1, 2, 3, 4];
         assert_eq!(
-            table2.get("bytes").unwrap().value_ref().value().unwrap(),
-            &zvariant::Value::new(data)
+            table2
+                .get("bytes")
+                .unwrap()
+                .value_ref()
+                .encode_value(Endian::Little)
+                .unwrap(),
+            zvariant::Value::new(data).encode(Endian::Little).unwrap()
         );
     }
 
@@ -706,7 +719,7 @@ mod test {
         let mut writer = FileWriter::new();
         let mut table_builder = HashTableBuilder::new();
 
-        let mut dict = HashMap::<&str, zvariant::Value>::new();
+        let mut dict = BTreeMap::<&str, zvariant::Value>::new();
         dict.insert("key1", "value1".into());
         dict.insert("key2", 2u32.into());
         let value = ("arg0", dict);

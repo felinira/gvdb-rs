@@ -5,18 +5,16 @@ use libfuzzer_sys::{fuzz_target, Corpus};
 fn fuzz_hash_table(table: &gvdb::read::HashTable, recursion_limit: usize) -> bool {
     let mut keep = false;
 
-    for key in table.keys() {
-        if let Ok(key) = key {
-            keep = true;
-            if let Ok(v) = table.get_value(&key) {
-                v.value_signature();
-                v.to_string();
-            }
+    for key in table.keys().flatten() {
+        keep = true;
+        if let Ok(v) = table.get_value(&key) {
+            v.value_signature();
+            v.to_string();
+        }
 
-            if let Ok(ht) = table.get_hash_table(&key) {
-                if recursion_limit > 0 {
-                    keep &= fuzz_hash_table(&ht, recursion_limit - 1);
-                }
+        if let Ok(ht) = table.get_hash_table(&key) {
+            if recursion_limit > 0 {
+                keep &= fuzz_hash_table(&ht, recursion_limit - 1);
             }
         }
     }

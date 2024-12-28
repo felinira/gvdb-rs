@@ -102,7 +102,7 @@ impl<'a> Data<'a> {
 /// ```
 pub struct File<'a> {
     pub(crate) data: Data<'a>,
-    pub(crate) endianness: zvariant::Endian,
+    pub(crate) endianness: crate::Endian,
     pub(crate) header: Header,
 }
 
@@ -133,9 +133,9 @@ impl<'a> File<'a> {
         let endianness = if cfg!(target_endian = "little") && !byteswapped
             || cfg!(target_endian = "big") && byteswapped
         {
-            zvariant::LE
+            crate::Endian::Little
         } else {
-            zvariant::BE
+            crate::Endian::Big
         };
 
         Ok(Self {
@@ -182,8 +182,8 @@ impl<'a> File<'a> {
         Self::from_data(Data::Mmap(mmap))
     }
 
-    /// Determine the endianess to use for zvariant
-    pub(crate) fn endianness(&self) -> zvariant::Endian {
+    /// Determine the endianess to use
+    pub(crate) fn endianness(&self) -> crate::Endian {
         self.endianness
     }
 }

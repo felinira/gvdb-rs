@@ -1,13 +1,15 @@
 use crate::read::HashItemType;
+use crate::variant::EncodeVariant;
 use crate::write::file::HashTableBuilder;
 use std::cell::{Cell, Ref, RefCell};
+use std::fmt::Debug;
 use std::rc::Rc;
 
 /// Holds the value of a GVDB hash table
 #[derive(Debug)]
 pub enum HashValue<'a> {
-    /// A zvariant::Value
-    Value(zvariant::Value<'a>),
+    /// A serialized gvariant value
+    Value(Box<dyn EncodeVariant<'a> + 'a>),
 
     /// A glib::Variant
     #[cfg(feature = "glib")]
@@ -26,7 +28,11 @@ impl Default for HashValue<'_> {
 }
 
 #[allow(dead_code)]
-impl HashValue<'_> {
+impl<'a> HashValue<'a> {
+    pub fn from_value<T: EncodeVariant<'a> + 'a>(value: T) -> Self {
+        Self::Value(Box::new(value))
+    }
+
     pub fn typ(&self) -> HashItemType {
         match self {
             HashValue::Value(_) => HashItemType::Value,
@@ -37,10 +43,13 @@ impl HashValue<'_> {
         }
     }
 
-    pub fn value(&self) -> Option<&zvariant::Value> {
+    #[cfg(test)]
+    pub(crate) fn encode_value(&self, endian: crate::Endian) -> crate::write::Result<Box<[u8]>> {
         match self {
-            HashValue::Value(value) => Some(value),
-            _ => None,
+            HashValue::Value(value) => Ok(value.encode(endian)?),
+            _ => Err(crate::write::Error::Consistency(
+                "Expected type 'Value'".to_string(),
+            )),
         }
     }
 
@@ -53,7 +62,7 @@ impl HashValue<'_> {
     }
 
     #[allow(dead_code)]
-    pub fn table_builder(&self) -> Option<&HashTableBuilder> {
+    pub fn table_builder(&self) -> Option<&HashTableBuilder<'a>> {
         match self {
             HashValue::TableBuilder(tb) => Some(tb),
             _ => None,
@@ -65,12 +74,6 @@ impl HashValue<'_> {
             HashValue::Container(children) => Some(children),
             _ => None,
         }
-    }
-}
-
-impl<'a> From<zvariant::Value<'a>> for HashValue<'a> {
-    fn from(var: zvariant::Value<'a>) -> Self {
-        HashValue::Value(var)
     }
 }
 
@@ -162,27 +165,32 @@ impl<'a> HashItemBuilder<'a> {
 #[cfg(test)]
 mod test {
     use crate::read::HashItemType;
+    use crate::variant::EncodeVariant;
     use crate::write::item::{HashItemBuilder, HashValue};
     use crate::write::HashTableBuilder;
+    use crate::Endian;
     use matches::assert_matches;
 
     #[test]
     fn derives() {
         let value1: zvariant::Value = "test".into();
-        let item1 = HashValue::Value(value1);
+        let item1 = HashValue::from_value(value1);
         println!("{:?}", item1);
     }
 
     #[test]
     fn item_value() {
         let value1: zvariant::Value = "test".into();
-        let item1 = HashValue::Value(
+        let item1 = HashValue::Value(Box::new(
             value1
                 .try_clone()
                 .expect("Value to not contain a file descriptor"),
-        );
+        ));
         assert_eq!(item1.typ(), HashItemType::Value);
-        assert_eq!(item1.value().unwrap(), &value1);
+        assert_eq!(
+            item1.encode_value(Endian::Little).unwrap(),
+            value1.encode(Endian::Little).unwrap()
+        );
 
         #[cfg(feature = "glib")]
         assert_matches!(item1.gvariant(), None);
@@ -203,7 +211,7 @@ mod test {
     #[test]
     fn builder_item() {
         let value1: zvariant::Value = "test".into();
-        let item1 = HashValue::Value(value1);
+        let item1 = HashValue::from_value(value1);
         let item = HashItemBuilder::new("test", 0, item1);
         println!("{:?}", item);
 
@@ -225,6 +233,9 @@ mod test_glib {
         let item1 = HashValue::from(value1.clone());
         assert_eq!(item1.typ(), HashItemType::Value);
         assert_eq!(item1.gvariant().unwrap(), &value1);
-        assert_matches!(item1.value(), None);
+        assert_matches!(
+            item1.encode_value(crate::Endian::Little),
+            Err(crate::write::Error::Consistency(_))
+        );
     }
 }

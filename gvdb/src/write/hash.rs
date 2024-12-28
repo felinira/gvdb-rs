@@ -221,8 +221,10 @@ mod test {
 
     use matches::assert_matches;
 
+    use crate::variant::{DecodeVariant, EncodeVariant};
     use crate::write::hash::SimpleHashTable;
     use crate::write::item::HashValue;
+    use crate::Endian;
 
     #[test]
     fn derives() {
@@ -233,15 +235,20 @@ mod test {
     #[test]
     fn simple_hash_table() {
         let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
-        let item = HashValue::Value(zvariant::Value::new("test_overwrite"));
+        let item = HashValue::from_value(zvariant::Value::new("test_overwrite"));
         table.insert("test", item);
         assert_eq!(table.n_items(), 1);
-        let item2 = HashValue::Value(zvariant::Value::new("test"));
+        let item2 = HashValue::from_value(zvariant::Value::new("test"));
         table.insert("test", item2);
         assert_eq!(table.n_items(), 1);
         assert_eq!(
-            table.get("test").unwrap().value_ref().value().unwrap(),
-            &"test".into()
+            table
+                .get("test")
+                .unwrap()
+                .value_ref()
+                .encode_value(Endian::Big)
+                .unwrap(),
+            zvariant::Value::from(&"test").encode(Endian::Big).unwrap()
         );
     }
 
@@ -249,19 +256,22 @@ mod test {
     fn simple_hash_table_2() {
         let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
         for index in 0..20 {
-            table.insert(&format!("{}", index), zvariant::Value::new(index).into());
+            table.insert(
+                &format!("{}", index),
+                HashValue::from_value(zvariant::Value::new(index)),
+            );
         }
 
         assert_eq!(table.n_items(), 20);
 
         for index in 0..20 {
             assert_eq!(
-                zvariant::Value::new(index),
-                *table
+                zvariant::Value::new(index).encode(Endian::Big).unwrap(),
+                table
                     .get(&format!("{}", index))
                     .unwrap()
                     .value_ref()
-                    .value()
+                    .encode_value(Endian::Big)
                     .unwrap()
             );
         }
@@ -283,21 +293,23 @@ mod test {
     fn simple_hash_table_iter() {
         let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
         for index in 0..20 {
-            table.insert(&format!("{}", index), zvariant::Value::new(index).into());
+            table.insert(
+                &format!("{}", index),
+                HashValue::from_value(zvariant::Value::new(index)),
+            );
         }
 
         let mut iter = table.iter();
         for _ in 0..20 {
-            let value: i32 = iter
+            let data = iter
                 .next()
                 .unwrap()
                 .1
                 .value()
                 .borrow()
-                .value()
-                .unwrap()
-                .try_into()
+                .encode_value(Endian::Little)
                 .unwrap();
+            let value = i32::decode(&data, Endian::Little).unwrap();
             assert_matches!(value, 0..=19);
         }
     }
@@ -306,14 +318,19 @@ mod test {
     fn simple_hash_table_bucket_iter() {
         let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
         for index in 0..20 {
-            table.insert(&format!("{}", index), zvariant::Value::new(index).into());
+            table.insert(
+                &format!("{}", index),
+                HashValue::from_value(zvariant::Value::new(index)),
+            );
         }
 
         let mut values: HashSet<i32> = (0..20).collect();
         for bucket in 0..table.n_buckets() {
             let iter = table.iter_bucket(bucket);
             for next in iter {
-                let num: i32 = next.value().borrow().value().unwrap().try_into().unwrap();
+                let data = next.value().borrow().encode_value(Endian::Little).unwrap();
+                let num: i32 = i32::decode(&data, Endian::Little).unwrap();
+                println!("{data:?}");
                 assert!(values.remove(&num));
             }
         }
