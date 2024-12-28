@@ -21,16 +21,11 @@ impl<T> EncodeValue<T> {
 pub trait EncodeVariant<'a> {
     /// Encode the type from the specified data for the target endianness
     fn encode(&self, endian: Endian) -> crate::write::Result<Box<[u8]>>;
-
-    /// The GVariant type string
-    fn signature(&self) -> String;
 }
 
 impl<'a> std::fmt::Debug for dyn EncodeVariant<'a> + 'a {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("dyn EncodeVariant")
-            .field("signature", &self.signature())
-            .finish()
+        f.debug_struct("dyn EncodeVariant").finish()
     }
 }
 
@@ -51,10 +46,6 @@ where
         let context = zvariant::serialized::Context::new_gvariant(endian.into(), 0);
         Ok(Box::from(&*zvariant::to_bytes(context, self)?))
     }
-
-    fn signature(&self) -> String {
-        T::signature().to_string()
-    }
 }
 
 impl<T> EncodeVariant<'_> for EncodeValue<T>
@@ -68,10 +59,6 @@ where
             context,
             &zvariant::SerializeValue(&self.0),
         )?))
-    }
-
-    fn signature(&self) -> String {
-        <zvariant::Value as zvariant::Type>::signature().to_string()
     }
 }
 
