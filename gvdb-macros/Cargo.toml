@@ -14,7 +14,7 @@ categories.workspace = true
 proc-macro = true
 
 [dependencies]
-gvdb = { version = "0.7", default-features = false, features = [
+gvdb = { version = "0.8", default-features = false, features = [
     "gresource",
 ], path = "../gvdb" }
 proc-macro2 = "1.0"
