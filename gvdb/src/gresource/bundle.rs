@@ -650,7 +650,7 @@ mod test {
             data: vec![1, 2, 3],
         };
 
-        let sig = Data::signature();
+        let sig = Data::SIGNATURE;
         assert_eq!(sig, "(uuay)");
         let owned = zvariant::OwnedValue::try_from(data).unwrap();
         let data = Data::try_from(owned).unwrap();

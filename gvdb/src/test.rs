@@ -262,7 +262,7 @@ pub fn assert_is_file_3(file: &File) {
     ];
     assert_eq!(names, reference_names);
 
-    #[derive(Clone, zvariant::Type, serde::Deserialize)]
+    #[derive(Clone, zvariant::Type, zvariant::OwnedValue, serde::Deserialize)]
     struct GResourceData {
         size: u32,
         flags: u32,

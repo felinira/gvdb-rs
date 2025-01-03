@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 The versions in changelog reflect the gvdb versions.
 
+## [0.8.0] - unreleased
+
+### Changed
+
+- Upgraded to zvariant 5, which removes zero-copy deserializations of values. All structs to be deserialized must now derive `zvariant::OwnedValue`.
+
 ## [0.7.1] - 2024-08-11
 
 ### Fixed
