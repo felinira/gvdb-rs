@@ -17,6 +17,6 @@ where
     T: zvariant::Type,
 {
     fn signature() -> String {
-        T::signature().to_string()
+        <T as zvariant::Type>::SIGNATURE.to_string()
     }
 }

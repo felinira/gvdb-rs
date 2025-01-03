@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use zvariant::DynamicType;
 
 use super::Endian;
 
@@ -30,37 +30,27 @@ where
     fn decode(data: &'a [u8], endian: Endian) -> crate::read::Result<Self>;
 }
 
-#[cfg(unix)]
-type GVariantDeserializer<'de, 'sig, 'f> =
-    zvariant::gvariant::Deserializer<'de, 'sig, 'f, zvariant::Fd<'f>>;
-#[cfg(not(unix))]
-type GVariantDeserializer<'de, 'sig, 'f> = zvariant::gvariant::Deserializer<'de, 'sig, 'f, ()>;
-
-fn zvariant_get_deserializer(data: &[u8], endian: Endian) -> GVariantDeserializer {
+fn zvariant_deserialize(data: &[u8], endian: Endian) -> crate::read::Result<zvariant::OwnedValue> {
+    // This always allocates, but it's the best we can do with this API
     let context = zvariant::serialized::Context::new_gvariant(endian.into(), 0);
-
-    GVariantDeserializer::new(
-        data,
-        #[cfg(unix)]
-        None::<&[zvariant::Fd]>,
-        <zvariant::Value as zvariant::Type>::signature(),
-        context,
-    )
-    .expect("zvariant::Value::signature() must be a valid zvariant signature")
+    let data = zvariant::serialized::Data::new(data, context);
+    let value: zvariant::OwnedValue = data.deserialize()?.0;
+    Ok(value)
 }
 
 impl<'a, T> DecodeVariant<'a> for T
 where
-    T: zvariant::Type + serde::Deserialize<'a> + 'a,
+    T: zvariant::Type + serde::Deserialize<'a> + 'a + TryFrom<zvariant::OwnedValue>,
+    <T as TryFrom<zvariant::OwnedValue>>::Error: Into<zvariant::Error>,
 {
     fn decode(data: &'a [u8], endian: Endian) -> crate::read::Result<Self> {
-        let mut de = zvariant_get_deserializer(data, endian);
-
-        serde::Deserialize::deserialize(&mut de).map_err(move |err| {
+        let value = zvariant_deserialize(data, endian)?;
+        let signature = value.signature();
+        value.try_into().map_err(|_e| {
             crate::read::Error::Data(format!(
-                "Error deserializing value as gvariant type \"{}\": {}",
-                T::signature(),
-                err
+                "Error interpreting gvariant data with signature {} as {}",
+                signature,
+                T::SIGNATURE,
             ))
         })
     }
@@ -68,21 +58,24 @@ where
 
 impl<'a, T> DecodeVariant<'a> for DecodeValue<'a, T>
 where
-    T: zvariant::Type + serde::Deserialize<'a> + 'a + DecodeVariant<'a>,
+    T: zvariant::Type
+        + serde::Deserialize<'a>
+        + 'a
+        + DecodeVariant<'a>
+        + TryFrom<zvariant::OwnedValue>,
+    <T as TryFrom<zvariant::OwnedValue>>::Error: Into<zvariant::Error>,
 {
     fn decode(data: &'a [u8], endian: Endian) -> crate::read::Result<Self> {
-        let mut de = zvariant_get_deserializer(data, endian);
-
-        Ok(DecodeValue::new(
-            zvariant::DeserializeValue::deserialize(&mut de)
-                .map_err(move |err| {
-                    crate::read::Error::Data(format!(
-                        "Error deserializing value as gvariant type \"{}\": {}",
-                        <T as zvariant::Type>::signature(),
-                        err
-                    ))
-                })?
-                .0,
-        ))
+        let value = zvariant_deserialize(data, endian)?;
+        let inner: zvariant::OwnedValue =
+            value.downcast_ref::<zvariant::Value>()?.try_to_owned()?;
+        let signature = value.signature();
+        Ok(DecodeValue::new(inner.try_into().map_err(|_e| {
+            crate::read::Error::Data(format!(
+                "Error interpreting gvariant data with signature {} as {}",
+                signature,
+                T::SIGNATURE,
+            ))
+        })?))
     }
 }

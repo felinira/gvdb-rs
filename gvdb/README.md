@@ -74,7 +74,7 @@ pub fn main() {
     let file = File::from_file(&path).unwrap();
     let table = file.hash_table().unwrap();
 
-    #[derive(serde::Deserialize, zvariant::Type)]
+    #[derive(serde::Deserialize, zvariant::Type, zvariant::OwnedValue)]
     struct GResourceData {
         size: u32,
         flags: u32,
