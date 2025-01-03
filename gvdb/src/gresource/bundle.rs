@@ -146,7 +146,7 @@ impl<'a> FileData<'a> {
                 quick_xml::events::Event::Eof => break,
                 event => writer
                     .write_event(event)
-                    .map_err(|err| BuilderError::Xml(err, path.clone()))?,
+                    .map_err(|err| BuilderError::Xml(err.into(), path.clone()))?,
             }
         }
 
