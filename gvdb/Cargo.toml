@@ -32,7 +32,6 @@ walkdir = { version = "2.3", optional = true }
 # Use zlib for binary compatibility in tests
 flate2 = { version = "1.0", features = ["zlib"] }
 glib = "0.20"
-lazy_static = "1.4"
 matches = "0.1"
 pretty_assertions = "1.2"
 rand = "0.8.5"
