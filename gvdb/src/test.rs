@@ -3,7 +3,6 @@
 use crate::read::{File, HashItemType, HashTable};
 use crate::write::{FileWriter, HashTableBuilder};
 use glib::value::ToValue;
-use lazy_static::lazy_static;
 pub use matches::assert_matches;
 pub use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
 use serde::Deserialize;
@@ -11,17 +10,22 @@ use std::borrow::Cow;
 use std::cmp::{max, min};
 use std::io::{Cursor, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 use zvariant::DynamicType;
 
-lazy_static! {
-    pub(crate) static ref TEST_FILE_DIR: PathBuf = PathBuf::from("test-data");
-    pub(crate) static ref TEST_FILE_1: PathBuf = TEST_FILE_DIR.join("test1.gvdb");
-    pub(crate) static ref TEST_FILE_2: PathBuf = TEST_FILE_DIR.join("test2.gvdb");
-    pub(crate) static ref TEST_FILE_3: PathBuf = TEST_FILE_DIR.join("test3.gresource");
-    pub(crate) static ref TEST_FILE_4: PathBuf = TEST_FILE_DIR.join("test4.gvdb");
-    pub(crate) static ref GRESOURCE_DIR: PathBuf = TEST_FILE_DIR.join("gresource");
-    pub(crate) static ref GRESOURCE_XML: PathBuf = GRESOURCE_DIR.join("test3.gresource.xml");
-}
+pub(crate) static TEST_FILE_DIR: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("test-data"));
+pub(crate) static TEST_FILE_1: LazyLock<PathBuf> =
+    LazyLock::new(|| TEST_FILE_DIR.join("test1.gvdb"));
+pub(crate) static TEST_FILE_2: LazyLock<PathBuf> =
+    LazyLock::new(|| TEST_FILE_DIR.join("test2.gvdb"));
+pub(crate) static TEST_FILE_3: LazyLock<PathBuf> =
+    LazyLock::new(|| TEST_FILE_DIR.join("test3.gresource"));
+pub(crate) static TEST_FILE_4: LazyLock<PathBuf> =
+    LazyLock::new(|| TEST_FILE_DIR.join("test4.gvdb"));
+pub(crate) static GRESOURCE_DIR: LazyLock<PathBuf> =
+    LazyLock::new(|| TEST_FILE_DIR.join("gresource"));
+pub(crate) static GRESOURCE_XML: LazyLock<PathBuf> =
+    LazyLock::new(|| GRESOURCE_DIR.join("test3.gresource.xml"));
 
 pub(crate) const SIMPLE_FILE_KEY: &str = "test";
 pub(crate) const SIMPLE_FILE_VALUE: u32 = 0xabca_bcab_u32;

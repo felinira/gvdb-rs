@@ -7,11 +7,11 @@ use std::borrow::Cow;
 use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
-lazy_static::lazy_static! {
-    pub(crate) static ref TEST_FILE_DIR: PathBuf = PathBuf::from("test-data");
-    pub(crate) static ref GRESOURCE_DIR: PathBuf = TEST_FILE_DIR.join("gresource");
-}
+pub(crate) static TEST_FILE_DIR: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("test-data"));
+pub(crate) static GRESOURCE_DIR: LazyLock<PathBuf> =
+    LazyLock::new(|| TEST_FILE_DIR.join("gresource"));
 
 #[test]
 fn test_file_from_dir() {
