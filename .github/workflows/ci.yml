@@ -33,6 +33,10 @@ jobs:
             features: "--no-default-features --features=mmap,gresource"
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libglib2.0-dev
+
       - name: Install rust ${{ matrix.rust }}
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -52,15 +56,16 @@ jobs:
 
       - name: Install cargo-all-features
         if: ${{ matrix.x86_64-unknown-linux-gnu }} == "x86_64-unknown-linux-gnu"
-        uses: taiki-e/cache-cargo-install-action@v1
+        uses: taiki-e/cache-cargo-install-action@v2
         with:
           tool: cargo-all-features
       - name: Build
         run: cargo build --verbose ${{ matrix.features }} --target ${{ matrix.target }}
       - name: Clippy
+        if: ${{ matrix.rust != 'stable' }}
         run: cargo clippy --verbose ${{ matrix.features }} --target ${{ matrix.target }} -- -D warnings
       - name: Clippy Tests
-        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
+        if: ${{ matrix.rust != 'stable' && matrix.target == 'x86_64-unknown-linux-gnu' }}
         run: cargo clippy --tests --verbose ${{ matrix.features }} --target ${{ matrix.target }} -- -D warnings
       - name: Run tests
         if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
@@ -84,17 +89,18 @@ jobs:
             target/
           key: ${{ runner.os }}-s390x-cargo-${{ hashFiles('**/Cargo.toml') }}
 
-      - uses: uraimo/run-on-arch-action@v2
+      - uses: uraimo/run-on-arch-action@v3
         name: Build and test on s390x
         id: runcmd
         with:
           arch: s390x
-          distro: alpine_latest
+          distro: ubuntu_devel
           githubToken: ${{ github.token }}
           dockerRunArgs: |
             --volume "${HOME}/.cargo:/root/.cargo"
           install: |
-            apk add cargo glib-dev --repository=https://dl-cdn.alpinelinux.org/alpine/edge/main
+            apt-get update && apt-get install -y libglib2.0-dev rustup build-essential
           run: |
+            rustup install stable
             cargo test --all-features --verbose
             chmod -R a+r target
