@@ -75,7 +75,7 @@ impl<'a> HashTableBuilder<'a> {
 
                 if let Some(last_key) = last_key {
                     if let Some(last_item) = self.items.get_mut(&last_key) {
-                        if let HashValue::Container(ref mut container) = last_item {
+                        if let HashValue::Container(container) = last_item {
                             if !container.contains(&this_key) {
                                 container.push(this_key.clone());
                             }
@@ -433,11 +433,11 @@ impl FileWriter {
                     .as_ref()
                     .map(|p| p.assigned_index());
 
-                let key = if let Some(parent) = &*current_item.parent_ref() {
+                let key = match &*current_item.parent_ref() { Some(parent) => {
                     current_item.key().strip_prefix(parent.key()).unwrap_or("")
-                } else {
+                } _ => {
                     current_item.key()
-                };
+                }};
 
                 if key.is_empty() {
                     return Err(Error::Consistency(format!(

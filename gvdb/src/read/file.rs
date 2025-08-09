@@ -1,7 +1,7 @@
+use crate::read::HashTable;
 use crate::read::error::{Error, Result};
 use crate::read::header::Header;
 use crate::read::pointer::Pointer;
-use crate::read::HashTable;
 use std::borrow::Cow;
 use std::io::Read;
 use std::path::Path;
@@ -178,7 +178,8 @@ impl<'a> File<'a> {
     #[cfg(feature = "mmap")]
     pub unsafe fn from_file_mmap(filename: &Path) -> Result<Self> {
         let file = std::fs::File::open(filename).map_err(Error::from_io_with_filename(filename))?;
-        let mmap = memmap2::Mmap::map(&file).map_err(Error::from_io_with_filename(filename))?;
+        let mmap =
+            unsafe { memmap2::Mmap::map(&file) }.map_err(Error::from_io_with_filename(filename))?;
         Self::from_data(Data::Mmap(mmap))
     }
 

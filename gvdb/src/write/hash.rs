@@ -80,7 +80,7 @@ impl<'a> SimpleHashTable<'a> {
         let bucket = self.hash_bucket(hash_value);
 
         // Remove the item if it already exists
-        if let Some((previous, item)) = self.get_from_bucket(key, bucket) {
+        match self.get_from_bucket(key, bucket) { Some((previous, item)) => {
             if let Some(previous) = previous {
                 previous.next().replace(item.next().take());
             } else {
@@ -90,9 +90,9 @@ impl<'a> SimpleHashTable<'a> {
             self.n_items -= 1;
 
             true
-        } else {
+        } _ => {
             false
-        }
+        }}
     }
 
     /// Retrieve an item with the specified key from the specified bucket.
@@ -153,23 +153,23 @@ impl<'h> Iterator for SimpleHashTableBucketIter<'_, 'h> {
     type Item = Rc<HashItemBuilder<'h>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(last_item) = self.last_item.clone() {
+        match self.last_item.clone() { Some(last_item) => {
             // First check if there are more items in this bucket
-            if let Some(next_item) = &*last_item.next().borrow() {
+            match &*last_item.next().borrow() { Some(next_item) => {
                 // Next item in the same bucket
                 self.last_item = Some(next_item.clone());
                 Some(next_item.clone())
-            } else {
+            } _ => {
                 // Last item in the bucket, return
                 None
-            }
-        } else if let Some(Some(item)) = self.hash_table.buckets.get(self.bucket).cloned() {
+            }}
+        } _ => { match self.hash_table.buckets.get(self.bucket).cloned() { Some(Some(item)) => {
             // We found something: Bucket exists and is not empty
             self.last_item = Some(item.clone());
             Some(item.clone())
-        } else {
+        } _ => {
             None
-        }
+        }}}}
     }
 }
 
@@ -186,14 +186,14 @@ impl<'h> Iterator for SimpleHashTableIter<'_, 'h> {
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(last_item) = self.last_item.clone() {
             // First check if there are more items in this bucket
-            if let Some(next_item) = &*last_item.next().borrow() {
+            match &*last_item.next().borrow() { Some(next_item) => {
                 // Next item in the same bucket
                 self.last_item = Some(next_item.clone());
                 return Some((self.bucket, next_item.clone()));
-            } else {
+            } _ => {
                 // Last item in the bucket, check the next bucket
                 self.bucket += 1;
-            }
+            }}
         }
 
         while let Some(bucket_item) = self.hash_table.buckets.get(self.bucket) {
