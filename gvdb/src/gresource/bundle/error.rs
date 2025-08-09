@@ -58,14 +58,14 @@ impl Display for BuilderError {
                         err
                     )
                 } else {
-                    write!(f, "Error processing XML data: {}", err)
+                    write!(f, "Error processing XML data: {err}")
                 }
             }
             BuilderError::Io(err, path) => {
                 if let Some(path) = path {
                     write!(f, "I/O error for file '{}': {}", path.display(), err)
                 } else {
-                    write!(f, "I/O error: {}", err)
+                    write!(f, "I/O error: {err}")
                 }
             }
             BuilderError::Json(err, path) => {
@@ -77,7 +77,7 @@ impl Display for BuilderError {
                         err
                     )
                 } else {
-                    write!(f, "Error reading/writing JSON data: {}", err)
+                    write!(f, "Error reading/writing JSON data: {err}")
                 }
             }
             BuilderError::Utf8(err, path) => {
@@ -89,20 +89,19 @@ impl Display for BuilderError {
                         err
                     )
                 } else {
-                    write!(f, "Error converting data to UTF-8: {}", err)
+                    write!(f, "Error converting data to UTF-8: {err}")
                 }
             }
             BuilderError::Unimplemented(err) => {
-                write!(f, "{}", err)
+                write!(f, "{err}")
             }
             BuilderError::Gvdb(err) => {
-                write!(f, "Error while creating GVDB file: {:?}", err)
+                write!(f, "Error while creating GVDB file: {err:?}")
             }
             BuilderError::StripPrefix(err, path) => {
                 write!(
                     f,
-                    "Error when canonicalizing path '{:?}' from an absolute to a relative path: {}",
-                    path, err
+                    "Error when canonicalizing path '{path:?}' from an absolute to a relative path: {err}"
                 )
             }
         }
@@ -126,25 +125,25 @@ mod test {
     fn from() {
         let io_res = std::fs::File::open("test/invalid_file_name");
         let err = BuilderError::Io(io_res.unwrap_err(), None);
-        assert!(format!("{}", err).contains("I/O"));
+        assert!(format!("{err}").contains("I/O"));
 
         let io_res = std::fs::File::open("test/invalid_file_name");
         let err = BuilderError::from_io_with_filename(Some("test"))(io_res.unwrap_err());
-        assert!(format!("{}", err).contains("test"));
+        assert!(format!("{err}").contains("test"));
 
         let writer_error = crate::write::Error::Consistency("test".to_string());
         let err = BuilderError::from(writer_error);
-        assert!(format!("{}", err).contains("test"));
+        assert!(format!("{err}").contains("test"));
 
         let err = BuilderError::Xml(
             quick_xml::Error::Syntax(quick_xml::errors::SyntaxError::UnclosedTag),
             Some(PathBuf::from("test_file")),
         );
-        assert!(format!("{}", err).contains("test_file"));
+        assert!(format!("{err}").contains("test_file"));
         let err = BuilderError::Xml(
             quick_xml::Error::Syntax(quick_xml::errors::SyntaxError::UnclosedTag),
             None,
         );
-        assert!(format!("{}", err).contains("XML"));
+        assert!(format!("{err}").contains("XML"));
     }
 }

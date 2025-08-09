@@ -61,7 +61,7 @@ fn include_gresource_from_xml_inner(input: proc_macro2::TokenStream) -> proc_mac
         .expect("Expected exactly one string literal argument (gresource file location)");
     let second = iter.next();
     if let Some(second) = second {
-        panic!("Unexpected token '{}', expected exactly one string literal argument (gresource file location)", second)
+        panic!("Unexpected token '{second}', expected exactly one string literal argument (gresource file location)")
     }
 
     match Literal::try_from(first) {
@@ -69,7 +69,7 @@ fn include_gresource_from_xml_inner(input: proc_macro2::TokenStream) -> proc_mac
         Ok(Literal::String(str)) => {
             include_gresource_from_xml_with_filename(str.value())
         }
-        Ok(other) => panic!("Unexpected token '{:?}', expected exactly one string literal argument (gresource file location)", other)
+        Ok(other) => panic!("Unexpected token '{other:?}', expected exactly one string literal argument (gresource file location)")
     }
 }
 

@@ -141,7 +141,7 @@ impl<'a> HashItemBuilder<'a> {
         &self.value
     }
 
-    pub fn value_ref(&self) -> Ref<HashValue<'a>> {
+    pub fn value_ref(&self) -> Ref<'_, HashValue<'a>> {
         self.value.borrow()
     }
 
@@ -149,7 +149,7 @@ impl<'a> HashItemBuilder<'a> {
         &self.parent
     }
 
-    pub fn parent_ref(&self) -> Ref<Option<Rc<HashItemBuilder<'a>>>> {
+    pub fn parent_ref(&self) -> Ref<'_, Option<Rc<HashItemBuilder<'a>>>> {
         self.parent.borrow()
     }
 
@@ -175,7 +175,7 @@ mod test {
     fn derives() {
         let value1: zvariant::Value = "test".into();
         let item1 = HashValue::from_value(value1);
-        println!("{:?}", item1);
+        println!("{item1:?}");
     }
 
     #[test]
@@ -213,7 +213,7 @@ mod test {
         let value1: zvariant::Value = "test".into();
         let item1 = HashValue::from_value(value1);
         let item = HashItemBuilder::new("test", 0, item1);
-        println!("{:?}", item);
+        println!("{item:?}");
 
         assert_eq!(item.key(), "test");
         assert_matches!(&*item.value().borrow(), HashValue::Value(_));

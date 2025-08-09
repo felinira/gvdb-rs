@@ -327,7 +327,7 @@ impl<'table, 'file> HashTable<'table, 'file> {
     }
 
     /// Returns the nested [`HashTable`] at `key`, if one is found.
-    pub fn get_hash_table(&self, key: &str) -> Result<HashTable> {
+    pub fn get_hash_table(&self, key: &str) -> Result<HashTable<'_, '_>> {
         let item = self
             .get_hash_item(key)
             .ok_or(Error::KeyNotFound(key.to_string()))?;
@@ -346,7 +346,7 @@ impl<'table, 'file> HashTable<'table, 'file> {
     /// Returns the data for `key` as a [`enum@zvariant::Value`].
     ///
     /// Unless you need to inspect the value at runtime, it is recommended to use [`HashTable::get`].
-    pub fn get_value(&self, key: &str) -> Result<zvariant::Value> {
+    pub fn get_value(&self, key: &str) -> Result<zvariant::Value<'_>> {
         let data = self.get_bytes(key)?;
 
         zvariant::Value::decode(data, self.file.endianness()).map_err(|err| {
@@ -473,8 +473,7 @@ impl Iterator for Keys<'_, '_, '_> {
                         item
                     } else {
                         return Err(Error::Data(format!(
-                            "Parent with invalid offset encountered: {}",
-                            parent
+                            "Parent with invalid offset encountered: {parent}"
                         )));
                     };
 
@@ -543,12 +542,12 @@ pub(crate) mod test {
     fn debug() {
         let header = HashHeader::new(0, 0, 0);
         let header2 = header;
-        println!("{:?}", header2);
+        println!("{header2:?}");
 
         let file = new_empty_file();
         let table = file.hash_table().unwrap();
         let table2 = table.clone();
-        println!("{:?}", table2);
+        println!("{table2:?}");
     }
 
     #[test]
@@ -562,7 +561,7 @@ pub(crate) mod test {
         let table = file.hash_table().unwrap();
         let header = table.header;
         assert_eq!(header.n_buckets(), 1);
-        println!("{:?}", table);
+        println!("{table:?}");
     }
 
     #[test]

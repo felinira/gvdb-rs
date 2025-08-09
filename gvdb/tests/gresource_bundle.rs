@@ -75,7 +75,7 @@ fn test_from_dir_reproducible_build() {
 
         for entry in files.iter() {
             let destination = to.join(entry.file_name());
-            println!("copy file: {:?} to: {:?}", entry, destination);
+            println!("copy file: {entry:?} to: {destination:?}");
             let file_type = entry.file_type().unwrap();
             if file_type.is_file() {
                 std::fs::copy(entry.path(), &destination).unwrap();
@@ -120,9 +120,9 @@ fn test_from_dir_invalid() {
     std::fs::remove_dir(dir.parent().unwrap()).unwrap();
 
     let err = res.unwrap_err();
-    println!("{}", err);
+    println!("{err}");
     assert_matches!(err, BuilderError::Utf8(_, _));
-    assert!(format!("{}", err).contains("UTF-8"));
+    assert!(format!("{err}").contains("UTF-8"));
 }
 
 #[test]
@@ -139,9 +139,9 @@ fn test_invalid_utf8_json() {
     let _ = std::fs::remove_dir(&dir);
 
     let err = res.unwrap_err();
-    println!("{}", err);
+    println!("{err}");
     assert_matches!(err, BuilderError::Utf8(..));
-    assert!(format!("{}", err).contains("UTF-8"));
+    assert!(format!("{err}").contains("UTF-8"));
 }
 
 #[test]
@@ -154,10 +154,10 @@ fn test_from_file_data() {
         &PreprocessOptions::empty(),
     )
     .unwrap();
-    println!("{:?}", file_data);
+    println!("{file_data:?}");
 
     let builder = BundleBuilder::from_file_data(vec![file_data]);
-    println!("{:?}", builder);
+    println!("{builder:?}");
     let _ = builder.build().unwrap();
 }
 

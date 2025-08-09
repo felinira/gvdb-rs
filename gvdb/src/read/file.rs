@@ -108,14 +108,14 @@ pub struct File<'a> {
 
 impl<'a> File<'a> {
     /// Returns the root hash table of the file
-    pub fn hash_table(&self) -> Result<HashTable> {
+    pub fn hash_table(&self) -> Result<HashTable<'_, '_>> {
         let header = self.header;
         let root_ptr = header.root();
         self.read_hash_table(root_ptr)
     }
 
     /// Dereference a pointer and try to read the underlying hash table
-    pub(crate) fn read_hash_table(&self, pointer: &Pointer) -> Result<HashTable> {
+    pub(crate) fn read_hash_table(&self, pointer: &Pointer) -> Result<HashTable<'_, '_>> {
         let data = self.data.dereference(pointer, 4)?;
         HashTable::for_bytes(data, self)
     }
@@ -320,7 +320,7 @@ mod test {
         let file = File::from_bytes(Cow::Owned(data)).unwrap();
         let err = file.hash_table().unwrap_err();
         assert_matches!(err, Error::Data(_));
-        assert!(format!("{}", err).contains("Not enough bytes to fit hash table"));
+        assert!(format!("{err}").contains("Not enough bytes to fit hash table"));
     }
 
     #[test]
@@ -339,7 +339,7 @@ mod test {
         let file = File::from_bytes(Cow::Owned(data)).unwrap();
         let err = file.hash_table().unwrap_err();
         assert_matches!(err, Error::Data(_));
-        assert!(format!("{}", err).contains("Hash item size invalid"));
+        assert!(format!("{err}").contains("Hash item size invalid"));
     }
 
     #[test]
@@ -402,8 +402,8 @@ mod test {
             .collect::<Result<Vec<_>, _>>()
             .unwrap_err();
         assert_matches!(err, Error::Data(_));
-        assert!(format!("{}", err).contains("Parent with invalid offset"));
-        assert!(format!("{}", err).contains("10"));
+        assert!(format!("{err}").contains("Parent with invalid offset"));
+        assert!(format!("{err}").contains("10"));
     }
 
     #[test]
@@ -435,7 +435,7 @@ mod test {
             .collect::<Result<Vec<_>, _>>()
             .unwrap_err();
         assert_matches!(err, Error::Data(_));
-        assert!(format!("{}", err).contains("loop"));
+        assert!(format!("{err}").contains("loop"));
     }
 
     #[test]

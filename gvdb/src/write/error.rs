@@ -35,14 +35,14 @@ impl Display for Error {
                 if let Some(path) = path {
                     write!(f, "I/O error for file '{}': {}", path.display(), err)
                 } else {
-                    write!(f, "I/O error: {}", err)
+                    write!(f, "I/O error: {err}")
                 }
             }
             Error::Consistency(context) => {
-                write!(f, "Internal inconsistency: {}", context)
+                write!(f, "Internal inconsistency: {context}")
             }
             Error::ZVariant(err) => {
-                write!(f, "Error writing ZVariant data: {}", err)
+                write!(f, "Error writing ZVariant data: {err}")
             }
         }
     }
@@ -67,13 +67,13 @@ mod test {
     fn from() {
         let err = Error::from(zvariant::Error::Message("Test".to_string()));
         assert_matches!(err, Error::ZVariant(_));
-        assert!(format!("{}", err).contains("ZVariant"));
+        assert!(format!("{err}").contains("ZVariant"));
 
         let err = Error::Io(
             std::io::Error::from(std::io::ErrorKind::NotFound),
             Some(PathBuf::from("test_path")),
         );
         assert_matches!(err, Error::Io(..));
-        assert!(format!("{}", err).contains("test_path"));
+        assert!(format!("{err}").contains("test_path"));
     }
 }
