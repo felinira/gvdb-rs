@@ -742,7 +742,7 @@ mod test {
             let file_builder = FileWriter::new();
             let mut table_builder = HashTableBuilder::new();
             let mut numbers: Vec<usize> = (0..200).collect();
-            numbers.shuffle(&mut rand::thread_rng());
+            numbers.shuffle(&mut rand::rng());
 
             for num in numbers {
                 let str = format!("{}", num);
