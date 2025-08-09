@@ -1,6 +1,6 @@
 [package]
 name = "gvdb-macros"
-version = "0.1.14"
+version = "0.1.15"
 description = "Convenience macros for gvdb"
 
 edition.workspace = true
@@ -14,7 +14,7 @@ categories.workspace = true
 proc-macro = true
 
 [dependencies]
-gvdb = { version = "0.8", default-features = false, features = [
+gvdb = { version = "0.9", default-features = false, features = [
     "gresource",
 ], path = "../gvdb" }
 proc-macro2 = "1.0"
