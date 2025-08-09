@@ -32,7 +32,7 @@ impl TryFrom<u8> for HashItemType {
         } else if chr == 'L' {
             Ok(HashItemType::Container)
         } else {
-            Err(Error::Data(format!("Invalid HashItemType: '{}'", chr)))
+            Err(Error::Data(format!("Invalid HashItemType: '{chr}'")))
         }
     }
 }
@@ -45,7 +45,7 @@ impl Display for HashItemType {
             HashItemType::Container => "Child",
         };
 
-        write!(f, "{}", text)
+        write!(f, "{text}")
     }
 }
 
@@ -243,15 +243,15 @@ mod test {
     #[test]
     fn derives() {
         let typ = HashItemType::Value;
-        println!("{}, {:?}", typ, typ);
+        println!("{typ}, {typ:?}");
         let typ = HashItemType::HashTable;
-        println!("{}, {:?}", typ, typ);
+        println!("{typ}, {typ:?}");
         let typ = HashItemType::Container;
-        println!("{}, {:?}", typ, typ);
+        println!("{typ}, {typ:?}");
 
         let item = HashItem::new(0, None, Pointer::NULL, HashItemType::Value, Pointer::NULL);
         let item2 = item;
-        println!("{:?}", item2);
+        println!("{item2:?}");
     }
 
     #[test]

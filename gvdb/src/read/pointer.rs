@@ -60,7 +60,7 @@ mod test {
     fn derives() {
         let pointer = Pointer::new(0, 2);
         let pointer2 = pointer;
-        println!("{:?}", pointer2);
+        println!("{pointer2:?}");
     }
 
     #[test]

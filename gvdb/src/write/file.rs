@@ -81,8 +81,7 @@ impl<'a> HashTableBuilder<'a> {
                             }
                         } else {
                             return Err(Error::Consistency(format!(
-                                "Parent item with key '{}' is not of type container",
-                                this_key
+                                "Parent item with key '{this_key}' is not of type container"
                             )));
                         }
                     } else {
@@ -238,7 +237,7 @@ impl<'a> HashTableBuilder<'a> {
                     if let Some(child_item) = child_item {
                         child_item.parent().replace(Some(item.clone()));
                     } else {
-                        return Err(Error::Consistency(format!("Tried to set parent for child '{}' to '{}' but the child was not found.", child, key)));
+                        return Err(Error::Consistency(format!("Tried to set parent for child '{child}' to '{key}' but the child was not found.")));
                     }
                 }
             }
@@ -472,8 +471,7 @@ impl FileWriter {
                                 offset += size_of::<u32>();
                             } else {
                                 return Err(Error::Consistency(format!(
-                                    "Child item '{}' not found for parent: '{}'",
-                                    child, key
+                                    "Child item '{child}' not found for parent: '{key}'"
                                 )));
                             }
                         }
@@ -516,7 +514,7 @@ impl FileWriter {
             .chunks
             .get(root_chunk_index)
             .ok_or_else(|| {
-                Error::Consistency(format!("Root chunk with id {} not found", root_chunk_index))
+                Error::Consistency(format!("Root chunk with id {root_chunk_index} not found"))
             })?
             .pointer();
         let header = Header::new(self.byteswap, 0, root_ptr);
@@ -589,10 +587,10 @@ mod test {
     #[test]
     fn derives() {
         let ht_builder = HashTableBuilder::default();
-        println!("{:?}", ht_builder);
+        println!("{ht_builder:?}");
 
         let chunk = Chunk::new(Box::new([0; 0]), Pointer::NULL);
-        assert!(format!("{:?}", chunk).contains("Chunk"));
+        assert!(format!("{chunk:?}").contains("Chunk"));
     }
 
     #[test]
@@ -683,7 +681,7 @@ mod test {
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
         let root = File::from_bytes(Cow::Owned(bytes)).unwrap();
 
-        println!("{:?}", root);
+        println!("{root:?}");
 
         assert_is_file_1(&root);
         byte_compare_file_1(&root);
@@ -708,7 +706,7 @@ mod test {
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
         let root = File::from_bytes(Cow::Owned(bytes)).unwrap();
 
-        println!("{:?}", root);
+        println!("{root:?}");
 
         assert_is_file_2(&root);
         byte_compare_file_2(&root);
@@ -729,7 +727,7 @@ mod test {
         let bytes = writer.serialize_to_vec(root_index).unwrap();
         let root = File::from_bytes(Cow::Owned(bytes)).unwrap();
 
-        println!("{:?}", root);
+        println!("{root:?}");
 
         byte_compare_file_4(&root);
     }
@@ -745,7 +743,7 @@ mod test {
             numbers.shuffle(&mut rand::rng());
 
             for num in numbers {
-                let str = format!("{}", num);
+                let str = format!("{num}");
                 table_builder.insert_string(&str, &str).unwrap();
             }
 
@@ -776,7 +774,7 @@ mod test {
         assert_eq!("raVGtnai", std::str::from_utf8(&bytes[0..8]).unwrap());
 
         let root = File::from_bytes(Cow::Owned(bytes)).unwrap();
-        println!("{:?}", root);
+        println!("{root:?}");
 
         assert_is_file_1(&root);
     }
@@ -800,7 +798,7 @@ mod test {
             .unwrap();
 
         assert_eq!(container_item.typ().unwrap(), HashItemType::Container);
-        println!("{:?}", root);
+        println!("{root:?}");
     }
 
     #[test]
@@ -862,8 +860,8 @@ mod test {
         table.insert("test", "test").unwrap();
         let err = file.write_with_table(table, &mut cursor).unwrap_err();
         assert_matches!(err, Error::Io(_, _));
-        assert!(format!("{}", err).contains("I/O error"));
-        assert!(format!("{:?}", err).contains("I/O error"));
+        assert!(format!("{err}").contains("I/O error"));
+        assert!(format!("{err:?}").contains("I/O error"));
     }
 }
 
@@ -930,7 +928,7 @@ mod test_glib {
         let bytes = writer.serialize_to_vec(root_index).unwrap();
         let root = File::from_bytes(Cow::Owned(bytes)).unwrap();
 
-        println!("{:?}", root);
+        println!("{root:?}");
 
         byte_compare_file_4(&root);
     }

@@ -160,7 +160,7 @@ mod test {
     fn derives() {
         let header = Header::new(false, 0, Pointer::NULL);
         let header2 = header;
-        println!("{:?}", header2);
+        println!("{header2:?}");
     }
 
     #[test]

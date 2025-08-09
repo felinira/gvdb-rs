@@ -437,7 +437,7 @@ impl<'a> BundleBuilder<'a> {
                     PreprocessOptions::empty()
                 };
 
-                let key = format!("{}{}", prefix, file_path_str_relative);
+                let key = format!("{prefix}{file_path_str_relative}");
                 let file_data = FileData::from_file(key, file_abs_path, compress_this, &options)?;
                 files.push(file_data);
             }
@@ -577,7 +577,7 @@ mod test {
         options.to_pixdata = true;
         let err = FileData::from_file("test.json".to_string(), &path, false, &options).unwrap_err();
         assert_matches!(err, BuilderError::Unimplemented(_));
-        assert!(format!("{}", err).contains("to-pixdata is deprecated"));
+        assert!(format!("{err}").contains("to-pixdata is deprecated"));
     }
 
     #[test]
@@ -594,7 +594,7 @@ mod test {
             .unwrap_err();
 
             assert_matches!(err, BuilderError::Xml(_, _));
-            assert!(format!("{}", err).contains("Error processing XML data"));
+            assert!(format!("{err}").contains("Error processing XML data"));
         }
     }
 
@@ -612,7 +612,7 @@ mod test {
             .unwrap_err();
 
             assert_matches!(err, BuilderError::Utf8(..));
-            assert!(format!("{:?}", err).contains("UTF-8"));
+            assert!(format!("{err:?}").contains("UTF-8"));
 
             let invalid_json = r#"{ "test": : }"#.as_bytes();
             let err = FileData::new(
@@ -625,7 +625,7 @@ mod test {
             .unwrap_err();
 
             assert_matches!(err, BuilderError::Json(..));
-            assert!(format!("{:?}", err).contains("expected value at line"));
+            assert!(format!("{err:?}").contains("expected value at line"));
         }
 
         let valid_json = r#"{ "test": "test" }"#.as_bytes();

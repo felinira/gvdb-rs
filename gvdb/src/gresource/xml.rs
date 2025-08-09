@@ -114,7 +114,7 @@ where
     match &*String::deserialize(d)? {
         "true" | "t" | "yes" | "y" | "1" => Ok(true),
         "false" | "f" | "no" | "n" | "0" => Ok(false),
-        other => Err(D::Error::custom(format!("got '{}', but expected any of 'true', 't', 'yes', 'y', '1' / 'false', 'f', 'no', 'n', '0'", other))),
+        other => Err(D::Error::custom(format!("got '{other}', but expected any of 'true', 't', 'yes', 'y', '1' / 'false', 'f', 'no', 'n', '0'"))),
     }
 }
 
@@ -131,8 +131,7 @@ where
             "to-pixdata" => this.to_pixdata = true,
             other => {
                 return Err(D::Error::custom(format!(
-                    "got '{}' but expected any of 'json-stripblanks', 'xml-stripblanks'",
-                    other
+                    "got '{other}' but expected any of 'json-stripblanks', 'xml-stripblanks'"
                 )))
             }
         }
@@ -198,7 +197,7 @@ mod test {
 
         let data = r#"<gresources><gresource><file compressed="false" preprocess="xml-stripblanks">test</file></gresource></gresources>"#;
         let doc = XmlManifest::from_bytes(&test_path, Cow::Borrowed(data.as_bytes())).unwrap();
-        println!("{:?}", doc);
+        println!("{doc:?}");
         assert_eq!(doc, doc);
         assert_eq!(doc.gresources.len(), 1);
         assert_eq!(doc.gresources[0].files.len(), 1);
@@ -233,7 +232,7 @@ mod test {
         let test_path = PathBuf::from("/TEST");
 
         let res = XmlManifest::from_string(&test_path, r#"<wrong></wrong>"#);
-        assert!(format!("{:?}", res).contains("parsing XML"));
+        assert!(format!("{res:?}").contains("parsing XML"));
         assert_matches!(
             res,
             Err(error::XmlManifestError::Serde(quick_xml::DeError::Custom(field), _)) if field == "missing field `gresource`"
@@ -245,7 +244,7 @@ mod test {
             Some(PathBuf::from("test_filename")),
             Cow::Borrowed(string.as_bytes()),
         );
-        assert!(format!("{:?}", res).contains("test_filename"));
+        assert!(format!("{res:?}").contains("test_filename"));
         assert_matches!(
             res,
             Err(error::XmlManifestError::Serde(quick_xml::de::DeError::Custom(field), _)) if field == "missing field `$value`"
@@ -278,7 +277,7 @@ mod test {
 
         let res = XmlManifest::from_bytes(&test_path, Cow::Borrowed(&[0x80, 0x81])).unwrap_err();
 
-        println!("{}", res);
+        println!("{res}");
         assert_matches!(res, error::XmlManifestError::Utf8(..));
     }
 
@@ -287,6 +286,6 @@ mod test {
         let test_path = PathBuf::from("invalid_file_name.xml");
         let res = XmlManifest::from_file(&test_path);
         assert_matches!(res, Err(error::XmlManifestError::Io(_, _)));
-        assert!(format!("{:?}", res).contains("invalid_file_name.xml"));
+        assert!(format!("{res:?}").contains("invalid_file_name.xml"));
     }
 }

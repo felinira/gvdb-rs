@@ -73,7 +73,7 @@ impl From<TryFromIntError> for Error {
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::Utf8(err) => write!(f, "Error converting string to UTF-8: {}", err),
+            Error::Utf8(err) => write!(f, "Error converting string to UTF-8: {err}"),
             Error::Io(err, path) => {
                 if let Some(path) = path {
                     write!(
@@ -83,7 +83,7 @@ impl Display for Error {
                         err
                     )
                 } else {
-                    write!(f, "I/O error: {}", err)
+                    write!(f, "I/O error: {err}")
                 }
             }
             Error::DataOffset => {
@@ -98,12 +98,11 @@ impl Display for Error {
             Error::Data(msg) => {
                 write!(
                     f,
-                    "A data inconsistency error occured while reading gvdb file: {}",
-                    msg
+                    "A data inconsistency error occured while reading gvdb file: {msg}"
                 )
             }
             Error::KeyNotFound(key) => {
-                write!(f, "The item with the key '{}' does not exist", key)
+                write!(f, "The item with the key '{key}' does not exist")
             }
         }
     }
@@ -123,25 +122,25 @@ mod test {
     fn from() {
         let io_res = std::fs::File::open("test/invalid_file_name");
         let err = Error::Io(io_res.unwrap_err(), None);
-        assert!(format!("{}", err).contains("I/O"));
+        assert!(format!("{err}").contains("I/O"));
 
         let utf8_err = String::from_utf8([0xC3, 0x28].to_vec()).unwrap_err();
         let err = Error::from(utf8_err);
-        assert!(format!("{}", err).contains("UTF-8"));
+        assert!(format!("{err}").contains("UTF-8"));
 
         let res: Result<u16, TryFromIntError> = u32::MAX.try_into();
         let err = Error::from(res.unwrap_err());
         assert_matches!(err, Error::DataOffset);
-        assert!(format!("{}", err).contains("data offset"));
+        assert!(format!("{err}").contains("data offset"));
 
         let err = Error::Data("my data error".to_string());
-        assert!(format!("{}", err).contains("my data error"));
+        assert!(format!("{err}").contains("my data error"));
 
         let err = Error::KeyNotFound("test".to_string());
-        assert!(format!("{}", err).contains("test"));
+        assert!(format!("{err}").contains("test"));
 
         let err = Error::from(zvariant::Error::Message("test".to_string()));
-        assert!(format!("{}", err).contains("test"));
+        assert!(format!("{err}").contains("test"));
 
         let to_transmute = Header::new(false, 0, Pointer::NULL);
         let mut bytes = to_transmute.as_bytes().to_vec();

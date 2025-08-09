@@ -69,30 +69,28 @@ The stored data at `/gvdb/rs/test/online-symbolic.svg` corresponds to the `(uuay
 use gvdb::read::File;
 use std::path::PathBuf;
 
-pub fn main() {
-    let path = PathBuf::from("test-data/test3.gresource");
-    let file = File::from_file(&path).unwrap();
-    let table = file.hash_table().unwrap();
+let path = PathBuf::from("test-data/test3.gresource");
+let file = File::from_file(&path).unwrap();
+let table = file.hash_table().unwrap();
 
-    #[derive(serde::Deserialize, zvariant::Type, zvariant::OwnedValue)]
-    struct GResourceData {
-        size: u32,
-        flags: u32,
-        content: Vec<u8>,
-    }
-
-    let svg: GResourceData = table.get("/gvdb/rs/test/online-symbolic.svg").unwrap();
-
-    assert_eq!(svg.size, 1390);
-    assert_eq!(svg.flags, 0);
-    assert_eq!(svg.size as usize, svg.content.len() - 1);
-
-    // Ensure the last byte is zero because of zero-padding defined in the format
-    assert_eq!(svg.content[svg.content.len() - 1], 0);
-    let svg_str = std::str::from_utf8(&svg.content[0..svg.content.len() - 1]).unwrap();
-
-    println!("{}", svg_str);
+#[derive(serde::Deserialize, zvariant::Type, zvariant::OwnedValue)]
+struct GResourceData {
+    size: u32,
+    flags: u32,
+    content: Vec<u8>,
 }
+
+let svg: GResourceData = table.get("/gvdb/rs/test/online-symbolic.svg").unwrap();
+
+assert_eq!(svg.size, 1390);
+assert_eq!(svg.flags, 0);
+assert_eq!(svg.size as usize, svg.content.len() - 1);
+
+// Ensure the last byte is zero because of zero-padding defined in the format
+assert_eq!(svg.content[svg.content.len() - 1], 0);
+let svg_str = std::str::from_utf8(&svg.content[0..svg.content.len() - 1]).unwrap();
+
+println!("{}", svg_str);
 ```
 
 ## License

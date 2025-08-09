@@ -29,14 +29,14 @@ impl std::fmt::Display for XmlManifestError {
                 if let Some(path) = path {
                     write!(f, "Error parsing XML file '{}': {}", path.display(), err)
                 } else {
-                    write!(f, "Error parsing XML file: {}", err)
+                    write!(f, "Error parsing XML file: {err}")
                 }
             }
             XmlManifestError::Io(err, path) => {
                 if let Some(path) = path {
                     write!(f, "I/O error for file '{}': {}", path.display(), err)
                 } else {
-                    write!(f, "I/O error: {}", err)
+                    write!(f, "I/O error: {err}")
                 }
             }
             XmlManifestError::Utf8(err, path) => {
@@ -48,7 +48,7 @@ impl std::fmt::Display for XmlManifestError {
                         err
                     )
                 } else {
-                    write!(f, "Error converting data to UTF-8: {}", err)
+                    write!(f, "Error converting data to UTF-8: {err}")
                 }
             }
         }
@@ -72,6 +72,6 @@ mod test {
     fn from() {
         let io_res = std::fs::File::open("test/invalid_file_name");
         let err = XmlManifestError::Io(io_res.unwrap_err(), None);
-        assert!(format!("{}", err).contains("I/O"));
+        assert!(format!("{err}").contains("I/O"));
     }
 }

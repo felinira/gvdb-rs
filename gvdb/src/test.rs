@@ -36,14 +36,14 @@ fn write_byte_row(
     bytes_per_row: usize,
     bytes: &[u8],
 ) -> std::io::Result<()> {
-    write!(f, "{:08X}", offset)?;
+    write!(f, "{offset:08X}")?;
 
     for (index, byte) in bytes.iter().enumerate() {
         if index % 4 == 0 {
             write!(f, " ")?;
         }
 
-        write!(f, " {:02X}", byte)?;
+        write!(f, " {byte:02X}")?;
     }
 
     let bytes_per_row = max(bytes_per_row, bytes.len());
@@ -394,12 +394,12 @@ pub(crate) fn byte_compare_gvdb_hash_table(a: &HashTable, b: &HashTable, context
                 assert_gvariant_eq(
                     data_a,
                     data_b,
-                    &format!("Comparing gvariant values with key '{}'", key),
+                    &format!("Comparing gvariant values with key '{key}'"),
                 );
                 assert_bytes_eq(
                     data_a,
                     data_b,
-                    &format!("Comparing values with key '{}'", key),
+                    &format!("Comparing values with key '{key}'"),
                 );
             }
             HashItemType::HashTable => byte_compare_gvdb_hash_table(
@@ -414,7 +414,7 @@ pub(crate) fn byte_compare_gvdb_hash_table(a: &HashTable, b: &HashTable, context
                     assert_bytes_eq(
                         data_a,
                         data_b,
-                        &format!("Containers with key '{}' have different lengths", key),
+                        &format!("Containers with key '{key}' have different lengths"),
                     );
                 }
             }

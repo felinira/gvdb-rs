@@ -47,7 +47,7 @@ impl<'a> SimpleHashTable<'a> {
         let bucket = self.hash_bucket(hash_value);
 
         let item = Rc::new(HashItemBuilder::new(key, hash_value, item));
-        let replaced_item = std::mem::replace(&mut self.buckets[bucket], Some(item.clone()));
+        let replaced_item = self.buckets[bucket].replace(item.clone());
         if let Some(replaced_item) = replaced_item {
             if replaced_item.key() == key {
                 // Replace
@@ -229,7 +229,7 @@ mod test {
     #[test]
     fn derives() {
         let table = SimpleHashTable::with_n_buckets(1);
-        assert!(format!("{:?}", table).contains("SimpleHashTable"));
+        assert!(format!("{table:?}").contains("SimpleHashTable"));
     }
 
     #[test]
@@ -257,7 +257,7 @@ mod test {
         let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
         for index in 0..20 {
             table.insert(
-                &format!("{}", index),
+                &format!("{index}"),
                 HashValue::from_value(zvariant::Value::new(index)),
             );
         }
@@ -268,7 +268,7 @@ mod test {
             assert_eq!(
                 zvariant::Value::new(index).encode(Endian::Big).unwrap(),
                 table
-                    .get(&format!("{}", index))
+                    .get(&format!("{index}"))
                     .unwrap()
                     .value_ref()
                     .encode_value(Endian::Big)
@@ -278,11 +278,11 @@ mod test {
 
         for index in 0..10 {
             let index = index * 2;
-            assert!(table.remove(&format!("{}", index)));
+            assert!(table.remove(&format!("{index}")));
         }
 
         for index in 0..20 {
-            let item = table.get(&format!("{}", index));
+            let item = table.get(&format!("{index}"));
             assert_eq!(index % 2 == 1, item.is_some());
         }
 
@@ -294,7 +294,7 @@ mod test {
         let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
         for index in 0..20 {
             table.insert(
-                &format!("{}", index),
+                &format!("{index}"),
                 HashValue::from_value(zvariant::Value::new(index)),
             );
         }
@@ -319,7 +319,7 @@ mod test {
         let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
         for index in 0..20 {
             table.insert(
-                &format!("{}", index),
+                &format!("{index}"),
                 HashValue::from_value(zvariant::Value::new(index)),
             );
         }
