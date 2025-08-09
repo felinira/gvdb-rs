@@ -66,7 +66,7 @@ fn test_from_dir_reproducible_build() {
 
     use rand::prelude::*;
     fn copy_random_order(from: &Path, to: &Path) {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut files: Vec<std::fs::DirEntry> = std::fs::read_dir(from)
             .unwrap()
             .map(|d| d.unwrap())

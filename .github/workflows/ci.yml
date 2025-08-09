@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         rust:
-          - "1.80" # MSRV
+          - "1.83" # MSRV
           - "stable"
         target:
           - "x86_64-unknown-linux-gnu"

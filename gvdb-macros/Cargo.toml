@@ -18,5 +18,5 @@ gvdb = { version = "0.8", default-features = false, features = [
     "gresource",
 ], path = "../gvdb" }
 proc-macro2 = "1.0"
-litrs = "0.4"
+litrs = { version = "0.5", features = ["proc-macro2"] }
 quote = "1.0"
