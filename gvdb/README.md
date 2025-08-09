@@ -4,10 +4,6 @@ This is an implementation of the glib GVariant database file format in Rust. It 
 
 [![Crates.io](https://img.shields.io/crates/v/gvdb)](https://crates.io/crates/gvdb)
 
-## MSRV
-
-The minimum supported rust version of this crate is 1.80.
-
 ## Example
 
 ### Create a GResource file
