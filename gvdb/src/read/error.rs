@@ -28,7 +28,9 @@ pub enum Error {
 }
 
 impl Error {
-    pub(crate) fn from_io_with_filename(filename: &Path) -> impl FnOnce(std::io::Error) -> Error + use<> {
+    pub(crate) fn from_io_with_filename(
+        filename: &Path,
+    ) -> impl FnOnce(std::io::Error) -> Error + use<> {
         let path = filename.to_path_buf();
         move |err| Error::Io(err, Some(path))
     }
@@ -87,7 +89,10 @@ impl Display for Error {
                 }
             }
             Error::DataOffset => {
-                write!(f, "Tried to access an invalid data offset. Most likely reason is a corrupted GVDB file")
+                write!(
+                    f,
+                    "Tried to access an invalid data offset. Most likely reason is a corrupted GVDB file"
+                )
             }
             Error::DataAlignment => {
                 write!(

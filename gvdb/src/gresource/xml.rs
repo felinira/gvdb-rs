@@ -2,8 +2,8 @@ mod error;
 
 pub use error::*;
 
-use serde::de::Error;
 use serde::Deserialize;
+use serde::de::Error;
 use std::borrow::Cow;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -114,7 +114,9 @@ where
     match &*String::deserialize(d)? {
         "true" | "t" | "yes" | "y" | "1" => Ok(true),
         "false" | "f" | "no" | "n" | "0" => Ok(false),
-        other => Err(D::Error::custom(format!("got '{other}', but expected any of 'true', 't', 'yes', 'y', '1' / 'false', 'f', 'no', 'n', '0'"))),
+        other => Err(D::Error::custom(format!(
+            "got '{other}', but expected any of 'true', 't', 'yes', 'y', '1' / 'false', 'f', 'no', 'n', '0'"
+        ))),
     }
 }
 
@@ -132,7 +134,7 @@ where
             other => {
                 return Err(D::Error::custom(format!(
                     "got '{other}' but expected any of 'json-stripblanks', 'xml-stripblanks'"
-                )))
+                )));
             }
         }
     }

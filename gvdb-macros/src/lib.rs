@@ -61,15 +61,17 @@ fn include_gresource_from_xml_inner(input: proc_macro2::TokenStream) -> proc_mac
         .expect("Expected exactly one string literal argument (gresource file location)");
     let second = iter.next();
     if let Some(second) = second {
-        panic!("Unexpected token '{second}', expected exactly one string literal argument (gresource file location)")
+        panic!(
+            "Unexpected token '{second}', expected exactly one string literal argument (gresource file location)"
+        )
     }
 
     match Literal::try_from(first) {
         Err(e) => proc_macro2::TokenStream::from(e.to_compile_error()),
-        Ok(Literal::String(str)) => {
-            include_gresource_from_xml_with_filename(str.value())
-        }
-        Ok(other) => panic!("Unexpected token '{other:?}', expected exactly one string literal argument (gresource file location)")
+        Ok(Literal::String(str)) => include_gresource_from_xml_with_filename(str.value()),
+        Ok(other) => panic!(
+            "Unexpected token '{other:?}', expected exactly one string literal argument (gresource file location)"
+        ),
     }
 }
 
@@ -98,7 +100,11 @@ fn include_gresource_from_dir_str(prefix: &str, directory: &str) -> proc_macro2:
 fn include_gresource_from_dir_inner(input: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
     let err_msg = "expected exactly two string literal arguments (prefix, gresource directory)";
     let (prefix, directory) = match &*input.into_iter().collect::<Vec<_>>() {
-        [TokenTree::Literal(str1), TokenTree::Punct(comma), TokenTree::Literal(str2)] => {
+        [
+            TokenTree::Literal(str1),
+            TokenTree::Punct(comma),
+            TokenTree::Literal(str2),
+        ] => {
             if comma.as_char() != ',' {
                 panic!("{}", err_msg);
             }

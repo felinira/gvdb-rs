@@ -756,7 +756,7 @@ pub(crate) mod test {
 #[cfg(all(feature = "glib", test))]
 mod test_glib {
     use crate::read::Error;
-    use crate::test::{new_simple_file, SIMPLE_FILE_KEY, SIMPLE_FILE_VALUE};
+    use crate::test::{SIMPLE_FILE_KEY, SIMPLE_FILE_VALUE, new_simple_file};
     use glib::prelude::*;
     use matches::assert_matches;
 

@@ -164,11 +164,11 @@ impl<'a> HashItemBuilder<'a> {
 
 #[cfg(test)]
 mod test {
+    use crate::Endian;
     use crate::read::HashItemType;
     use crate::variant::EncodeVariant;
-    use crate::write::item::{HashItemBuilder, HashValue};
     use crate::write::HashTableBuilder;
-    use crate::Endian;
+    use crate::write::item::{HashItemBuilder, HashValue};
     use matches::assert_matches;
 
     #[test]
