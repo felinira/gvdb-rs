@@ -1,10 +1,10 @@
+use crate::Endian;
 use crate::read::{HashHeader, HashItem, Header, Pointer};
 use crate::util::align_offset;
 use crate::variant::{EncodeValue, EncodeVariant};
 use crate::write::error::{Error, Result};
 use crate::write::hash::SimpleHashTable;
 use crate::write::item::HashValue;
-use crate::Endian;
 use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::mem::size_of;
@@ -237,7 +237,9 @@ impl<'a> HashTableBuilder<'a> {
                     if let Some(child_item) = child_item {
                         child_item.parent().replace(Some(item.clone()));
                     } else {
-                        return Err(Error::Consistency(format!("Tried to set parent for child '{child}' to '{key}' but the child was not found.")));
+                        return Err(Error::Consistency(format!(
+                            "Tried to set parent for child '{child}' to '{key}' but the child was not found."
+                        )));
                     }
                 }
             }
@@ -433,11 +435,10 @@ impl FileWriter {
                     .as_ref()
                     .map(|p| p.assigned_index());
 
-                let key = match &*current_item.parent_ref() { Some(parent) => {
-                    current_item.key().strip_prefix(parent.key()).unwrap_or("")
-                } _ => {
-                    current_item.key()
-                }};
+                let key = match &*current_item.parent_ref() {
+                    Some(parent) => current_item.key().strip_prefix(parent.key()).unwrap_or(""),
+                    _ => current_item.key(),
+                };
 
                 if key.is_empty() {
                     return Err(Error::Consistency(format!(

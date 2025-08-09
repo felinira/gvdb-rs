@@ -80,19 +80,20 @@ impl<'a> SimpleHashTable<'a> {
         let bucket = self.hash_bucket(hash_value);
 
         // Remove the item if it already exists
-        match self.get_from_bucket(key, bucket) { Some((previous, item)) => {
-            if let Some(previous) = previous {
-                previous.next().replace(item.next().take());
-            } else {
-                self.buckets[bucket] = item.next().take();
+        match self.get_from_bucket(key, bucket) {
+            Some((previous, item)) => {
+                if let Some(previous) = previous {
+                    previous.next().replace(item.next().take());
+                } else {
+                    self.buckets[bucket] = item.next().take();
+                }
+
+                self.n_items -= 1;
+
+                true
             }
-
-            self.n_items -= 1;
-
-            true
-        } _ => {
-            false
-        }}
+            _ => false,
+        }
     }
 
     /// Retrieve an item with the specified key from the specified bucket.
@@ -153,23 +154,32 @@ impl<'h> Iterator for SimpleHashTableBucketIter<'_, 'h> {
     type Item = Rc<HashItemBuilder<'h>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.last_item.clone() { Some(last_item) => {
-            // First check if there are more items in this bucket
-            match &*last_item.next().borrow() { Some(next_item) => {
-                // Next item in the same bucket
-                self.last_item = Some(next_item.clone());
-                Some(next_item.clone())
-            } _ => {
-                // Last item in the bucket, return
-                None
-            }}
-        } _ => { match self.hash_table.buckets.get(self.bucket).cloned() { Some(Some(item)) => {
-            // We found something: Bucket exists and is not empty
-            self.last_item = Some(item.clone());
-            Some(item.clone())
-        } _ => {
-            None
-        }}}}
+        match self.last_item.clone() {
+            Some(last_item) => {
+                // First check if there are more items in this bucket
+                match &*last_item.next().borrow() {
+                    Some(next_item) => {
+                        // Next item in the same bucket
+                        self.last_item = Some(next_item.clone());
+                        Some(next_item.clone())
+                    }
+                    _ => {
+                        // Last item in the bucket, return
+                        None
+                    }
+                }
+            }
+            _ => {
+                match self.hash_table.buckets.get(self.bucket).cloned() {
+                    Some(Some(item)) => {
+                        // We found something: Bucket exists and is not empty
+                        self.last_item = Some(item.clone());
+                        Some(item.clone())
+                    }
+                    _ => None,
+                }
+            }
+        }
     }
 }
 
@@ -186,14 +196,17 @@ impl<'h> Iterator for SimpleHashTableIter<'_, 'h> {
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(last_item) = self.last_item.clone() {
             // First check if there are more items in this bucket
-            match &*last_item.next().borrow() { Some(next_item) => {
-                // Next item in the same bucket
-                self.last_item = Some(next_item.clone());
-                return Some((self.bucket, next_item.clone()));
-            } _ => {
-                // Last item in the bucket, check the next bucket
-                self.bucket += 1;
-            }}
+            match &*last_item.next().borrow() {
+                Some(next_item) => {
+                    // Next item in the same bucket
+                    self.last_item = Some(next_item.clone());
+                    return Some((self.bucket, next_item.clone()));
+                }
+                _ => {
+                    // Last item in the bucket, check the next bucket
+                    self.bucket += 1;
+                }
+            }
         }
 
         while let Some(bucket_item) = self.hash_table.buckets.get(self.bucket) {
@@ -221,10 +234,10 @@ mod test {
 
     use matches::assert_matches;
 
+    use crate::Endian;
     use crate::variant::{DecodeVariant, EncodeVariant};
     use crate::write::hash::SimpleHashTable;
     use crate::write::item::HashValue;
-    use crate::Endian;
 
     #[test]
     fn derives() {

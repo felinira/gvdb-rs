@@ -415,14 +415,14 @@ impl<'a> BundleBuilder<'a> {
                 let file_path_relative = match file_abs_path.strip_prefix(directory) {
                     Ok(path) => path,
                     Err(err) => {
-                        return Err(BuilderError::StripPrefix(err, file_abs_path.to_owned()))
+                        return Err(BuilderError::StripPrefix(err, file_abs_path.to_owned()));
                     }
                 };
 
                 let file_path_str_relative: &str = match file_path_relative.as_os_str().try_into() {
                     Ok(name) => name,
                     Err(err) => {
-                        return Err(BuilderError::Utf8(err, Some(file_path_relative.to_owned())))
+                        return Err(BuilderError::Utf8(err, Some(file_path_relative.to_owned())));
                     }
                 };
 
@@ -480,7 +480,7 @@ mod test {
     use super::*;
     use crate::gresource::xml::XmlManifest;
     use crate::read::File;
-    use crate::test::{assert_is_file_3, byte_compare_file_3, GRESOURCE_DIR, GRESOURCE_XML};
+    use crate::test::{GRESOURCE_DIR, GRESOURCE_XML, assert_is_file_3, byte_compare_file_3};
     use matches::assert_matches;
     use zvariant::Type;
 
