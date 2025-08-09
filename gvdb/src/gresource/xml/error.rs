@@ -14,7 +14,7 @@ pub enum XmlManifestError {
 impl XmlManifestError {
     pub(crate) fn from_io_with_filename(
         filename: &std::path::Path,
-    ) -> impl FnOnce(std::io::Error) -> XmlManifestError {
+    ) -> impl FnOnce(std::io::Error) -> XmlManifestError + use<> {
         let path = filename.to_path_buf();
         move |err| XmlManifestError::Io(err, Some(path))
     }
