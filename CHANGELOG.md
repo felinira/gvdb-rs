@@ -11,7 +11,7 @@ The versions in changelog reflect the gvdb versions.
 
 ### Changed
 
-- Bumped MSRV to 1.85
+- Bumped MSRV to 1.88
 
 ## [0.9.0] - 2025-08-09
 
