@@ -581,7 +581,79 @@ mod test {
     }
 
     #[test]
-    fn xml_stripblanks() {
+    fn xml_stripblanks_pass() {
+        let xml = r#"
+            <xml>
+                <with>  lots   </with>
+                <of  > spa ces</of>
+            </xml>"#;
+
+        let bytes = Cow::Borrowed(xml.as_bytes());
+        let stripped = FileData::xml_stripblanks(bytes, None).unwrap();
+
+        assert_eq!(
+            std::str::from_utf8(&stripped).unwrap(),
+            r#"<xml><with>  lots   </with><of  > spa ces</of></xml>"#
+        );
+    }
+
+    #[test]
+    fn xml_stripblanks_with_accelerator() {
+        let xml = r#"
+            <child>
+              <object class="GtkShortcutsShortcut">
+                <property name="title" translatable="yes" context="shortcut window">Toggle Image Properties</property>
+                <property name="accelerator">F9 &lt;Alt&gt;Return</property>
+              </object>
+            </child>
+        "#;
+
+        let bytes = Cow::Borrowed(xml.as_bytes());
+        let stripped = FileData::xml_stripblanks(bytes, None).unwrap();
+
+        assert_eq!(
+            std::str::from_utf8(&stripped).unwrap(),
+            r#"<child><object class="GtkShortcutsShortcut"><property name="title" translatable="yes" context="shortcut window">Toggle Image Properties</property><property name="accelerator">F9 &lt;Alt&gt;Return</property></object></child>"#
+        );
+    }
+
+    /// This seems like a GMarkup quirk, but this whitespace is actually significant in at least .ui files.
+    ///
+    /// We should err on being conservative with stripping whitespace.
+    #[test]
+    fn xml_stripblanks_significant_whitespace() {
+        let xml =
+            r#"<property name="title" translatable="yes">        General           </property>"#;
+
+        let bytes = Cow::Borrowed(xml.as_bytes());
+        let stripped = FileData::xml_stripblanks(bytes, None).unwrap();
+
+        assert_eq!(
+            std::str::from_utf8(&stripped).unwrap(),
+            r#"<property name="title" translatable="yes">        General           </property>"#
+        );
+    }
+
+    /// Don't strip any elements that also contain text nodes.
+    ///
+    /// Children will be stripped again.
+    #[test]
+    fn xml_stripblanks_text_nodes() {
+        let xml = r#"
+            <interface> a <property> <with_enclosed_spaces /> </property>  </interface>
+        "#;
+
+        let bytes = Cow::Borrowed(xml.as_bytes());
+        let stripped = FileData::xml_stripblanks(bytes, None).unwrap();
+
+        assert_eq!(
+            std::str::from_utf8(&stripped).unwrap(),
+            r#"<interface> a <property><with_enclosed_spaces /></property>  </interface>"#
+        );
+    }
+
+    #[test]
+    fn xml_stripblanks_invalid_xml() {
         for path in [Some(PathBuf::from("test")), None] {
             let xml = "<invalid";
             let err = FileData::new(
