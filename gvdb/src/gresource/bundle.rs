@@ -134,22 +134,82 @@ impl<'a> FileData<'a> {
         let mut reader = quick_xml::Reader::from_str(
             std::str::from_utf8(&data).map_err(|err| BuilderError::Utf8(err, path.clone()))?,
         );
-        reader.config_mut().trim_text(true);
 
         let mut writer = quick_xml::Writer::new(std::io::Cursor::new(output));
 
-        loop {
-            match reader
-                .read_event()
-                .map_err(|err| BuilderError::Xml(err, path.clone()))?
-            {
-                quick_xml::events::Event::Eof => break,
-                event => writer
-                    .write_event(event)
-                    .map_err(|err| BuilderError::Xml(err.into(), path.clone()))?,
+        fn has_nonempty_text_node(events: &[quick_xml::events::Event<'_>]) -> bool {
+            let mut nesting = 0;
+            for event in events {
+                match event {
+                    quick_xml::events::Event::Start(_) => {
+                        nesting += 1;
+                    }
+                    quick_xml::events::Event::Eof => {
+                        break;
+                    }
+                    quick_xml::events::Event::End(_) => {
+                        if nesting == 0 {
+                            break;
+                        }
+
+                        nesting -= 1;
+                    }
+                    quick_xml::events::Event::Text(text) => {
+                        if nesting == 0 && text.iter().any(|c| !c.is_ascii_whitespace()) {
+                            return true;
+                        }
+                    }
+                    _ => {}
+                }
             }
+
+            false
         }
 
+        fn strip_inside<'a, W: std::io::Write>(
+            events: &mut std::slice::IterMut<'a, quick_xml::events::Event<'a>>,
+            writer: &mut quick_xml::Writer<W>,
+        ) -> Result<(), quick_xml::errors::Error> {
+            let has_text_node = has_nonempty_text_node(events.as_slice());
+
+            while let Some(event) = events.next() {
+                if !has_text_node && let quick_xml::events::Event::Text(text) = event {
+                    let mut empty = false;
+                    empty |= text.inplace_trim_start();
+                    empty |= text.inplace_trim_end();
+                    if empty {
+                        continue;
+                    }
+                }
+
+                writer.write_event(event.clone())?;
+                match &event {
+                    quick_xml::events::Event::Start(_) => strip_inside(&mut *events, writer)?,
+                    quick_xml::events::Event::End(_) | quick_xml::events::Event::Eof => {
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+
+            Ok(())
+        }
+
+        let mut events = Vec::new();
+        loop {
+            let event = reader
+                .read_event()
+                .map_err(|err| BuilderError::Xml(err, path.clone()))?;
+            if matches!(event, quick_xml::events::Event::Eof) {
+                events.push(event);
+                break;
+            }
+
+            events.push(event);
+        }
+
+        strip_inside(&mut events.iter_mut(), &mut writer)
+            .map_err(|err| BuilderError::Xml(err, path.clone()))?;
         Ok(Cow::Owned(writer.into_inner().into_inner()))
     }
 

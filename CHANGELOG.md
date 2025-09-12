@@ -13,6 +13,10 @@ The versions in changelog reflect the gvdb versions.
 
 - Bumped MSRV to 1.88
 
+### Fixed
+
+- Fixes xml_stripblanks stripping significant whitespace
+
 ## [0.9.0] - 2025-08-09
 
 ### Changed
