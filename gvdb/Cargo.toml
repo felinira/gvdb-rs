@@ -21,7 +21,7 @@ zvariant = { version = "5.8", default-features = false, features = [
     "gvariant",
 ] }
 
-flate2 = { version = "1.0", optional = true }
+flate2 = { version = "1.1", optional = true }
 glib = { version = "0.21", optional = true }
 quick-xml = { version = "0.38", optional = true, features = ["serialize"] }
 memmap2 = { version = "0.9", optional = true }
@@ -30,7 +30,7 @@ walkdir = { version = "2.3", optional = true }
 
 [dev-dependencies]
 # Use zlib for binary compatibility in tests
-flate2 = { version = "1.0", features = ["zlib"] }
+flate2 = { version = "1.1", features = ["zlib"] }
 glib = "0.21"
 matches = "0.1"
 pretty_assertions = "1.2"
