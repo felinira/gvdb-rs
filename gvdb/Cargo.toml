@@ -17,7 +17,7 @@ all-features = true
 [dependencies]
 zerocopy = { version = "0.8", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
-zvariant = { version = "5.8", default-features = false, features = [
+zvariant = { optional = true, version = "5.8", default-features = false, features = [
     "gvariant",
 ] }
 
@@ -42,4 +42,5 @@ tempfile = "3.22.0"
 mmap = ["dep:memmap2"]
 gresource = ["dep:quick-xml", "dep:serde_json", "dep:flate2", "dep:walkdir"]
 glib = ["dep:glib"]
+zvariant = ["dep:zvariant"]
 default = []

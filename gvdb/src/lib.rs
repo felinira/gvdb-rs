@@ -104,6 +104,7 @@ pub mod read;
 pub mod write;
 
 /// Serialize types as GVariant
+#[cfg(feature = "zvariant")]
 pub mod variant;
 
 #[cfg(test)]
@@ -113,3 +114,6 @@ mod endian;
 mod util;
 
 pub(crate) use endian::Endian;
+
+#[cfg(not(any(feature = "zvariant", feature = "glib")))]
+compile_error!("At least one of either the 'zvariant' or 'glib' features must be enabled");

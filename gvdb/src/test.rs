@@ -11,6 +11,7 @@ use std::cmp::{max, min};
 use std::io::{Cursor, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
+#[cfg(feature = "zvariant")]
 use zvariant::DynamicType;
 
 pub(crate) static TEST_FILE_DIR: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from("test-data"));
@@ -199,6 +200,7 @@ pub fn byte_compare_file_1(file: &File) {
     byte_compare_file(file, &TEST_FILE_1);
 }
 
+#[cfg(feature = "zvariant")]
 pub fn assert_is_file_1(file: &File) {
     let table = file.hash_table().unwrap();
     let mut names = table.keys();
@@ -221,6 +223,7 @@ pub fn byte_compare_file_2(file: &File) {
     byte_compare_file(file, &TEST_FILE_2);
 }
 
+#[cfg(feature = "zvariant")]
 pub fn assert_is_file_2(file: &File) {
     let table = file.hash_table().unwrap();
     let names = table.keys().collect::<Result<Vec<_>, _>>().unwrap();
@@ -246,6 +249,7 @@ pub fn byte_compare_file_3(file: &File) {
     byte_compare_gvdb_file(&ref_root, file, "Comparing file 3");
 }
 
+#[cfg(feature = "zvariant")]
 pub fn assert_is_file_3(file: &File) {
     let table = file.hash_table().unwrap();
     let mut names = table.keys().collect::<Result<Vec<_>, _>>().unwrap();
@@ -354,6 +358,7 @@ pub(crate) fn new_empty_file() -> File<'static> {
     File::from_bytes(Cow::Owned(cursor.into_inner())).unwrap()
 }
 
+#[cfg(feature = "zvariant")]
 pub(crate) fn new_simple_file(big_endian: bool) -> File<'static> {
     let writer = if big_endian {
         FileWriter::for_big_endian()

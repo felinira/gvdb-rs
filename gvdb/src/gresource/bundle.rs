@@ -298,7 +298,10 @@ impl std::cmp::Ord for FileData<'_> {
 ///
 /// The size is the *uncompressed* size and can be used for verification purposes.
 /// The flags only indicate whether a file is compressed or not. (Compressed = 1)
-#[derive(zvariant::Type, zvariant::Value, zvariant::OwnedValue)]
+#[cfg_attr(
+    feature = "zvariant",
+    derive(zvariant::Type, zvariant::Value, zvariant::OwnedValue)
+)]
 pub struct Data {
     size: u32,
     flags: u32,
@@ -528,7 +531,10 @@ impl<'a> BundleBuilder<'a> {
                 data: file_data.data.to_vec(),
             };
 
+            #[cfg(feature = "zvariant")]
             table_builder.insert_value(file_data.key(), zvariant::Value::from(data))?;
+            #[cfg(all(feature = "glib", not(feature = "zvariant")))]
+            table_builder.insert_gvariant(file_date.key(), glib::variant::Variant::from(data)?)
         }
 
         Ok(builder.write_to_vec_with_table(table_builder)?)
@@ -542,6 +548,7 @@ mod test {
     use crate::read::File;
     use crate::test::{GRESOURCE_DIR, GRESOURCE_XML, assert_is_file_3, byte_compare_file_3};
     use matches::assert_matches;
+    #[cfg(feature = "zvariant")]
     use zvariant::Type;
 
     #[test]
@@ -775,7 +782,8 @@ mod test {
     }
 
     #[test]
-    fn derives_data() {
+    #[cfg(feature = "zvariant")]
+    fn zvariant_derives_data() {
         let data = Data {
             size: 3,
             flags: 0,
