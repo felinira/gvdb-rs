@@ -235,6 +235,7 @@ mod test {
     use matches::assert_matches;
 
     use crate::Endian;
+    #[cfg(feature = "zvariant")]
     use crate::variant::{DecodeVariant, EncodeVariant};
     use crate::write::hash::SimpleHashTable;
     use crate::write::item::HashValue;
@@ -246,6 +247,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "zvariant")]
     fn simple_hash_table() {
         let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
         let item = HashValue::from_value(zvariant::Value::new("test_overwrite"));
@@ -266,6 +268,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "zvariant")]
     fn simple_hash_table_2() {
         let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
         for index in 0..20 {
@@ -303,6 +306,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "zvariant")]
     fn simple_hash_table_iter() {
         let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
         for index in 0..20 {
@@ -328,6 +332,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "zvariant")]
     fn simple_hash_table_bucket_iter() {
         let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
         for index in 0..20 {

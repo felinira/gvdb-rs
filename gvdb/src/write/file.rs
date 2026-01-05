@@ -1,13 +1,13 @@
-use crate::Endian;
 use crate::read::{HashHeader, HashItem, Header, Pointer};
 use crate::util::align_offset;
-use crate::variant::{EncodeValue, EncodeVariant};
 use crate::write::error::{Error, Result};
 use crate::write::hash::SimpleHashTable;
 use crate::write::item::HashValue;
 use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::mem::size_of;
+#[cfg(all(feature = "glib", not(feature = "zvariant")))]
+use std::str::FromStr;
 use zerocopy::IntoBytes;
 
 /// Create hash tables for use in GVDB files
@@ -105,7 +105,7 @@ impl<'a> HashTableBuilder<'a> {
         Ok(())
     }
 
-    /// Insert Value `item` for `key`
+    /// Insert zvariant Value `item` for `key`
     ///
     /// ```
     /// use zvariant::Value;
@@ -113,6 +113,7 @@ impl<'a> HashTableBuilder<'a> {
     /// let variant = Value::new(123u32);
     /// table_builder.insert_value("variant_123", variant);
     /// ```
+    #[cfg(feature = "zvariant")]
     pub fn insert_value(
         &mut self,
         key: &(impl ToString + ?Sized),
@@ -122,8 +123,8 @@ impl<'a> HashTableBuilder<'a> {
         self.insert_item_value(key, item)
     }
 
-    /// Insert `item` for `key` where `item` needs to be something that, wrapped in an [`EncodeValue`],
-    /// implements [`EncodeVariant`].
+    /// Insert `item` for `key` where `item` needs to be something that, wrapped in an [`crate::variant::EncodeValue`],
+    /// implements [`crate::variant::EncodeVariant`].
     ///
     /// ```
     /// use zvariant::Value;
@@ -131,11 +132,12 @@ impl<'a> HashTableBuilder<'a> {
     /// let value = 123u32;
     /// table_builder.insert("variant_123", value);
     /// ```
+    #[cfg(feature = "zvariant")]
     pub fn insert<T>(&mut self, key: &(impl ToString + ?Sized), value: T) -> Result<()>
     where
-        EncodeValue<T>: EncodeVariant<'a> + Sized + 'a,
+        crate::variant::EncodeValue<T>: crate::variant::EncodeVariant<'a> + Sized + 'a,
     {
-        let item = HashValue::from_value(EncodeValue::new(value));
+        let item = HashValue::from_value(crate::variant::EncodeValue::new(value));
         self.insert_item_value(key, item)
     }
 
@@ -170,8 +172,19 @@ impl<'a> HashTableBuilder<'a> {
         key: &(impl ToString + ?Sized),
         string: &(impl ToString + ?Sized),
     ) -> Result<()> {
-        let variant = zvariant::Value::new(string.to_string());
-        self.insert_value(key, variant)
+        #[cfg(feature = "zvariant")]
+        {
+            let variant = zvariant::Value::new(string.to_string());
+            self.insert_value(key, variant)?;
+        }
+
+        #[cfg(all(feature = "glib", not(feature = "zvariant")))]
+        {
+            let variant = glib::variant::Variant::from_str(&string.to_string())?;
+            self.insert_gvariant(key, variant)?;
+        }
+
+        Ok(())
     }
 
     /// Convenience method to create a byte type GVariant for `value` and insert it at `key`
@@ -181,8 +194,19 @@ impl<'a> HashTableBuilder<'a> {
     /// table_builder.insert_bytes("bytes", &[1, 2, 3, 4, 5]);
     /// ```
     pub fn insert_bytes(&mut self, key: &(impl ToString + ?Sized), bytes: &'a [u8]) -> Result<()> {
-        let value = zvariant::Value::new(bytes);
-        self.insert_value(key, value)
+        #[cfg(feature = "zvariant")]
+        {
+            let value = zvariant::Value::new(bytes);
+            self.insert_value(key, value)?;
+        }
+
+        #[cfg(all(feature = "glib", not(feature = "zvariant")))]
+        {
+            let variant = glib::variant::Variant::array_from_fixed_array(bytes);
+            self.insert_gvariant(key, variant)?;
+        }
+
+        Ok(())
     }
 
     /// Insert an entire hash table at `key`.
@@ -371,16 +395,21 @@ impl FileWriter {
         self.allocate_chunk_with_data(data, alignment)
     }
 
+    #[cfg(feature = "zvariant")]
     fn add_value<'a, V>(&mut self, value: &V) -> Result<(usize, &mut Chunk)>
     where
-        V: EncodeVariant<'a> + ?Sized,
+        V: crate::variant::EncodeVariant<'a> + ?Sized,
     {
         #[cfg(target_endian = "little")]
         let le = !self.byteswap;
         #[cfg(target_endian = "big")]
         let le = self.byteswap;
 
-        let endian = if le { Endian::Little } else { Endian::Big };
+        let endian = if le {
+            crate::endian::Endian::Little
+        } else {
+            crate::endian::Endian::Big
+        };
         let data: Box<[u8]> = value.encode(endian)?;
 
         Ok(self.allocate_chunk_with_data(data, 8))
@@ -451,6 +480,7 @@ impl FileWriter {
                 let typ = current_item.value_ref().typ();
 
                 let value_ptr = match current_item.value().take() {
+                    #[cfg(feature = "zvariant")]
                     HashValue::Value(value) => self.add_value(&*value)?.1.pointer(),
                     #[cfg(feature = "glib")]
                     HashValue::GVariant(variant) => self.add_gvariant(&variant).1.pointer(),
@@ -567,6 +597,7 @@ impl Default for FileWriter {
 }
 
 #[cfg(test)]
+#[allow(unused_imports)]
 mod test {
     use super::*;
     use crate::{
@@ -578,11 +609,14 @@ mod test {
     use std::io::Cursor;
     use std::{borrow::Cow, collections::BTreeMap};
 
+    use crate::endian::Endian;
+    #[cfg(feature = "zvariant")]
+    use crate::variant::*;
+
     use crate::test::{
         assert_bytes_eq, assert_is_file_1, assert_is_file_2, byte_compare_file_1,
         byte_compare_file_2,
     };
-    #[allow(unused_imports)]
     use pretty_assertions::{assert_eq, assert_ne, assert_str_eq};
 
     #[test]
@@ -595,6 +629,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "zvariant")]
     fn hash_table_builder1() {
         let mut builder = HashTableBuilder::new();
         assert!(builder.is_empty());
@@ -668,6 +703,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "zvariant")]
     fn file_builder_file_1() {
         let mut file_builder = FileWriter::new();
         let mut table_builder = HashTableBuilder::new();
@@ -714,6 +750,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "zvariant")]
     fn file_builder_file_4() {
         let mut writer = FileWriter::new();
         let mut table_builder = HashTableBuilder::new();
@@ -758,6 +795,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "zvariant")]
     fn big_endian() {
         let mut file_builder = FileWriter::for_big_endian();
         let mut table_builder = HashTableBuilder::new();

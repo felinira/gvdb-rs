@@ -7,7 +7,6 @@ use zerocopy::byteorder::little_endian::U32 as u32le;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 use super::{File, HashItemType};
-use crate::variant::{DecodeValue, DecodeVariant, VariantType};
 
 /// The header of a GVDB hash table.
 ///
@@ -346,8 +345,11 @@ impl<'table, 'file> HashTable<'table, 'file> {
     /// Returns the data for `key` as a [`enum@zvariant::Value`].
     ///
     /// Unless you need to inspect the value at runtime, it is recommended to use [`HashTable::get`].
+    #[cfg(feature = "zvariant")]
     pub fn get_value(&self, key: &str) -> Result<zvariant::Value<'_>> {
         let data = self.get_bytes(key)?;
+
+        use crate::variant::*;
 
         zvariant::Value::decode(data, self.file.endianness()).map_err(|err| {
             Error::Data(format!(
@@ -362,18 +364,21 @@ impl<'table, 'file> HashTable<'table, 'file> {
     /// Returns the data for `key` and try to deserialize a [`enum@zvariant::Value`].
     ///
     /// Then try to extract an underlying `T`.
+    #[cfg(feature = "zvariant")]
     pub fn get<'d, T>(&'d self, key: &str) -> Result<T>
     where
-        T: DecodeVariant<'d> + VariantType + 'd,
-        DecodeValue<'d, T>: DecodeVariant<'d>,
+        T: crate::variant::DecodeVariant<'d> + crate::variant::VariantType + 'd,
+        crate::variant::DecodeValue<'d, T>: crate::variant::DecodeVariant<'d>,
     {
+        use crate::variant::*;
+
         let data = self.get_bytes(key)?;
         let value: DecodeValue<T> =
             DecodeValue::decode(data, self.file.endianness()).map_err(|err| {
                 Error::Data(format!(
                     "Error deserializing value for key \"{}\" as gvariant type \"{}\": {}",
                     key,
-                    <T as VariantType>::signature(),
+                    <T as crate::variant::VariantType>::signature(),
                     err
                 ))
             })?;
@@ -387,7 +392,7 @@ impl<'table, 'file> HashTable<'table, 'file> {
         let data = self.get_bytes(key)?;
         let variant = glib::Variant::from_data_with_type(data, glib::VariantTy::VARIANT);
 
-        if self.file.endianness == crate::Endian::native() {
+        if self.file.endianness.is_native() {
             Ok(variant)
         } else {
             Ok(variant.byteswap())
@@ -421,7 +426,15 @@ impl std::fmt::Debug for HashTable<'_, '_> {
                                                 })
                                             }
                                             Ok(super::HashItemType::Value) => {
-                                                self.get_value(&name).map(|value| {
+                                                #[cfg(feature = "zvariant")]
+                                                let value = self.get_value(&name);
+                                                #[cfg(all(
+                                                    feature = "glib",
+                                                    not(feature = "zvariant")
+                                                ))]
+                                                let value = self.get_gvariant(&name);
+
+                                                value.map(|value| {
                                                     Box::new(value) as Box<dyn std::fmt::Debug>
                                                 })
                                             }
@@ -502,10 +515,12 @@ pub struct Values<'a, 'table, 'file> {
     pos: usize,
 }
 
+#[cfg(feature = "zvariant")]
 impl<'table> Iterator for Values<'_, 'table, '_> {
     type Item = Result<zvariant::Value<'table>>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        use crate::variant::*;
         let item = loop {
             let Some(item) = self.hash_table.get_hash_item_for_index(self.pos) else {
                 break None;
@@ -575,6 +590,7 @@ pub(crate) mod test {
     }
 
     #[test]
+    #[cfg(feature = "zvariant")]
     fn get_item() {
         let file = new_empty_file();
         let table = file.hash_table().unwrap();
@@ -628,6 +644,7 @@ pub(crate) mod test {
     }
 
     #[test]
+    #[cfg(feature = "zvariant")]
     fn get() {
         for endianess in [true, false] {
             let file = new_simple_file(endianess);
@@ -661,6 +678,7 @@ pub(crate) mod test {
     }
 
     #[test]
+    #[cfg(feature = "zvariant")]
     fn get_value() {
         for endianess in [true, false] {
             let file = new_simple_file(endianess);

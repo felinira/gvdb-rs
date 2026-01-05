@@ -60,6 +60,7 @@ impl From<Utf8Error> for Error {
     }
 }
 
+#[cfg(feature = "zvariant")]
 impl From<zvariant::Error> for Error {
     fn from(err: zvariant::Error) -> Self {
         Self::Data(format!("Error deserializing value as gvariant: {err}"))
@@ -144,9 +145,6 @@ mod test {
         let err = Error::KeyNotFound("test".to_string());
         assert!(format!("{err}").contains("test"));
 
-        let err = Error::from(zvariant::Error::Message("test".to_string()));
-        assert!(format!("{err}").contains("test"));
-
         let to_transmute = Header::new(false, 0, Pointer::NULL);
         let mut bytes = to_transmute.as_bytes().to_vec();
         bytes.extend_from_slice(b"fail");
@@ -168,5 +166,12 @@ mod test {
         let bytes = vec![0u8; 5];
         let res = <[Header]>::ref_from_bytes(&bytes);
         assert_matches!(res, Err(CastError::Size(_))); // Invalid size
+    }
+
+    #[test]
+    #[cfg(feature = "zvariant")]
+    fn from_zvariant() {
+        let err = Error::from(zvariant::Error::Message("test".to_string()));
+        assert!(format!("{err}").contains("test"));
     }
 }
