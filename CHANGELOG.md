@@ -7,11 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 The versions in changelog reflect the gvdb versions.
 
-## [0.10.0] - unreleased
+## [0.10.0] - 2026-03-26
 
 ### Changed
 
-- Bumped MSRV to 1.88
+- Bumped MSRV to 1.92
+- Upgraded glib to 0.22
 
 ### Fixed
 
