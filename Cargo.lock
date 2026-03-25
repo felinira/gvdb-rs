@@ -291,7 +291,7 @@ dependencies = [
 
 [[package]]
 name = "gvdb"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "flate2",
  "glib",
@@ -318,7 +318,7 @@ dependencies = [
 
 [[package]]
 name = "gvdb-macros"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "gvdb",
  "litrs",
