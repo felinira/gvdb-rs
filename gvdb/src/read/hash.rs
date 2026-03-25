@@ -131,7 +131,7 @@ impl HashHeader {
         if len == 0 {
             // The hash table has no items. This is generally valid.
             Ok(&[])
-        } else if len % size_of::<HashItem>() != 0 {
+        } else if !len.is_multiple_of(size_of::<HashItem>()) {
             Err(Error::Data(format!(
                 "Hash item size invalid: Expected a multiple of {}, got {}",
                 size_of::<HashItem>(),
