@@ -95,11 +95,7 @@ impl HashItem {
     ) -> Self {
         let key_start = key_ptr.start().to_le();
         let key_size = (key_ptr.size() as u16).to_le();
-        let parent = if let Some(parent) = parent {
-            parent
-        } else {
-            u32::MAX
-        };
+        let parent = parent.unwrap_or(u32::MAX);
 
         Self {
             hash_value: hash_value.to_le(),
