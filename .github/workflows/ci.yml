@@ -84,7 +84,7 @@ jobs:
           key: ${{ runner.os }}-test-dotcargo-${{ matrix.rust }}-${{ matrix.target }}-${{ hashFiles('**/Cargo.toml') }}
 
       - name: Install cargo-all-features
-        if: ${{ matrix.x86_64-unknown-linux-gnu }} == "x86_64-unknown-linux-gnu"
+        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
         uses: taiki-e/cache-cargo-install-action@v2
         with:
           tool: cargo-all-features
