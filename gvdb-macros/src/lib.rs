@@ -1,4 +1,4 @@
-//! This crate offers convenience macros for [gvdb](https://!github.com/felinira/gvdb-rs).
+//! This crate offers convenience macros for [gvdb](https://github.com/felinira/gvdb-rs).
 //! The macros are [`include_gresource_from_xml!()`] and
 //! [`include_gresource_from_dir!()`]
 //!
