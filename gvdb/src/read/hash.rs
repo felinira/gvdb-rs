@@ -385,7 +385,7 @@ impl<'table, 'file> HashTable<'table, 'file> {
     /// Returns the data for `key` as a [`struct@glib::Variant`].
     pub fn get_gvariant(&self, key: &str) -> Result<glib::Variant> {
         let data = self.get_bytes(key)?;
-        let variant = glib::Variant::from_data_with_type(data, glib::VariantTy::VARIANT);
+        let variant = glib::Variant::from_data_with_type(data.to_vec(), glib::VariantTy::VARIANT);
 
         if self.file.endianness == crate::Endian::native() {
             Ok(variant)
