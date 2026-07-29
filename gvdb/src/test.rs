@@ -103,8 +103,8 @@ fn write_byte_rows(
 
 pub fn assert_gvariant_eq(a: &[u8], b: &[u8], context: &str) {
     // Decode gvariant using glib, and diff using print()
-    let a_var = glib::Variant::from_data::<glib::Variant, _>(a);
-    let b_var = glib::Variant::from_data::<glib::Variant, _>(b);
+    let a_var = glib::Variant::from_data::<glib::Variant, _>(a.to_vec());
+    let b_var = glib::Variant::from_data::<glib::Variant, _>(b.to_vec());
 
     let a_str = a_var.print(true);
     let b_str = b_var.print(true);
