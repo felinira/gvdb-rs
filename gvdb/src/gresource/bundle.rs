@@ -486,6 +486,11 @@ impl<'a> BundleBuilder<'a> {
                     }
                 };
 
+                // Normalize the separator of the relative path in order to avoid invalid keys
+                // like `com/example/App/assets\asset.svg`
+                #[cfg(target_os = "windows")]
+                let file_path_str_relative = file_path_str_relative.replace(std::path::MAIN_SEPARATOR, "/");
+
                 let options = if strip_blanks && file_path_str_relative.ends_with(".json") {
                     PreprocessOptions::json_stripblanks()
                 } else if strip_blanks && file_path_str_relative.ends_with(".xml")
