@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 The versions in changelog reflect the gvdb versions.
 
+## [0.10.1] - 2026-09-03
+
+### Fixed
+
+- Fixes compatibility with glib 0.22.8
+- Fixes an issue with path normalisation when building gresource files on Windows
+
 ## [0.10.0] - 2026-03-26
 
 ### Changed
