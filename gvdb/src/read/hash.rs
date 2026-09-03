@@ -284,7 +284,7 @@ impl<'table, 'file> HashTable<'table, 'file> {
         }
 
         let bucket = (hash_value % self.buckets.len() as u32) as usize;
-        let mut itemno = self.buckets[bucket as usize].get() as usize;
+        let mut itemno = self.buckets[bucket].get() as usize;
 
         let lastno = if let Some(item) = self.buckets.get(bucket + 1) {
             item.get() as usize
