@@ -14,9 +14,9 @@ pub trait VariantType {
 
 impl<T> VariantType for T
 where
-    T: zvariant::Type,
+    T: zgvariant::Type,
 {
     fn signature() -> String {
-        <T as zvariant::Type>::SIGNATURE.to_string()
+        <T as zgvariant::Type>::SIGNATURE.to_string()
     }
 }

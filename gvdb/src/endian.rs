@@ -19,11 +19,11 @@ impl Endian {
     }
 }
 
-impl From<Endian> for zvariant::Endian {
+impl From<Endian> for zgvariant::Endian {
     fn from(value: Endian) -> Self {
         match value {
-            Endian::Little => zvariant::Endian::Little,
-            Endian::Big => zvariant::Endian::Big,
+            Endian::Little => zgvariant::Endian::Little,
+            Endian::Big => zgvariant::Endian::Big,
         }
     }
 }

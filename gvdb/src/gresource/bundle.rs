@@ -298,7 +298,7 @@ impl std::cmp::Ord for FileData<'_> {
 ///
 /// The size is the *uncompressed* size and can be used for verification purposes.
 /// The flags only indicate whether a file is compressed or not. (Compressed = 1)
-#[derive(zvariant::Type, zvariant::Value, zvariant::OwnedValue)]
+#[derive(zgvariant::Type, zgvariant::Value, zgvariant::OwnedValue)]
 pub struct Data {
     size: u32,
     flags: u32,
@@ -533,7 +533,7 @@ impl<'a> BundleBuilder<'a> {
                 data: file_data.data.to_vec(),
             };
 
-            table_builder.insert_value(file_data.key(), zvariant::Value::from(data))?;
+            table_builder.insert_value(file_data.key(), zgvariant::Value::from(data))?;
         }
 
         Ok(builder.write_to_vec_with_table(table_builder)?)
@@ -547,7 +547,7 @@ mod test {
     use crate::read::File;
     use crate::test::{GRESOURCE_DIR, GRESOURCE_XML, assert_is_file_3, byte_compare_file_3};
     use matches::assert_matches;
-    use zvariant::Type;
+    use zgvariant::Type;
 
     #[test]
     fn file_data() {
@@ -789,9 +789,9 @@ mod test {
 
         let sig = Data::SIGNATURE;
         assert_eq!(sig, "(uuay)");
-        let owned = zvariant::OwnedValue::try_from(data).unwrap();
+        let owned = zgvariant::OwnedValue::try_from(data).unwrap();
         let data = Data::try_from(owned).unwrap();
-        let value: zvariant::Value = data.into();
+        let value: zgvariant::Value = data.into();
         let _: Data = value.try_into().unwrap();
     }
 }

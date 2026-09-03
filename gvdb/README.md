@@ -69,7 +69,7 @@ let path = PathBuf::from("test-data/test3.gresource");
 let file = File::from_file(&path).unwrap();
 let table = file.hash_table().unwrap();
 
-#[derive(serde::Deserialize, zvariant::Type, zvariant::OwnedValue)]
+#[derive(serde::Deserialize, zgvariant::Type, zgvariant::OwnedValue)]
 struct GResourceData {
     size: u32,
     flags: u32,
