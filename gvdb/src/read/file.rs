@@ -55,7 +55,7 @@ impl<'a> Data<'a> {
 /// let file = File::from_file(&path).unwrap();
 /// let table = file.hash_table().unwrap();
 ///
-/// #[derive(serde::Deserialize, zvariant::Type, zvariant::OwnedValue)]
+/// #[derive(serde::Deserialize, zgvariant::Type, zgvariant::OwnedValue)]
 /// struct SvgData {
 ///     size: u32,
 ///     flags: u32,
@@ -129,7 +129,7 @@ impl<'a> File<'a> {
         let header = Header::try_from_bytes(data.as_ref())?;
         let byteswapped = header.is_byteswap()?;
 
-        // Determine the zvariant endianness by comparing with target endianness
+        // Determine the zgvariant endianness by comparing with target endianness
         let endianness = if cfg!(target_endian = "little") && !byteswapped
             || cfg!(target_endian = "big") && byteswapped
         {

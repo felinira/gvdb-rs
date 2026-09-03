@@ -40,7 +40,7 @@ fn test_file_from_dir() {
     ];
     assert_eq!(names, reference_names);
 
-    let svg2 = zvariant::Structure::try_from(
+    let svg2 = zgvariant::Structure::try_from(
         table
             .get_value("/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg")
             .unwrap(),

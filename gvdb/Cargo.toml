@@ -17,9 +17,7 @@ all-features = true
 [dependencies]
 zerocopy = { version = "0.8", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
-zvariant = { version = "5.12", default-features = false, features = [
-    "gvariant",
-] }
+zgvariant = { version = "1.1.0" }
 
 flate2 = { version = "1.1", optional = true }
 glib = { version = "0.22", optional = true }

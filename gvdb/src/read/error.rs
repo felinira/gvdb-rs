@@ -60,8 +60,8 @@ impl From<Utf8Error> for Error {
     }
 }
 
-impl From<zvariant::Error> for Error {
-    fn from(err: zvariant::Error) -> Self {
+impl From<zgvariant::Error> for Error {
+    fn from(err: zgvariant::Error) -> Self {
         Self::Data(format!("Error deserializing value as gvariant: {err}"))
     }
 }
@@ -144,7 +144,7 @@ mod test {
         let err = Error::KeyNotFound("test".to_string());
         assert!(format!("{err}").contains("test"));
 
-        let err = Error::from(zvariant::Error::Message("test".to_string()));
+        let err = Error::from(zgvariant::Error::Message("test".to_string()));
         assert!(format!("{err}").contains("test"));
 
         let to_transmute = Header::new(false, 0, Pointer::NULL);

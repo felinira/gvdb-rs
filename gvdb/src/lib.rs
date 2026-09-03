@@ -16,7 +16,7 @@
 //!     let file = File::from_file(&path).unwrap();
 //!     let table = file.hash_table().unwrap();
 //!
-//!     #[derive(serde::Deserialize, zvariant::Type, zvariant::OwnedValue)]
+//!     #[derive(serde::Deserialize, zgvariant::Type, zgvariant::OwnedValue)]
 //!     struct SvgData {
 //!         size: u32,
 //!         flags: u32,
@@ -66,7 +66,7 @@
 //!
 //! ### `glib`
 //!
-//! By default this crate uses the [glib](https://crates.io/crates/zvariant) crate to allow reading
+//! By default this crate uses the [glib](https://crates.io/crates/zgvariant) crate to allow reading
 //! and writing `GVariant` data to the gvdb files. By enabling this feature you can pass GVariants
 //! directly from the glib crate as well.
 //!

@@ -248,10 +248,10 @@ mod test {
     #[test]
     fn simple_hash_table() {
         let mut table: SimpleHashTable = SimpleHashTable::with_n_buckets(10);
-        let item = HashValue::from_value(zvariant::Value::new("test_overwrite"));
+        let item = HashValue::from_value(zgvariant::Value::new("test_overwrite"));
         table.insert("test", item);
         assert_eq!(table.n_items(), 1);
-        let item2 = HashValue::from_value(zvariant::Value::new("test"));
+        let item2 = HashValue::from_value(zgvariant::Value::new("test"));
         table.insert("test", item2);
         assert_eq!(table.n_items(), 1);
         assert_eq!(
@@ -261,7 +261,7 @@ mod test {
                 .value_ref()
                 .encode_value(Endian::Big)
                 .unwrap(),
-            zvariant::Value::from(&"test").encode(Endian::Big).unwrap()
+            zgvariant::Value::from(&"test").encode(Endian::Big).unwrap()
         );
     }
 
@@ -271,7 +271,7 @@ mod test {
         for index in 0..20 {
             table.insert(
                 &format!("{index}"),
-                HashValue::from_value(zvariant::Value::new(index)),
+                HashValue::from_value(zgvariant::Value::new(index)),
             );
         }
 
@@ -279,7 +279,7 @@ mod test {
 
         for index in 0..20 {
             assert_eq!(
-                zvariant::Value::new(index).encode(Endian::Big).unwrap(),
+                zgvariant::Value::new(index).encode(Endian::Big).unwrap(),
                 table
                     .get(&format!("{index}"))
                     .unwrap()
@@ -308,7 +308,7 @@ mod test {
         for index in 0..20 {
             table.insert(
                 &format!("{index}"),
-                HashValue::from_value(zvariant::Value::new(index)),
+                HashValue::from_value(zgvariant::Value::new(index)),
             );
         }
 
@@ -333,7 +333,7 @@ mod test {
         for index in 0..20 {
             table.insert(
                 &format!("{index}"),
-                HashValue::from_value(zvariant::Value::new(index)),
+                HashValue::from_value(zgvariant::Value::new(index)),
             );
         }
 

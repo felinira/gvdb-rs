@@ -31,33 +31,33 @@ impl<'a> std::fmt::Debug for dyn EncodeVariant<'a> + 'a {
 
 impl<'a, T> VariantType for EncodeValue<T>
 where
-    T: zvariant::Type + EncodeVariant<'a>,
+    T: zgvariant::Type + EncodeVariant<'a>,
 {
     fn signature() -> String {
-        <zvariant::Value as zvariant::Type>::SIGNATURE.to_string()
+        <zgvariant::Value as zgvariant::Type>::SIGNATURE.to_string()
     }
 }
 
 impl<'a, T> EncodeVariant<'a> for T
 where
-    T: zvariant::Type + serde::Serialize + 'a,
+    T: zgvariant::Type + serde::Serialize + 'a,
 {
     fn encode(&self, endian: Endian) -> crate::write::Result<Box<[u8]>> {
-        let context = zvariant::serialized::Context::new_gvariant(endian.into(), 0);
-        Ok(Box::from(&*zvariant::to_bytes(context, self)?))
+        let context = zgvariant::serialized::Context::new(endian.into(), 0);
+        Ok(Box::from(&*zgvariant::to_bytes(context, self)?))
     }
 }
 
 impl<T> EncodeVariant<'_> for EncodeValue<T>
 where
-    T: zvariant::Type,
+    T: zgvariant::Type,
     T: serde::Serialize + std::fmt::Debug,
 {
     fn encode(&self, endian: Endian) -> crate::write::Result<Box<[u8]>> {
-        let context = zvariant::serialized::Context::new_gvariant(endian.into(), 0);
-        Ok(Box::from(&*zvariant::to_bytes(
+        let context = zgvariant::serialized::Context::new(endian.into(), 0);
+        Ok(Box::from(&*zgvariant::to_bytes(
             context,
-            &zvariant::SerializeValue(&self.0),
+            &zgvariant::as_value::Serialize(&self.0),
         )?))
     }
 }

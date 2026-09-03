@@ -173,14 +173,14 @@ mod test {
 
     #[test]
     fn derives() {
-        let value1: zvariant::Value = "test".into();
+        let value1: zgvariant::Value = "test".into();
         let item1 = HashValue::from_value(value1);
         println!("{item1:?}");
     }
 
     #[test]
     fn item_value() {
-        let value1: zvariant::Value = "test".into();
+        let value1: zgvariant::Value = "test".into();
         let item1 = HashValue::Value(Box::new(
             value1
                 .try_clone()
@@ -210,7 +210,7 @@ mod test {
 
     #[test]
     fn builder_item() {
-        let value1: zvariant::Value = "test".into();
+        let value1: zgvariant::Value = "test".into();
         let item1 = HashValue::from_value(value1);
         let item = HashItemBuilder::new("test", 0, item1);
         println!("{item:?}");
