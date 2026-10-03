@@ -155,7 +155,7 @@ impl<'a> FileData<'a> {
                         nesting -= 1;
                     }
                     quick_xml::events::Event::Text(text)
-                        if nesting == 0 && text.iter().any(|c| !c.is_ascii_whitespace()) => {
+                        if nesting == 0 && text.contains(|c: char| !c.is_ascii_whitespace()) => {
                             return true;
                         }
                     _ => {}
