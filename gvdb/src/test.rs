@@ -101,6 +101,7 @@ fn write_byte_rows(
     Ok(())
 }
 
+#[expect(clippy::unnecessary_to_owned)]
 pub fn assert_gvariant_eq(a: &[u8], b: &[u8], context: &str) {
     // Decode gvariant using glib, and diff using print()
     let a_var = glib::Variant::from_data::<glib::Variant, _>(a.to_vec());
