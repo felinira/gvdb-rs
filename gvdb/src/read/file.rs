@@ -55,7 +55,7 @@ impl<'a> Data<'a> {
 /// let file = File::from_file(&path).unwrap();
 /// let table = file.hash_table().unwrap();
 ///
-/// #[derive(serde::Deserialize, zgvariant::Type, zgvariant::OwnedValue)]
+/// #[derive(serde::Deserialize, zgvariant::Type, zgvariant::OwnedVariant)]
 /// struct SvgData {
 ///     size: u32,
 ///     flags: u32,

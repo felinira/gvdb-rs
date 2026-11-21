@@ -207,7 +207,7 @@ pub fn assert_is_file_1(file: &File) {
     assert_eq!(&names.next().unwrap().unwrap(), "root_key");
 
     let value = table.get_value("root_key").unwrap();
-    assert_matches!(value, zgvariant::Value::Structure(_));
+    assert_matches!(value, zgvariant::Variant::Structure(_));
     assert_eq!(value.value_signature(), "(uus)");
 
     let tuple = zgvariant::Structure::try_from(value).unwrap();
@@ -230,7 +230,7 @@ pub fn assert_is_file_2(file: &File) {
     assert_eq!(names[1], "table");
 
     let str_value = table.get_value("string").unwrap();
-    assert_matches!(str_value, zgvariant::Value::Str(_));
+    assert_matches!(str_value, zgvariant::Variant::Str(_));
     assert_eq!(<&str>::try_from(&str_value), Ok("test string"));
 
     let sub_table = table.get_hash_table("table").unwrap();
@@ -267,7 +267,7 @@ pub fn assert_is_file_3(file: &File) {
     ];
     assert_eq!(names, reference_names);
 
-    #[derive(Clone, zgvariant::Type, zgvariant::OwnedValue, serde::Deserialize)]
+    #[derive(Clone, zgvariant::Type, zgvariant::OwnedVariant, serde::Deserialize)]
     struct GResourceData {
         size: u32,
         flags: u32,
@@ -294,7 +294,7 @@ pub fn assert_is_file_3(file: &File) {
     let svg2 = table
         .get_value("/gvdb/rs/test/icons/scalable/actions/send-symbolic.svg")
         .unwrap();
-    assert_matches!(svg2, zgvariant::Value::Structure(_));
+    assert_matches!(svg2, zgvariant::Variant::Structure(_));
     let svg2_fields = zgvariant::Structure::try_from(svg2).unwrap().into_fields();
 
     let svg2_size = u32::try_from(&svg2_fields[0]).unwrap();

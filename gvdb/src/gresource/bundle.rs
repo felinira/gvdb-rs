@@ -297,7 +297,7 @@ impl std::cmp::Ord for FileData<'_> {
 ///
 /// The size is the *uncompressed* size and can be used for verification purposes.
 /// The flags only indicate whether a file is compressed or not. (Compressed = 1)
-#[derive(zgvariant::Type, zgvariant::Value, zgvariant::OwnedValue)]
+#[derive(zgvariant::Type, zgvariant::Variant, zgvariant::OwnedVariant)]
 pub struct Data {
     size: u32,
     flags: u32,
@@ -532,7 +532,7 @@ impl<'a> BundleBuilder<'a> {
                 data: file_data.data.to_vec(),
             };
 
-            table_builder.insert_value(file_data.key(), zgvariant::Value::from(data))?;
+            table_builder.insert_value(file_data.key(), zgvariant::Variant::from(data))?;
         }
 
         Ok(builder.write_to_vec_with_table(table_builder)?)
@@ -788,9 +788,9 @@ mod test {
 
         let sig = Data::SIGNATURE;
         assert_eq!(sig, "(uuay)");
-        let owned = zgvariant::OwnedValue::try_from(data).unwrap();
+        let owned = zgvariant::OwnedVariant::try_from(data).unwrap();
         let data = Data::try_from(owned).unwrap();
-        let value: zgvariant::Value = data.into();
+        let value: zgvariant::Variant = data.into();
         let _: Data = value.try_into().unwrap();
     }
 }

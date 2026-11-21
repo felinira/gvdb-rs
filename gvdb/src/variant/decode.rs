@@ -30,18 +30,18 @@ where
     fn decode(data: &'a [u8], endian: Endian) -> crate::read::Result<Self>;
 }
 
-fn zgvariant_deserialize(data: &[u8], endian: Endian) -> crate::read::Result<zgvariant::OwnedValue> {
+fn zgvariant_deserialize(data: &[u8], endian: Endian) -> crate::read::Result<zgvariant::OwnedVariant> {
     // This always allocates, but it's the best we can do with this API
     let context = zgvariant::serialized::Context::new(endian.into(), 0);
     let data = zgvariant::serialized::Data::new(data, context);
-    let value: zgvariant::OwnedValue = data.deserialize()?.0;
+    let value: zgvariant::OwnedVariant = data.deserialize()?.0;
     Ok(value)
 }
 
 impl<'a, T> DecodeVariant<'a> for T
 where
-    T: zgvariant::Type + serde::Deserialize<'a> + 'a + TryFrom<zgvariant::OwnedValue>,
-    <T as TryFrom<zgvariant::OwnedValue>>::Error: Into<zgvariant::Error>,
+    T: zgvariant::Type + serde::Deserialize<'a> + 'a + TryFrom<zgvariant::OwnedVariant>,
+    <T as TryFrom<zgvariant::OwnedVariant>>::Error: Into<zgvariant::Error>,
 {
     fn decode(data: &'a [u8], endian: Endian) -> crate::read::Result<Self> {
         let value = zgvariant_deserialize(data, endian)?;
@@ -62,13 +62,13 @@ where
         + serde::Deserialize<'a>
         + 'a
         + DecodeVariant<'a>
-        + TryFrom<zgvariant::OwnedValue>,
-    <T as TryFrom<zgvariant::OwnedValue>>::Error: Into<zgvariant::Error>,
+        + TryFrom<zgvariant::OwnedVariant>,
+    <T as TryFrom<zgvariant::OwnedVariant>>::Error: Into<zgvariant::Error>,
 {
     fn decode(data: &'a [u8], endian: Endian) -> crate::read::Result<Self> {
         let value = zgvariant_deserialize(data, endian)?;
-        let inner: zgvariant::OwnedValue =
-            value.downcast_ref::<zgvariant::Value>()?.try_to_owned()?;
+        let inner: zgvariant::OwnedVariant =
+            value.downcast_ref::<zgvariant::Variant>()?.try_to_owned()?;
         let signature = value.signature();
         Ok(DecodeValue::new(inner.try_into().map_err(|_e| {
             crate::read::Error::Data(format!(
