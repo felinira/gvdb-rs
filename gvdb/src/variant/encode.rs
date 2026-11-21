@@ -34,7 +34,7 @@ where
     T: zgvariant::Type + EncodeVariant<'a>,
 {
     fn signature() -> String {
-        <zgvariant::Value as zgvariant::Type>::SIGNATURE.to_string()
+        <zgvariant::Variant as zgvariant::Type>::SIGNATURE.to_string()
     }
 }
 

@@ -105,18 +105,18 @@ impl<'a> HashTableBuilder<'a> {
         Ok(())
     }
 
-    /// Insert Value `item` for `key`
+    /// Insert Variant `item` for `key`
     ///
     /// ```
-    /// use zgvariant::Value;
+    /// use zgvariant::Variant;
     /// let mut table_builder = gvdb::write::HashTableBuilder::new();
-    /// let variant = Value::new(123u32);
+    /// let variant = Variant::new(123u32);
     /// table_builder.insert_value("variant_123", variant);
     /// ```
     pub fn insert_value(
         &mut self,
         key: &(impl ToString + ?Sized),
-        value: zgvariant::Value<'a>,
+        value: zgvariant::Variant<'a>,
     ) -> Result<()> {
         let item = HashValue::from_value(value);
         self.insert_item_value(key, item)
@@ -126,7 +126,7 @@ impl<'a> HashTableBuilder<'a> {
     /// implements [`EncodeVariant`].
     ///
     /// ```
-    /// use zgvariant::Value;
+    /// use zgvariant::Variant;
     /// let mut table_builder = gvdb::write::HashTableBuilder::new();
     /// let value = 123u32;
     /// table_builder.insert("variant_123", value);
@@ -170,7 +170,7 @@ impl<'a> HashTableBuilder<'a> {
         key: &(impl ToString + ?Sized),
         string: &(impl ToString + ?Sized),
     ) -> Result<()> {
-        let variant = zgvariant::Value::new(string.to_string());
+        let variant = zgvariant::Variant::new(string.to_string());
         self.insert_value(key, variant)
     }
 
@@ -181,19 +181,19 @@ impl<'a> HashTableBuilder<'a> {
     /// table_builder.insert_bytes("bytes", &[1, 2, 3, 4, 5]);
     /// ```
     pub fn insert_bytes(&mut self, key: &(impl ToString + ?Sized), bytes: &'a [u8]) -> Result<()> {
-        let value = zgvariant::Value::new(bytes);
+        let value = zgvariant::Variant::new(bytes);
         self.insert_value(key, value)
     }
 
     /// Insert an entire hash table at `key`.
     ///
     /// ```
-    /// # use zgvariant::Value;
+    /// # use zgvariant::Variant;
     /// # use gvdb::write::HashTableBuilder;
     /// let mut table_builder = HashTableBuilder::new();
     /// let mut table_builder_2 = HashTableBuilder::new();
     /// table_builder_2
-    ///     .insert_value("int", Value::new(42u32))
+    ///     .insert_value("int", Variant::new(42u32))
     ///     .unwrap();
     ///
     /// table_builder
@@ -600,7 +600,7 @@ mod test {
         assert!(builder.is_empty());
         builder.insert_string("string", "Test").unwrap();
         builder
-            .insert_value("123", zgvariant::Value::new(123u32))
+            .insert_value("123", zgvariant::Variant::new(123u32))
             .unwrap();
         assert!(!builder.is_empty());
         assert_eq!(builder.len(), 2);
@@ -618,7 +618,7 @@ mod test {
                 .value_ref()
                 .encode_value(Endian::Little)
                 .unwrap(),
-            zgvariant::Value::new("Test").encode(Endian::Little).unwrap()
+            zgvariant::Variant::new("Test").encode(Endian::Little).unwrap()
         );
 
         assert_eq!(
@@ -628,7 +628,7 @@ mod test {
                 .value_ref()
                 .encode_value(Endian::Big)
                 .unwrap(),
-            zgvariant::Value::new(123u32).encode(Endian::Big).unwrap()
+            zgvariant::Variant::new(123u32).encode(Endian::Big).unwrap()
         );
 
         let item = table.get("table").unwrap();
@@ -648,7 +648,7 @@ mod test {
                 .value_ref()
                 .encode_value(Endian::Little)
                 .unwrap(),
-            zgvariant::Value::new(data).encode(Endian::Little).unwrap()
+            zgvariant::Variant::new(data).encode(Endian::Little).unwrap()
         );
     }
 
@@ -676,7 +676,7 @@ mod test {
         let value2 = 98765u32;
         let value3 = "TEST_STRING_VALUE";
         let tuple_data = (value1, value2, value3);
-        let variant = zgvariant::Value::new(tuple_data);
+        let variant = zgvariant::Variant::new(tuple_data);
         table_builder.insert_value("root_key", variant).unwrap();
         let root_index = file_builder.add_table_builder(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
@@ -718,7 +718,7 @@ mod test {
         let mut writer = FileWriter::new();
         let mut table_builder = HashTableBuilder::new();
 
-        let mut dict = BTreeMap::<&str, zgvariant::Value>::new();
+        let mut dict = BTreeMap::<&str, zgvariant::Variant>::new();
         dict.insert("key1", "value1".into());
         dict.insert("key2", 2u32.into());
         let value = ("arg0", dict);
@@ -766,7 +766,7 @@ mod test {
         let value2 = 98765u32;
         let value3 = "TEST_STRING_VALUE";
         let tuple_data = (value1, value2, value3);
-        let variant = zgvariant::Value::new(tuple_data);
+        let variant = zgvariant::Variant::new(tuple_data);
         table_builder.insert_value("root_key", variant).unwrap();
         let root_index = file_builder.add_table_builder(table_builder).unwrap().0;
         let bytes = file_builder.serialize_to_vec(root_index).unwrap();
@@ -946,7 +946,7 @@ mod test_glib {
         map_zgvariant.insert("k", "v");
         let ctxt = zgvariant::serialized::Context::new(zgvariant::LE, 0);
 
-        let data_zgvariant = zgvariant::to_bytes(ctxt, &zgvariant::Value::new(map_zgvariant)).unwrap();
+        let data_zgvariant = zgvariant::to_bytes(ctxt, &zgvariant::Variant::new(map_zgvariant)).unwrap();
 
         assert_gvariant_eq(data_glib, &data_zgvariant, "gvariant vs zgvariant");
     }

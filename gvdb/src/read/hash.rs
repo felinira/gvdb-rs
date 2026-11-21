@@ -343,23 +343,23 @@ impl<'table, 'file> HashTable<'table, 'file> {
         }
     }
 
-    /// Returns the data for `key` as a [`enum@zgvariant::Value`].
+    /// Returns the data for `key` as a [`enum@zgvariant::Variant`].
     ///
     /// Unless you need to inspect the value at runtime, it is recommended to use [`HashTable::get`].
-    pub fn get_value(&self, key: &str) -> Result<zgvariant::Value<'_>> {
+    pub fn get_value(&self, key: &str) -> Result<zgvariant::Variant<'_>> {
         let data = self.get_bytes(key)?;
 
-        zgvariant::Value::decode(data, self.file.endianness()).map_err(|err| {
+        zgvariant::Variant::decode(data, self.file.endianness()).map_err(|err| {
             Error::Data(format!(
                 "Error deserializing value for key \"{}\" as gvariant type \"{}\": {}",
                 key,
-                zgvariant::Value::signature(),
+                zgvariant::Variant::signature(),
                 err
             ))
         })
     }
 
-    /// Returns the data for `key` and try to deserialize a [`enum@zgvariant::Value`].
+    /// Returns the data for `key` and try to deserialize a [`enum@zgvariant::Variant`].
     ///
     /// Then try to extract an underlying `T`.
     pub fn get<'d, T>(&'d self, key: &str) -> Result<T>
@@ -504,7 +504,7 @@ pub struct Values<'a, 'table, 'file> {
 }
 
 impl<'table> Iterator for Values<'_, 'table, '_> {
-    type Item = Result<zgvariant::Value<'table>>;
+    type Item = Result<zgvariant::Variant<'table>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let item = loop {
@@ -521,7 +521,7 @@ impl<'table> Iterator for Values<'_, 'table, '_> {
 
         item.map(|item| {
             let bytes = self.hash_table.get_item_bytes(item)?;
-            zgvariant::Value::decode(bytes, self.endian)
+            zgvariant::Variant::decode(bytes, self.endian)
         })
     }
 
@@ -667,7 +667,7 @@ pub(crate) mod test {
             let file = new_simple_file(endianess);
             let table = file.hash_table().unwrap();
             let res = table.get_value(SIMPLE_FILE_KEY).unwrap();
-            assert_eq!(&res, &zgvariant::Value::from(SIMPLE_FILE_VALUE));
+            assert_eq!(&res, &zgvariant::Variant::from(SIMPLE_FILE_VALUE));
 
             let fail = table.get_value("fail").unwrap_err();
             assert_matches!(fail, Error::KeyNotFound(_));
